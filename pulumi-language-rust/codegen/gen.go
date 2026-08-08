@@ -549,8 +549,9 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 
 	// Output property accessors. Schema-secret properties are always
 	// surfaced as secrets, even while the value is unknown.
+	accessorNames := fieldNamesFor(r.Properties)
 	for _, p := range r.Properties {
-		accessor := fieldName(p.Name)
+		accessor := accessorNames[p.Name]
 		switch accessor {
 		case "new", "urn", "id", "pulumi_resource":
 			accessor += "_"

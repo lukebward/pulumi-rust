@@ -17,6 +17,7 @@ package codegen
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -253,7 +254,7 @@ func (g *programGenerator) refVar(pclName string) string {
 func (g *programGenerator) genConfigVariable(w *bytes.Buffer, cfg *pcl.ConfigVariable) {
 	key := cfg.LogicalName()
 	kind := "object"
-	switch cfg.Type() {
+	switch pcl.UnwrapOption(cfg.Type()) {
 	case model.StringType:
 		kind = "string"
 	case model.NumberType:
@@ -445,6 +446,7 @@ func (g *programGenerator) genBuiltinResource(w *bytes.Buffer, r *pcl.Resource) 
 	}
 	name := g.declareVar(r.Name())
 	g.builtinVars[name] = true
+	g.declaredVars = append(g.declaredVars, name)
 	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: true, remote: false, version: String::new(), plugin_download_url: String::new(), inputs: vec![%s], options: %s });\n",
 		name, rustString(canonical), rustString(r.LogicalName()),
 		strings.Join(inputs, ", "), g.resourceOptions(r))
@@ -498,8 +500,11 @@ func (g *programGenerator) genStackReference(w *bytes.Buffer, r *pcl.Resource) {
 		g.errorf(r.Definition.Syntax.DefRange(), "stack reference requires a name input")
 		nameExpr = "pulumi::pv::null()"
 	}
+	name := g.declareVar(r.Name())
+	g.builtinVars[name] = true
+	g.declaredVars = append(g.declaredVars, name)
 	fmt.Fprintf(w, "let %s = pulumi::StackReference::new(&ctx, %s, %s, %s);\n",
-		g.declareVar(r.Name()), rustString(r.LogicalName()), nameExpr, g.resourceOptions(r))
+		name, rustString(r.LogicalName()), nameExpr, g.resourceOptions(r))
 }
 
 // typedArgsLiteral renders `Path { field: value, ... }` for a set of schema
@@ -584,7 +589,7 @@ func (g *programGenerator) typedInput(
 			if object, ok := shape.(*model.ObjectConsExpression); ok {
 				var elems []string
 				for _, item := range object.Items {
-					key, ok := literalString(item.Key)
+					key, ok := keyString(item.Key)
 					if !ok {
 						g.errorf(subject, "expected a literal key for property %q", p.Name)
 						continue
@@ -624,7 +629,7 @@ func (g *programGenerator) typedObjectLiteral(
 
 	var inputs []*model.Attribute
 	for _, item := range object.Items {
-		key, ok := literalString(item.Key)
+		key, ok := keyString(item.Key)
 		if !ok {
 			g.errorf(subject, "expected a literal key in object literal")
 			continue
@@ -673,7 +678,7 @@ func (g *programGenerator) plainLiteral(expr model.Expression, t schema.Type, su
 		if object, ok := expr.(*model.ObjectConsExpression); ok {
 			var elems []string
 			for _, item := range object.Items {
-				key, ok := literalString(item.Key)
+				key, ok := keyString(item.Key)
 				if !ok {
 					continue
 				}
@@ -802,6 +807,8 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 	if opts.Version != nil {
 		if s, ok := literalString(opts.Version); ok {
 			setField("version", rustString(s)+".to_string()")
+		} else {
+			g.errorf(subject, "unsupported version expression")
 		}
 	}
 	if opts.PluginDownloadURL != nil {
@@ -814,13 +821,15 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 	if opts.ImportID != nil {
 		if s, ok := literalString(opts.ImportID); ok {
 			setField("import_id", rustString(s)+".to_string()")
+		} else {
+			g.errorf(subject, "unsupported import expression")
 		}
 	}
 	if opts.CustomTimeouts != nil {
 		if object, ok := unwrapConvert(opts.CustomTimeouts).(*model.ObjectConsExpression); ok {
 			var parts []string
 			for _, item := range object.Items {
-				key, ok := literalString(item.Key)
+				key, ok := keyString(item.Key)
 				if !ok {
 					g.errorf(subject, "unsupported customTimeouts key")
 					continue
@@ -856,7 +865,7 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 			}
 		case *model.ObjectConsExpression:
 			for _, item := range v.Items {
-				key, ok := literalString(item.Key)
+				key, ok := keyString(item.Key)
 				if !ok {
 					g.errorf(subject, "unsupported providers key")
 					continue
@@ -1011,7 +1020,7 @@ func (g *programGenerator) expr(expr model.Expression) string {
 	case *model.ObjectConsExpression:
 		var elems []string
 		for _, item := range expr.Items {
-			key, ok := literalString(item.Key)
+			key, ok := keyString(item.Key)
 			if !ok {
 				g.errorf(expr.SyntaxNode().Range(), "unsupported non-literal object key")
 				continue
@@ -1250,7 +1259,7 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 		if object, ok := expr.Args[0].(*model.ObjectConsExpression); ok {
 			var elems []string
 			for _, item := range object.Items {
-				key, ok := literalString(item.Key)
+				key, ok := keyString(item.Key)
 				if !ok {
 					continue
 				}
@@ -1453,6 +1462,11 @@ func (g *programGenerator) splatExpr(expr *model.SplatExpression) string {
 func (g *programGenerator) captureClones(bodies []string) string {
 	captured := map[string]bool{}
 	candidates := append([]string{"ctx"}, g.declaredVars...)
+	// Enclosing for/splat closure parameters are captured too when nested.
+	for _, mapped := range g.scopeVars {
+		candidates = append(candidates, mapped)
+	}
+	sort.Strings(candidates[1:])
 	for _, body := range bodies {
 		for _, v := range candidates {
 			if containsIdent(body, v) {
@@ -1508,7 +1522,7 @@ func (g *programGenerator) invokeExpr(expr *model.FunctionCallExpression) string
 		}
 		if object, ok := unwrapConvert(expr.Args[1]).(*model.ObjectConsExpression); ok {
 			for _, item := range object.Items {
-				key, ok := literalString(item.Key)
+				key, ok := keyString(item.Key)
 				if !ok {
 					g.errorf(subject, "invoke arguments must use literal keys")
 					continue
@@ -1535,7 +1549,7 @@ func (g *programGenerator) invokeOptions(expr model.Expression, subject hcl.Rang
 	}
 	var fields []string
 	for _, item := range object.Items {
-		key, ok := literalString(item.Key)
+		key, ok := keyString(item.Key)
 		if !ok {
 			continue
 		}
@@ -1648,7 +1662,7 @@ func (g *programGenerator) plainPropertyValue(expr model.Expression) (string, bo
 	case *model.ObjectConsExpression:
 		var elems []string
 		for _, item := range expr.Items {
-			key, ok := literalString(item.Key)
+			key, ok := keyString(item.Key)
 			if !ok {
 				return "", false
 			}
@@ -1712,6 +1726,8 @@ func conversionKind(t model.Type) string {
 }
 
 // literalString extracts a static string from literal/template expressions.
+// Variable references are NOT literals: a value position referencing a
+// variable must not collapse to the variable's name.
 func literalString(expr model.Expression) (string, bool) {
 	expr = unwrapConvert(expr)
 	switch expr := expr.(type) {
@@ -1723,11 +1739,18 @@ func literalString(expr model.Expression) (string, bool) {
 		if len(expr.Parts) == 1 {
 			return literalString(expr.Parts[0])
 		}
-	case *model.ScopeTraversalExpression:
-		// Bare identifiers used as object keys parse as traversals.
-		if len(expr.Traversal) == 1 {
-			return expr.RootName, true
-		}
+	}
+	return "", false
+}
+
+// keyString extracts a static string in KEY positions, where HCL parses
+// bare identifiers as single-part traversals.
+func keyString(expr model.Expression) (string, bool) {
+	if s, ok := literalString(expr); ok {
+		return s, true
+	}
+	if scope, ok := unwrapConvert(expr).(*model.ScopeTraversalExpression); ok && len(scope.Traversal) == 1 {
+		return scope.RootName, true
 	}
 	return "", false
 }
@@ -1741,6 +1764,14 @@ func literalBool(expr model.Expression) (bool, bool) {
 
 // formatFloat renders a float as a valid Rust f64 literal.
 func formatFloat(f float64) string {
+	switch {
+	case math.IsNaN(f):
+		return "f64::NAN"
+	case math.IsInf(f, 1):
+		return "f64::INFINITY"
+	case math.IsInf(f, -1):
+		return "f64::NEG_INFINITY"
+	}
 	s := strconv.FormatFloat(f, 'g', -1, 64)
 	if !strings.ContainsAny(s, ".eE") {
 		s += ".0"

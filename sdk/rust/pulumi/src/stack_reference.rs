@@ -36,6 +36,11 @@ impl StackReference {
         &self.resource
     }
 
+    /// Raw access to an output property of the stack-reference resource.
+    pub fn output(&self, name: &str) -> Output<PropertyValue> {
+        self.resource.output(name)
+    }
+
     pub fn urn(&self) -> Output<String> {
         self.resource.urn()
     }

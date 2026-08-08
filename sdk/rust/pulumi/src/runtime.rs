@@ -94,11 +94,20 @@ pub async fn connect_context(settings: RunSettings) -> Result<Context> {
         )
     };
 
-    let features = Features {
+    let mut features = Features {
         secrets: supports_feature(&mut monitor, "secrets").await?,
         resource_references: supports_feature(&mut monitor, "resourceReferences").await?,
         output_values: supports_feature(&mut monitor, "outputValues").await?,
+        invoke_depends_on: false,
     };
+    // Newer monitors advertise protocol features through GetDeploymentInfo;
+    // older ones return Unimplemented, which leaves the flags off.
+    if let Ok(info) = monitor.get_deployment_info(()).await {
+        let info = info.into_inner();
+        features.invoke_depends_on = info.supported_features.iter().any(|f| {
+            *f == pulumirpc::ResourceMonitorFeature::InvokeDependsOn as i32
+        });
+    }
 
     let config = Config::new(
         settings.config.clone(),

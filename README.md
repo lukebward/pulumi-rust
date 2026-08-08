@@ -8,6 +8,14 @@ test suite](https://github.com/pulumi/pulumi/tree/master/pkg/testing/pulumi-test
 > Status: experimental. Built as an exploration of what a conformance-tested
 > Rust language implementation looks like. Not an official Pulumi project.
 
+**Conformance status** (pulumi/pulumi v3.256.0 suite, 180 tests): **119
+pass**, 47 skipped for named unimplemented features (see
+`expectedFailures` in `language_test.go`), and the `policy-*`/`provider-*`
+families (14) are skipped wholesale like other out-of-tree languages do
+while onboarding. Every non-skipped test passes, including the full
+`l1-*` output/config/builtin set, `l2` resources/invokes/options/secrets/
+assets/reads, and `l3` for/splat programs.
+
 ## What's here
 
 | Component | Path | Description |

@@ -21,6 +21,9 @@ pub struct Features {
     pub secrets: bool,
     pub resource_references: bool,
     pub output_values: bool,
+    /// The monitor gates invokes on the created-ness of their declared
+    /// dependencies (RESOURCE_MONITOR_FEATURE_INVOKE_DEPENDS_ON).
+    pub invoke_depends_on: bool,
 }
 
 /// Settings for a program run, prepared by [`crate::runtime::run`].
@@ -680,9 +683,13 @@ async fn do_invoke(
         deps.push(urn);
     }
 
-    if !known || (inner.settings.dry_run && !deps.is_empty()) {
-        // Can't invoke with unknown arguments; and during previews an invoke
-        // depending on not-yet-created resources must be skipped entirely.
+    // Can't invoke with unknown arguments. On monitors without the
+    // INVOKE_DEPENDS_ON gate, conservatively skip previews of invokes that
+    // depend on other resources; gating monitors sequence these themselves
+    // and answer `unknown` while dependencies are pending.
+    if !known
+        || (inner.settings.dry_run && !deps.is_empty() && !inner.features.invoke_depends_on)
+    {
         return Ok(OutputData { value: PropertyValue::Computed, secret, deps });
     }
 
