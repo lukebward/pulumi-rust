@@ -196,6 +196,98 @@ pub fn to_string(a: Output<PropertyValue>) -> Output<PropertyValue> {
     })
 }
 
+/// Entries of a collection for `for`-expression evaluation: (key, value)
+/// output pairs. Arrays yield numeric keys; objects yield their keys.
+fn collection_entries(v: &PropertyValue) -> Vec<(PropertyValue, PropertyValue)> {
+    match v {
+        PropertyValue::Array(a) => a
+            .iter()
+            .enumerate()
+            .map(|(i, e)| (PropertyValue::Number(i as f64), e.clone()))
+            .collect(),
+        PropertyValue::Object(m) => m
+            .iter()
+            .map(|(k, e)| (PropertyValue::String(k.clone()), e.clone()))
+            .collect(),
+        _ => vec![],
+    }
+}
+
+/// Evaluate a PCL `for` expression producing a list: `[for k, v in coll :
+/// value(k, v) if cond(k, v)]`.
+pub fn for_array(
+    coll: Output<PropertyValue>,
+    cond: impl Fn(Output<PropertyValue>, Output<PropertyValue>) -> Output<PropertyValue>
+        + Send
+        + 'static,
+    value: impl Fn(Output<PropertyValue>, Output<PropertyValue>) -> Output<PropertyValue>
+        + Send
+        + 'static,
+) -> Output<PropertyValue> {
+    Output::from_data_future(async move {
+        let dc = coll.data().await;
+        if matches!(dc.value, PropertyValue::Computed) {
+            return dc;
+        }
+        let mut items = vec![];
+        let mut deps = dc.deps.clone();
+        for (k, v) in collection_entries(&dc.value) {
+            let k = Output::from_value(k);
+            let v = Output::from_value(v);
+            let keep = cond(k.clone(), v.clone()).data().await;
+            deps.extend(keep.deps.clone());
+            if !matches!(keep.value, PropertyValue::Bool(true)) {
+                continue;
+            }
+            let dv = value(k, v).data().await;
+            deps.extend(dv.deps.clone());
+            items.push(dv.into_value());
+        }
+        OutputData { value: PropertyValue::Array(items), secret: dc.secret, deps }
+    })
+}
+
+/// Evaluate a PCL `for` expression producing an object: `{for k, v in coll :
+/// key(k, v) => value(k, v) if cond(k, v)}`.
+pub fn for_object(
+    coll: Output<PropertyValue>,
+    cond: impl Fn(Output<PropertyValue>, Output<PropertyValue>) -> Output<PropertyValue>
+        + Send
+        + 'static,
+    key: impl Fn(Output<PropertyValue>, Output<PropertyValue>) -> Output<PropertyValue>
+        + Send
+        + 'static,
+    value: impl Fn(Output<PropertyValue>, Output<PropertyValue>) -> Output<PropertyValue>
+        + Send
+        + 'static,
+) -> Output<PropertyValue> {
+    Output::from_data_future(async move {
+        let dc = coll.data().await;
+        if matches!(dc.value, PropertyValue::Computed) {
+            return dc;
+        }
+        let mut map = std::collections::BTreeMap::new();
+        let mut deps = dc.deps.clone();
+        for (k, v) in collection_entries(&dc.value) {
+            let k = Output::from_value(k);
+            let v = Output::from_value(v);
+            let keep = cond(k.clone(), v.clone()).data().await;
+            deps.extend(keep.deps.clone());
+            if !matches!(keep.value, PropertyValue::Bool(true)) {
+                continue;
+            }
+            let dk = key(k.clone(), v.clone()).data().await;
+            deps.extend(dk.deps.clone());
+            let dv = value(k, v).data().await;
+            deps.extend(dv.deps.clone());
+            if let PropertyValue::String(ks) = dk.value {
+                map.insert(ks, dv.into_value());
+            }
+        }
+        OutputData { value: PropertyValue::Object(map), secret: dc.secret, deps }
+    })
+}
+
 /// Index with a dynamic key. A container with unknown elements can still be
 /// indexed; only a wholly-unknown container (or key) is opaque.
 pub fn index(target: Output<PropertyValue>, key: Output<PropertyValue>) -> Output<PropertyValue> {

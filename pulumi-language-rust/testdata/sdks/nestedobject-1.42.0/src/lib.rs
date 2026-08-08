@@ -21,6 +21,7 @@ impl ContainerArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct Container {
     resource: pulumi::Resource,
 }
@@ -81,6 +82,7 @@ impl MapContainerArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct MapContainer {
     resource: pulumi::Resource,
 }
@@ -137,6 +139,7 @@ impl ReceiverArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct Receiver {
     resource: pulumi::Resource,
 }
@@ -193,6 +196,7 @@ impl TargetArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct Target {
     resource: pulumi::Resource,
 }
@@ -244,6 +248,7 @@ impl ProviderArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct Provider {
     resource: pulumi::Resource,
 }

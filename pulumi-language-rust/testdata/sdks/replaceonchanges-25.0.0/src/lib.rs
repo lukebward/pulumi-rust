@@ -16,6 +16,7 @@ impl ProviderArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct Provider {
     resource: pulumi::Resource,
 }
@@ -72,12 +73,15 @@ impl ResourceAArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct ResourceA {
     resource: pulumi::Resource,
 }
 
 impl ResourceA {
     pub fn new(ctx: &pulumi::Context, name: &str, args: ResourceAArgs, options: pulumi::ResourceOptions) -> ResourceA {
+        let mut options = options;
+        options.replace_on_changes.push("replaceProp".to_string());
         let resource = ctx.register_resource(pulumi::RegisterRequest {
             type_: "replaceonchanges:index:ResourceA".to_string(),
             name: name.to_string(),
@@ -132,6 +136,7 @@ impl ResourceBArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct ResourceB {
     resource: pulumi::Resource,
 }

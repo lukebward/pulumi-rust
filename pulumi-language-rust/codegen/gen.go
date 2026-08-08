@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
@@ -248,6 +249,9 @@ type inputField struct {
 	optional bool
 	secret   bool
 	conv     string // template converting expression %s to Output<PropertyValue>
+	// defaultValue, when non-empty, is a PropertyValue expression used when
+	// an optional input is unset (schema default).
+	defaultValue string
 }
 
 // inputFieldFor computes the Rust representation of an input property.
@@ -256,6 +260,9 @@ func (g *pkgGenerator) inputFieldFor(p *schema.Property, qualify string) inputFi
 		rustName: fieldName(p.Name),
 		wireName: p.Name,
 		secret:   p.Secret,
+	}
+	if p.DefaultValue != nil && p.DefaultValue.Value != nil {
+		f.defaultValue = plainConstValue(p.DefaultValue.Value)
 	}
 	t := p.Type
 	if opt, ok := t.(*schema.OptionalType); ok {
@@ -370,6 +377,10 @@ func (g *pkgGenerator) writeArgsStruct(
 		if f.optional {
 			fmt.Fprintf(w, "        if let Some(v) = self.%s {\n", f.rustName)
 			fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, conv)
+			if f.defaultValue != "" {
+				fmt.Fprintf(w, "        } else {\n")
+				fmt.Fprintf(w, "            inputs.push((%q.to_string(), pulumi::Output::from_value(%s)));\n", f.wireName, f.defaultValue)
+			}
 			fmt.Fprintf(w, "        }\n")
 		} else {
 			fmt.Fprintf(w, "        {\n")
@@ -410,6 +421,29 @@ func (g *pkgGenerator) writeOutputStruct(
 	fmt.Fprintf(w, "}\n\n")
 }
 
+// plainConstValue renders a schema constant as a PropertyValue expression.
+func plainConstValue(v any) string {
+	switch v := v.(type) {
+	case bool:
+		return fmt.Sprintf("pulumi::PropertyValue::Bool(%v)", v)
+	case int:
+		return fmt.Sprintf("pulumi::PropertyValue::Number(%v.0)", v)
+	case int32:
+		return fmt.Sprintf("pulumi::PropertyValue::Number(%v.0)", v)
+	case int64:
+		return fmt.Sprintf("pulumi::PropertyValue::Number(%v.0)", v)
+	case float64:
+		s := strconv.FormatFloat(v, 'g', -1, 64)
+		if !strings.ContainsAny(s, ".eE") {
+			s += ".0"
+		}
+		return fmt.Sprintf("pulumi::PropertyValue::Number(%s)", s)
+	case string:
+		return fmt.Sprintf("pulumi::PropertyValue::String(%q.to_string())", v)
+	}
+	return ""
+}
+
 // resourceTypeToken returns the registration token for a resource.
 func (g *pkgGenerator) resourceTypeToken(r *schema.Resource) string {
 	if r.IsProvider {
@@ -432,6 +466,7 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 
 	g.writeArgsStruct(w, argsName, r.InputProperties, qualify, true)
 
+	fmt.Fprintf(w, "#[derive(Clone)]\n")
 	fmt.Fprintf(w, "pub struct %s {\n", name)
 	fmt.Fprintf(w, "    resource: pulumi::Resource,\n")
 	fmt.Fprintf(w, "}\n\n")
@@ -445,13 +480,22 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 			secretOutputs = append(secretOutputs, p.Name)
 		}
 	}
+	var replaceOnChanges []string
+	for _, p := range r.InputProperties {
+		if p.ReplaceOnChanges {
+			replaceOnChanges = append(replaceOnChanges, p.Name)
+		}
+	}
 
 	fmt.Fprintf(w, "impl %s {\n", name)
 	fmt.Fprintf(w, "    pub fn new(ctx: &pulumi::Context, name: &str, args: %s, options: pulumi::ResourceOptions) -> %s {\n", argsName, name)
-	if len(secretOutputs) > 0 {
+	if len(secretOutputs) > 0 || len(replaceOnChanges) > 0 {
 		fmt.Fprintf(w, "        let mut options = options;\n")
 		for _, p := range secretOutputs {
 			fmt.Fprintf(w, "        options.additional_secret_outputs.push(%q.to_string());\n", p)
+		}
+		for _, p := range replaceOnChanges {
+			fmt.Fprintf(w, "        options.replace_on_changes.push(%q.to_string());\n", p)
 		}
 	}
 	fmt.Fprintf(w, "        let resource = ctx.register_resource(pulumi::RegisterRequest {\n")

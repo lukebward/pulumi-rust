@@ -4,24 +4,24 @@
 #[derive(Clone, Debug)]
 pub struct ComponentArgs {
     pub resource: pulumi::PropertyValue,
-    pub resource_list: Vec<pulumi::PropertyValue>,
-    pub resource_map: std::collections::BTreeMap<String, pulumi::PropertyValue>,
+    pub resource_list: std::vec::Vec<pulumi::PropertyValue>,
+    pub resource_map: std::collections::BTreeMap<std::string::String, pulumi::PropertyValue>,
 }
 
 impl ComponentArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.resource;
-            inputs.push(("resource".to_string(), pulumi::Output::known(v)));
+            inputs.push(("resource".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
         }
         {
             let v = self.resource_list;
-            inputs.push(("resourceList".to_string(), pulumi::Output::known(v)));
+            inputs.push(("resourceList".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
         }
         {
             let v = self.resource_map;
-            inputs.push(("resourceMap".to_string(), pulumi::Output::known(v)));
+            inputs.push(("resourceMap".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
         }
         inputs
     }
@@ -54,23 +54,23 @@ impl Component {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn property_deps(&self) -> pulumi::Output<std::collections::BTreeMap<String, Vec<String>>> {
+    pub fn property_deps(&self) -> pulumi::Output<std::collections::BTreeMap<std::string::String, std::vec::Vec<std::string::String>>> {
         self.resource.output("propertyDeps").cast()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct CustomArgs {
-    pub value: pulumi::Output<String>,
+    pub value: pulumi::Output<std::string::String>,
 }
 
 impl CustomArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.value;
             inputs.push(("value".to_string(), v.cast()));
@@ -106,15 +106,15 @@ impl Custom {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn value(&self) -> pulumi::Output<String> {
+    pub fn value(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("value").cast()
     }
 }
@@ -124,8 +124,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -157,11 +157,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }

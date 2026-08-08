@@ -6,8 +6,8 @@ pub struct GoodbyeWorldArgs {
 }
 
 impl GoodbyeWorldArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -39,15 +39,15 @@ impl GoodbyeWorld {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn parameter_value(&self) -> pulumi::Output<String> {
+    pub fn parameter_value(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("parameterValue").cast()
     }
 }
@@ -57,8 +57,8 @@ pub struct GoodbyeWorldComponentArgs {
 }
 
 impl GoodbyeWorldComponentArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -90,23 +90,23 @@ impl GoodbyeWorldComponent {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn parameter_value(&self) -> pulumi::Output<String> {
+    pub fn parameter_value(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("parameterValue").cast()
     }
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct ProviderArgs {
-    pub text: Option<pulumi::Output<String>>,
+    pub text: Option<pulumi::Output<std::string::String>>,
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         if let Some(v) = self.text {
             inputs.push(("text".to_string(), v.cast()));
         }
@@ -141,23 +141,23 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct DoGoodbyeWorldArgs {
-    pub input: pulumi::Output<String>,
+    pub input: pulumi::Output<std::string::String>,
 }
 
 impl DoGoodbyeWorldArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.input;
             inputs.push(("input".to_string(), v.cast()));
@@ -181,7 +181,7 @@ pub fn do_goodbye_world(ctx: &pulumi::Context, args: DoGoodbyeWorldArgs, options
 pub mod types {
     #[derive(Clone, Debug)]
     pub struct DoGoodbyeWorldResult {
-        pub output: String,
+        pub output: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for DoGoodbyeWorldResult {

@@ -6,8 +6,8 @@ pub struct GreetingArgs {
 }
 
 impl GreetingArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -39,15 +39,15 @@ impl Greeting {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn parameter_value(&self) -> pulumi::Output<String> {
+    pub fn parameter_value(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("parameterValue").cast()
     }
 }
@@ -57,8 +57,8 @@ pub struct GreetingComponentArgs {
 }
 
 impl GreetingComponentArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -90,23 +90,23 @@ impl GreetingComponent {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn parameter_value(&self) -> pulumi::Output<String> {
+    pub fn parameter_value(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("parameterValue").cast()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct GreetArgs {
-    pub name: pulumi::Output<String>,
+    pub name: pulumi::Output<std::string::String>,
 }
 
 impl GreetArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.name;
             inputs.push(("name".to_string(), v.cast()));
@@ -130,7 +130,7 @@ pub fn greet(ctx: &pulumi::Context, args: GreetArgs, options: pulumi::InvokeOpti
 pub mod types {
     #[derive(Clone, Debug)]
     pub struct GreetResult {
-        pub greeting: String,
+        pub greeting: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for GreetResult {

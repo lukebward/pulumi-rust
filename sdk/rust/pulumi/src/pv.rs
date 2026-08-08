@@ -346,13 +346,42 @@ fn fold_numbers(
     array(items)
         .cast::<Vec<PropertyValue>>()
         .map(move |vals| {
-            let mut acc = init;
+            // Splat-expanded final arguments arrive as nested lists;
+            // flatten one level so max([1, 2, 3]...) works.
+            let mut flat = vec![];
             for v in vals {
-                if let PropertyValue::Number(n) = strip_wrappers(&v) {
+                match strip_wrappers(&v) {
+                    PropertyValue::Array(inner) => {
+                        flat.extend(inner.iter().map(strip_wrappers))
+                    }
+                    other => flat.push(other),
+                }
+            }
+            let mut acc = init;
+            for v in flat {
+                if let PropertyValue::Number(n) = v {
                     acc = f(acc, n);
                 }
             }
             PropertyValue::Number(acc)
+        })
+        .cast()
+}
+
+/// The resource name embedded in a URN (PCL `pulumiResourceName`).
+pub fn urn_name(urn: Output<PropertyValue>) -> Output<PropertyValue> {
+    urn.cast::<String>()
+        .map(|u: String| u.rsplit("::").next().unwrap_or_default().to_string())
+        .cast()
+}
+
+/// The resource type token embedded in a URN (PCL `pulumiResourceType`).
+pub fn urn_type(urn: Output<PropertyValue>) -> Output<PropertyValue> {
+    urn.cast::<String>()
+        .map(|u: String| {
+            let parts: Vec<&str> = u.split("::").collect();
+            let ty = parts.get(2).copied().unwrap_or_default();
+            ty.rsplit('$').next().unwrap_or_default().to_string()
         })
         .cast()
 }

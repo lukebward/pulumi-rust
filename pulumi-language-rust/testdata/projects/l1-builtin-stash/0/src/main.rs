@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let my_stash = pulumi_pulumi::Stash::new(&ctx, "myStash", pulumi_pulumi::StashArgs { input: pulumi::pv::object(vec![("key".to_string(), pulumi::pv::array(vec![pulumi::pv::string("value"), pulumi::pv::string("s")])), ("".to_string(), pulumi::pv::bool(false))]).cast() }, pulumi::ResourceOptions::default());
-        ctx.export("stashInput", my_stash.input().cast::<pulumi::PropertyValue>());
-        ctx.export("stashOutput", my_stash.output().cast::<pulumi::PropertyValue>());
+        let my_stash = ctx.register_resource(pulumi::RegisterRequest { type_: "pulumi:index:Stash".to_string(), name: "myStash".to_string(), custom: true, remote: false, version: String::new(), plugin_download_url: String::new(), inputs: vec![("input".to_string(), pulumi::pv::object(vec![("key".to_string(), pulumi::pv::array(vec![pulumi::pv::string("value"), pulumi::pv::string("s")])), ("".to_string(), pulumi::pv::bool(false))]))], options: pulumi::ResourceOptions::default() });
+        ctx.export("stashInput", my_stash.output("input"));
+        ctx.export("stashOutput", my_stash.output("output"));
         Ok(())
     });
 }

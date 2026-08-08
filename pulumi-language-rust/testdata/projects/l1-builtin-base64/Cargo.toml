@@ -1,0 +1,9 @@
+[package]
+name = "l1-builtin-base64"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+
+[workspace]

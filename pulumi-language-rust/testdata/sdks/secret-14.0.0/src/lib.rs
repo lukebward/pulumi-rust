@@ -142,27 +142,27 @@ impl Resource {
     }
 
     pub fn private(&self) -> pulumi::Output<std::string::String> {
-        self.resource.output("private").cast()
+        self.resource.output("private").as_secret().cast()
     }
 
     pub fn private_array(&self) -> pulumi::Output<std::vec::Vec<std::string::String>> {
-        self.resource.output("privateArray").cast()
+        self.resource.output("privateArray").as_secret().cast()
     }
 
     pub fn private_data(&self) -> pulumi::Output<crate::types::Data> {
-        self.resource.output("privateData").cast()
+        self.resource.output("privateData").as_secret().cast()
     }
 
     pub fn private_data_array(&self) -> pulumi::Output<std::vec::Vec<crate::types::Data>> {
-        self.resource.output("privateDataArray").cast()
+        self.resource.output("privateDataArray").as_secret().cast()
     }
 
     pub fn private_data_map(&self) -> pulumi::Output<std::collections::BTreeMap<std::string::String, crate::types::Data>> {
-        self.resource.output("privateDataMap").cast()
+        self.resource.output("privateDataMap").as_secret().cast()
     }
 
     pub fn private_map(&self) -> pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>> {
-        self.resource.output("privateMap").cast()
+        self.resource.output("privateMap").as_secret().cast()
     }
 
     pub fn public(&self) -> pulumi::Output<std::string::String> {

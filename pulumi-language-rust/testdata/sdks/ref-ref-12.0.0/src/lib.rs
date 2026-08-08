@@ -16,6 +16,7 @@ impl ProviderArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct Provider {
     resource: pulumi::Resource,
 }
@@ -68,6 +69,7 @@ impl ResourceArgs {
     }
 }
 
+#[derive(Clone)]
 pub struct Resource {
     resource: pulumi::Resource,
 }

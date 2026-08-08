@@ -6,8 +6,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -39,11 +39,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
@@ -51,13 +51,13 @@ impl Provider {
 pub mod cool_module {
     #[derive(Clone, Debug)]
     pub struct SomeResourceArgs {
-        pub resource_name: Option<pulumi::Output<String>>,
+        pub resource_name: Option<pulumi::Output<std::string::String>>,
         pub the_input: pulumi::Output<bool>,
     }
 
     impl SomeResourceArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.resource_name {
                 inputs.push(("resourceName".to_string(), v.cast()));
             }
@@ -96,15 +96,15 @@ pub mod cool_module {
             &self.resource
         }
 
-        pub fn urn(&self) -> pulumi::Output<String> {
+        pub fn urn(&self) -> pulumi::Output<std::string::String> {
             self.resource.urn()
         }
 
-        pub fn id(&self) -> pulumi::Output<String> {
+        pub fn id(&self) -> pulumi::Output<std::string::String> {
             self.resource.id()
         }
 
-        pub fn resource_name(&self) -> pulumi::Output<Option<String>> {
+        pub fn resource_name(&self) -> pulumi::Output<Option<std::string::String>> {
             self.resource.output("resourceName").cast()
         }
 

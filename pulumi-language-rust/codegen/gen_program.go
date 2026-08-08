@@ -136,6 +136,12 @@ type programGenerator struct {
 	// builtinVars tracks variables bound to raw pulumi builtin resources
 	// (e.g. pulumi:index:Stash), which use dynamic property accessors.
 	builtinVars map[string]bool
+	// scopeVars maps for-expression iteration variables to closure params.
+	scopeVars map[string]string
+	// declaredVars records program variables, for closure capture cloning.
+	declaredVars []string
+	// forDepth numbers nested for-expressions for unique closure params.
+	forDepth int
 }
 
 func newProgramGenerator(program *pcl.Program) *programGenerator {
@@ -143,6 +149,7 @@ func newProgramGenerator(program *pcl.Program) *programGenerator {
 		program:         program,
 		functionSchemas: map[string]*schema.Function{},
 		builtinVars:     map[string]bool{},
+		scopeVars:       map[string]string{},
 	}
 }
 
@@ -177,6 +184,10 @@ func (g *programGenerator) generate() ([]byte, hcl.Diagnostics) {
 			g.genReadResource(&body, n)
 		case *pcl.Component:
 			g.errorf(n.Definition.Syntax.DefRange(), "components are not yet supported by the Rust program generator")
+		case *pcl.PulumiBlock:
+			if n.RequiredVersion != nil {
+				fmt.Fprintf(&body, "ctx.require_pulumi_version(%s).await?;\n", g.expr(n.RequiredVersion))
+			}
 		default:
 			// Ignore other nodes (e.g. pulumi version blocks).
 		}
@@ -243,12 +254,15 @@ func (g *programGenerator) genConfigVariable(w *bytes.Buffer, cfg *pcl.ConfigVar
 	if cfg.Secret {
 		expr = fmt.Sprintf("pulumi::pv::secret(%s)", expr)
 	}
+	g.declaredVars = append(g.declaredVars, varName(cfg.Name()))
 	fmt.Fprintf(w, "let %s = %s;\n", varName(cfg.Name()), expr)
 }
 
 func (g *programGenerator) genLocalVariable(w *bytes.Buffer, local *pcl.LocalVariable) {
 	value, _ := pcl.RewriteConversions(local.Definition.Value, local.Type())
-	fmt.Fprintf(w, "let %s = %s;\n", varName(local.Name()), g.expr(value))
+	code := g.expr(value)
+	g.declaredVars = append(g.declaredVars, varName(local.Name()))
+	fmt.Fprintf(w, "let %s = %s;\n", varName(local.Name()), code)
 }
 
 func (g *programGenerator) genOutputVariable(w *bytes.Buffer, output *pcl.OutputVariable) {
@@ -259,10 +273,7 @@ func (g *programGenerator) genOutputVariable(w *bytes.Buffer, output *pcl.Output
 // its package name.
 func (g *programGenerator) resourcePath(r *pcl.Resource) (structPath, pkgName string) {
 	token, _ := r.GetToken()
-	parts := strings.Split(token, ":")
-	if len(parts) == 2 {
-		parts = []string{parts[0], "index", parts[1]}
-	}
+	parts := canonicalTokenParts(token)
 	pkgName = parts[0]
 	module := parts[1]
 	member := parts[2]
@@ -310,39 +321,90 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 		}
 	}
 
-	// Build the args struct literal from the schema's input properties.
-	var args string
-	if r.Schema != nil {
-		args = g.typedArgsLiteral(structPath+"Args", r.Schema.InputProperties, r.Inputs, r.Definition.Syntax.DefRange())
-	} else {
+	// Build the args struct literal from the schema's input properties. If
+	// the program's expressions don't fit the typed shapes (e.g. inputs
+	// computed by for-expressions), fall back to dynamic registration.
+	if r.Schema == nil {
 		g.errorf(r.Definition.Syntax.DefRange(), "resource %q has no schema", r.Name())
+		return
+	}
+	mark := len(g.diagnostics)
+	args := g.typedArgsLiteral(structPath+"Args", r.Schema.InputProperties, r.Inputs, r.Definition.Syntax.DefRange())
+	if len(g.diagnostics) > mark {
+		g.diagnostics = g.diagnostics[:mark]
+		g.genDynamicResource(w, r)
 		return
 	}
 
 	options := g.resourceOptions(r)
 
+	g.declaredVars = append(g.declaredVars, name)
 	fmt.Fprintf(w, "let %s = %s::new(&ctx, %s, %s, %s);\n",
 		name, structPath, rustString(r.LogicalName()), args, options)
+}
+
+// genDynamicResource registers a schema'd resource through the dynamic
+// layer, used when the program's inputs don't fit the typed args shapes.
+func (g *programGenerator) genDynamicResource(w *bytes.Buffer, r *pcl.Resource) {
+	token, _ := r.GetToken()
+	canonical := strings.Join(canonicalTokenParts(token), ":")
+	version := ""
+	pluginDownloadURL := ""
+	if r.Schema != nil {
+		if ref := r.Schema.PackageReference; ref != nil {
+			if v := ref.Version(); v != nil {
+				version = v.String()
+			}
+			if def, err := ref.Definition(); err == nil && def != nil {
+				pluginDownloadURL = def.PluginDownloadURL
+			}
+		}
+	}
+	custom := true
+	remote := false
+	if r.Schema != nil && r.Schema.IsComponent {
+		custom = false
+		remote = true
+	}
+
+	var inputs []string
+	for _, input := range r.Inputs {
+		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
+			rustString(input.Name), g.expr(input.Value)))
+	}
+	name := varName(r.Name())
+	g.builtinVars[name] = true
+	g.declaredVars = append(g.declaredVars, name)
+	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: %v, remote: %v, version: %s.to_string(), plugin_download_url: %s.to_string(), inputs: vec![%s], options: %s });\n",
+		name, rustString(canonical), rustString(r.LogicalName()), custom, remote,
+		rustString(version), rustString(pluginDownloadURL),
+		strings.Join(inputs, ", "), g.resourceOptions(r))
+}
+
+// canonicalTokenParts splits a type token and normalizes PCL-elided module
+// forms (pkg:member, pkg::member) to pkg:index:member.
+func canonicalTokenParts(token string) []string {
+	parts := strings.Split(token, ":")
+	if len(parts) == 2 {
+		parts = []string{parts[0], "index", parts[1]}
+	}
+	if len(parts) == 3 && parts[1] == "" {
+		parts[1] = "index"
+	}
+	return parts
 }
 
 // isBuiltinResourceToken reports whether a token names an engine-builtin
 // resource served by the pulumi builtin provider (e.g. pulumi:index:Stash).
 func isBuiltinResourceToken(token string) bool {
-	parts := strings.Split(token, ":")
-	if len(parts) == 2 {
-		parts = []string{parts[0], "index", parts[1]}
-	}
+	parts := canonicalTokenParts(token)
 	return parts[0] == "pulumi" && parts[1] != "providers" && parts[1] != "pulumi"
 }
 
 // genBuiltinResource registers an engine-builtin resource dynamically.
 func (g *programGenerator) genBuiltinResource(w *bytes.Buffer, r *pcl.Resource) {
 	token, _ := r.GetToken()
-	parts := strings.Split(token, ":")
-	if len(parts) == 2 {
-		parts = []string{parts[0], "index", parts[1]}
-	}
-	canonical := strings.Join(parts, ":")
+	canonical := strings.Join(canonicalTokenParts(token), ":")
 
 	var inputs []string
 	for _, input := range r.Inputs {
@@ -359,11 +421,7 @@ func (g *programGenerator) genBuiltinResource(w *bytes.Buffer, r *pcl.Resource) 
 // genReadResource emits a read of an existing resource's state.
 func (g *programGenerator) genReadResource(w *bytes.Buffer, r *pcl.ReadResource) {
 	token, _ := r.GetToken()
-	parts := strings.Split(token, ":")
-	if len(parts) == 2 {
-		parts = []string{parts[0], "index", parts[1]}
-	}
-	canonical := strings.Join(parts, ":")
+	canonical := strings.Join(canonicalTokenParts(token), ":")
 
 	version := ""
 	if r.Schema != nil && r.Schema.PackageReference != nil {
@@ -757,8 +815,7 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 		case *model.TupleConsExpression:
 			for _, e := range v.Expressions {
 				if _, r, ok := g.resourceRefNode(e); ok {
-					token, _ := r.GetToken()
-					pkg := strings.TrimPrefix(token, "pulumi:providers:")
+					_, pkg := g.resourcePath(r)
 					appendProvider(pkg, e)
 				} else {
 					g.errorf(subject, "unsupported providers element")
@@ -811,11 +868,74 @@ func (g *programGenerator) stringList(expr model.Expression) (string, bool) {
 	for _, e := range tuple.Expressions {
 		s, ok := literalString(e)
 		if !ok {
-			return "", false
+			// Property selectors may be written as bare traversals, e.g.
+			// ignoreChanges = [data.value].
+			s, ok = traversalPath(e)
+			if !ok {
+				return "", false
+			}
 		}
 		elems = append(elems, rustString(s)+".to_string()")
 	}
 	return "vec![" + strings.Join(elems, ", ") + "]", true
+}
+
+// traversalPath renders a bare traversal expression as a Pulumi property
+// path string (e.g. details[0].key, tags["with.dot"]).
+func traversalPath(expr model.Expression) (string, bool) {
+	scope, ok := unwrapConvert(expr).(*model.ScopeTraversalExpression)
+	if !ok {
+		return "", false
+	}
+	var b strings.Builder
+	b.WriteString(scope.RootName)
+	writeKey := func(key string) {
+		if isPlainPathIdent(key) {
+			b.WriteString(".")
+			b.WriteString(key)
+		} else {
+			b.WriteString("[\"")
+			b.WriteString(strings.ReplaceAll(key, "\"", "\\\""))
+			b.WriteString("\"]")
+		}
+	}
+	for _, t := range scope.Traversal[1:] {
+		switch t := t.(type) {
+		case hcl.TraverseAttr:
+			writeKey(t.Name)
+		case hcl.TraverseIndex:
+			if t.Key.Type() == cty.String {
+				writeKey(t.Key.AsString())
+			} else {
+				i, _ := t.Key.AsBigFloat().Int64()
+				b.WriteString("[")
+				b.WriteString(strconv.FormatInt(i, 10))
+				b.WriteString("]")
+			}
+		default:
+			return "", false
+		}
+	}
+	return b.String(), true
+}
+
+// isPlainPathIdent reports whether a property-path key needs no quoting.
+func isPlainPathIdent(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r == '_':
+		case r >= '0' && r <= '9':
+			if i == 0 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // resourceRef resolves an expression referring to a resource variable.
@@ -881,6 +1001,10 @@ func (g *programGenerator) expr(expr model.Expression) string {
 			g.expr(expr.Condition), g.expr(expr.TrueResult), g.expr(expr.FalseResult))
 	case *model.IndexExpression:
 		return fmt.Sprintf("pulumi::ops::index(%s, %s)", g.expr(expr.Collection), g.expr(expr.Key))
+	case *model.ForExpression:
+		return g.forExpr(expr)
+	case *model.SplatExpression:
+		return g.splatExpr(expr)
 	}
 	g.errorf(expr.SyntaxNode().Range(), "unsupported expression %T", expr)
 	return "pulumi::pv::null()"
@@ -924,7 +1048,7 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 	}
 	rest := expr.Traversal[1:]
 	switch root := expr.Parts[0].(type) {
-	case *pcl.Resource:
+	case *pcl.Resource, *pcl.ReadResource:
 		res := varName(expr.RootName)
 		if len(rest) == 0 {
 			// A bare resource reference: surface its URN.
@@ -951,6 +1075,14 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 	case *pcl.ConfigVariable, *pcl.LocalVariable:
 		base := varName(expr.RootName) + ".clone()"
 		return g.traversalChain(base, rest)
+	case *model.Variable:
+		if mapped, ok := g.scopeVars[expr.RootName]; ok {
+			return g.traversalChain(mapped+".clone()", rest)
+		}
+	case *model.SplatVariable:
+		if mapped, ok := g.scopeVars[expr.RootName]; ok {
+			return g.traversalChain(mapped+".clone()", rest)
+		}
 	case *pcl.OutputVariable:
 		g.errorf(expr.SyntaxNode().Range(), "output variable references are not supported")
 		return "pulumi::pv::null()"
@@ -1119,6 +1251,16 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 		return fmt.Sprintf("pulumi::pv::element(%s, %s)", arg(0), arg(1))
 	case "entries":
 		return fmt.Sprintf("pulumi::pv::entries(%s)", arg(0))
+	case "pulumiResourceName":
+		if res, ok := g.resourceRef(expr.Args[0]); ok {
+			return fmt.Sprintf("pulumi::pv::urn_name(%s.urn().cast::<pulumi::PropertyValue>())", res)
+		}
+		return fmt.Sprintf("pulumi::pv::urn_name(%s)", arg(0))
+	case "pulumiResourceType":
+		if res, ok := g.resourceRef(expr.Args[0]); ok {
+			return fmt.Sprintf("pulumi::pv::urn_type(%s.urn().cast::<pulumi::PropertyValue>())", res)
+		}
+		return fmt.Sprintf("pulumi::pv::urn_type(%s)", arg(0))
 	case "singleOrNone":
 		return fmt.Sprintf("pulumi::pv::single_or_none(%s)", arg(0))
 	case "lookup":
@@ -1138,6 +1280,162 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 	return "pulumi::pv::null()"
 }
 
+// forExpr renders a PCL for-expression via runtime helpers, with iteration
+// variables mapped to closure parameters.
+func (g *programGenerator) forExpr(expr *model.ForExpression) string {
+	subject := expr.SyntaxNode().Range()
+	if expr.Group {
+		g.errorf(subject, "grouped for-expressions are not yet supported")
+		return "pulumi::pv::null()"
+	}
+
+	depth := g.forDepth
+	g.forDepth++
+	kParam := fmt.Sprintf("__k%d", depth)
+	vParam := fmt.Sprintf("__v%d", depth)
+
+	var savedKey, savedVal string
+	var hadKey, hadVal bool
+	if expr.KeyVariable != nil {
+		savedKey, hadKey = g.scopeVars[expr.KeyVariable.Name]
+		g.scopeVars[expr.KeyVariable.Name] = kParam
+	}
+	if expr.ValueVariable != nil {
+		savedVal, hadVal = g.scopeVars[expr.ValueVariable.Name]
+		g.scopeVars[expr.ValueVariable.Name] = vParam
+	}
+
+	cond := "pulumi::pv::bool(true)"
+	if expr.Condition != nil {
+		cond = g.expr(expr.Condition)
+	}
+	var keyBody string
+	if expr.Key != nil {
+		keyBody = g.expr(expr.Key)
+	}
+	valueBody := g.expr(expr.Value)
+
+	if expr.KeyVariable != nil {
+		if hadKey {
+			g.scopeVars[expr.KeyVariable.Name] = savedKey
+		} else {
+			delete(g.scopeVars, expr.KeyVariable.Name)
+		}
+	}
+	if expr.ValueVariable != nil {
+		if hadVal {
+			g.scopeVars[expr.ValueVariable.Name] = savedVal
+		} else {
+			delete(g.scopeVars, expr.ValueVariable.Name)
+		}
+	}
+	g.forDepth--
+
+	coll := g.expr(expr.Collection)
+
+	prefix := g.captureClones([]string{cond, keyBody, valueBody})
+
+	closure := func(body string) string {
+		return fmt.Sprintf(
+			"{ %s move |%s: pulumi::Output<pulumi::PropertyValue>, %s: pulumi::Output<pulumi::PropertyValue>| %s }",
+			prefix, kParam, vParam, body)
+	}
+
+	if expr.Key != nil {
+		return fmt.Sprintf("pulumi::ops::for_object(%s, %s, %s, %s)",
+			coll, closure(cond), closure(keyBody), closure(valueBody))
+	}
+	return fmt.Sprintf("pulumi::ops::for_array(%s, %s, %s)", coll, closure(cond), closure(valueBody))
+}
+
+// seenIn reports whether a clone statement for v was already emitted.
+func seenIn(clones []string, v string) bool {
+	needle := "let " + v + " = "
+	for _, c := range clones {
+		if strings.HasPrefix(c, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// containsIdent reports whether ident appears in code as a whole word.
+func containsIdent(code, ident string) bool {
+	idx := 0
+	for {
+		i := strings.Index(code[idx:], ident)
+		if i < 0 {
+			return false
+		}
+		i += idx
+		before := byte(' ')
+		if i > 0 {
+			before = code[i-1]
+		}
+		afterIdx := i + len(ident)
+		after := byte(' ')
+		if afterIdx < len(code) {
+			after = code[afterIdx]
+		}
+		isWord := func(c byte) bool {
+			return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+		}
+		if !isWord(before) && !isWord(after) {
+			return true
+		}
+		idx = i + len(ident)
+	}
+}
+
+// splatExpr renders source[*].attr as a runtime map over the source list.
+func (g *programGenerator) splatExpr(expr *model.SplatExpression) string {
+	depth := g.forDepth
+	g.forDepth++
+	kParam := fmt.Sprintf("__k%d", depth)
+	vParam := fmt.Sprintf("__v%d", depth)
+
+	saved, had := g.scopeVars[expr.Item.Name]
+	g.scopeVars[expr.Item.Name] = vParam
+	each := g.expr(expr.Each)
+	if had {
+		g.scopeVars[expr.Item.Name] = saved
+	} else {
+		delete(g.scopeVars, expr.Item.Name)
+	}
+	g.forDepth--
+
+	coll := g.expr(expr.Source)
+	prefix := g.captureClones([]string{each})
+	closure := func(body string) string {
+		return fmt.Sprintf(
+			"{ %s move |%s: pulumi::Output<pulumi::PropertyValue>, %s: pulumi::Output<pulumi::PropertyValue>| %s }",
+			prefix, kParam, vParam, body)
+	}
+	return fmt.Sprintf("pulumi::ops::for_array(%s, %s, %s)",
+		coll, closure("pulumi::pv::bool(true)"), closure(each))
+}
+
+// captureClones emits clone statements for program variables referenced in
+// closure bodies so move closures don't consume the originals.
+func (g *programGenerator) captureClones(bodies []string) string {
+	captured := map[string]bool{}
+	candidates := append([]string{"ctx"}, g.declaredVars...)
+	for _, body := range bodies {
+		for _, v := range candidates {
+			if containsIdent(body, v) {
+				captured[v] = true
+			}
+		}
+	}
+	var clones []string
+	for _, v := range candidates {
+		if captured[v] && !seenIn(clones, v) {
+			clones = append(clones, fmt.Sprintf("let %s = %s.clone();", v, v))
+		}
+	}
+	return strings.Join(clones, " ")
+}
+
 // invokeExpr renders a typed invoke call.
 func (g *programGenerator) invokeExpr(expr *model.FunctionCallExpression) string {
 	subject := expr.SyntaxNode().Range()
@@ -1146,13 +1444,7 @@ func (g *programGenerator) invokeExpr(expr *model.FunctionCallExpression) string
 		g.errorf(subject, "invoke token must be a literal string")
 		return "pulumi::pv::null()"
 	}
-	parts := strings.Split(token, ":")
-	if len(parts) == 2 {
-		parts = []string{parts[0], "index", parts[1]}
-	}
-	if len(parts) == 3 && parts[1] == "" {
-		parts[1] = "index"
-	}
+	parts := canonicalTokenParts(token)
 	canonical := strings.Join(parts, ":")
 	fn := g.lookupFunction(canonical)
 	if fn == nil {
@@ -1266,6 +1558,22 @@ func (g *programGenerator) lookupFunction(token string) *schema.Function {
 			if fn.Token == token {
 				g.functionSchemas[token] = fn
 				return fn
+			}
+		}
+	}
+	// Fall back to package + member matching: schemas with custom module
+	// formats publish tokens that differ from the PCL-normalized form.
+	parts := strings.Split(token, ":")
+	if len(parts) == 3 {
+		for _, pkg := range g.packages {
+			if pkg.Name != parts[0] {
+				continue
+			}
+			for _, fn := range pkg.Functions {
+				if tokenMember(fn.Token) == parts[2] {
+					g.functionSchemas[token] = fn
+					return fn
+				}
 			}
 		}
 	}

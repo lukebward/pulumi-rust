@@ -1,0 +1,10 @@
+[package]
+name = "l2-explicit-providers"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_component = { path = "ROOT/artifacts/pulumi_component-13.3.7" }
+
+[workspace]

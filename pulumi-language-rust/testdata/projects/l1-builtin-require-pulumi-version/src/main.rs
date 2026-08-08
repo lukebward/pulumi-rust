@@ -4,6 +4,7 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let version = ctx.config().require_string("version")?;
+        ctx.require_pulumi_version(version.clone()).await?;
         Ok(())
     });
 }

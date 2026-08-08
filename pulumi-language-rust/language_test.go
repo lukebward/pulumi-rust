@@ -41,6 +41,73 @@ var expectedFailures = map[string]string{
 	// Sending non-UTF8 byte strings requires accepts_byte_string support in
 	// the SDK. Running the test without it panics the byte-sink provider.
 	"l2-raw-string-bytes": "accepts_byte_string is not implemented",
+
+	// try/can/recover builtins need error-tracking through expression
+	// evaluation, which the dynamic evaluator does not model yet.
+	"l1-builtin-can": "the can() builtin is not implemented",
+	"l1-builtin-try": "the try() builtin is not implemented",
+	"l2-failed-create-recover-continue-on-error": "the recover() builtin is not implemented",
+
+	// Resource methods (call) are not implemented in codegen or the SDK.
+	"l2-component-call-simple":  "resource methods (call) are not implemented",
+	"l2-component-call-plain":   "resource methods (call) are not implemented",
+	"l2-provider-call":          "resource methods (call) are not implemented",
+	"l2-provider-call-explicit": "resource methods (call) are not implemented",
+	"l2-index-mod":              "resource methods (call) are not implemented",
+	"l2-module-format":          "resource methods (call) are not implemented",
+
+	// Package parameterization (RegisterPackage + parameterized SDKs) is
+	// not implemented.
+	"l2-parameterized-invoke":             "package parameterization is not implemented",
+	"l2-parameterized-resource":           "package parameterization is not implemented",
+	"l2-parameterized-resource-twice":     "package parameterization is not implemented",
+	"l2-explicit-parameterized-provider":  "package parameterization is not implemented",
+	"l2-extension-parameterized-resource": "package parameterization is not implemented",
+	"l2-extension-and-base-resource":      "package parameterization is not implemented",
+
+	// Package namespaces are not implemented.
+	"l2-namespaced-provider": "package namespaces are not implemented",
+
+	// Reading through resource-reference outputs requires hydration via
+	// pulumi:pulumi:getResource.
+	"l2-component-component-resource-ref": "resource reference hydration is not implemented",
+	"l2-component-program-resource-ref":   "resource reference hydration is not implemented",
+	"l2-component-property-deps":          "component property dependencies are not implemented",
+
+	// Resource lifecycle hooks are not implemented.
+	"l2-resource-hook-after-failure": "resource hooks are not implemented",
+	"l2-resource-hook-ignore-errors": "resource hooks are not implemented",
+	"l2-resource-hook-on-error":      "resource hooks are not implemented",
+	"l2-resource-option-hooks":       "resource hooks are not implemented",
+
+	// Resource options not yet wired through the SDK.
+	"l2-resource-option-alias":               "the aliases resource option is not implemented",
+	"l2-resource-option-hide-diffs":          "the hideDiffs resource option is not implemented",
+	"l2-resource-option-replace-with":        "the replaceWith resource option is not implemented",
+	"l2-resource-option-replacement-trigger": "the replacementTrigger resource option is not implemented",
+	"l2-resource-option-env-var-mappings":    "the envVarMappings resource option is not implemented",
+
+	// Local (in-language) components are not implemented in programgen.
+	"l3-component-simple":                "local components are not implemented",
+	"l3-component-nested":                "local components are not implemented",
+	"l3-component-invoke":                "local components are not implemented",
+	"l3-component-config-objects":        "local components are not implemented",
+	"l3-component-config-primitives":     "local components are not implemented",
+	"l3-component-primitive-conversions": "local components are not implemented",
+	"l3-component-provider":              "local components are not implemented",
+	"l3-component-provider-inheritance":  "local components are not implemented",
+	"l3-deferred-outputs":                "local components are not implemented",
+	"l3-resource-keyword-overlap":        "local components are not implemented",
+	"l3-rewrite-conversions":             "local components are not implemented",
+
+	// The range resource option (resource comprehensions) is not implemented.
+	"l3-range":                           "the range resource option is not implemented",
+	"l3-range-bool-ref":                  "the range resource option is not implemented",
+	"l3-range-list-ref":                  "the range resource option is not implemented",
+	"l3-range-map-ref":                   "the range resource option is not implemented",
+	"l3-range-parent-scope":              "the range resource option is not implemented",
+	"l3-range-invoke-output-traversal":   "the range resource option is not implemented",
+	"l3-range-resource-output-traversal": "the range resource option is not implemented",
 }
 
 func runTestingHost(t *testing.T) (string, testingrpc.LanguageTestClient) {

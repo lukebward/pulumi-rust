@@ -267,6 +267,25 @@ impl Context {
         Resource { state: fut, custom, dry_run }
     }
 
+    /// Check the engine (CLI) version against a semver range, failing the
+    /// program when incompatible.
+    pub async fn require_pulumi_version(&self, range: Output<PropertyValue>) -> Result<()> {
+        let range = match range.data().await.value {
+            PropertyValue::String(s) => s,
+            _ => return Ok(()),
+        };
+        if let Some(engine) = &self.inner.engine {
+            let mut engine = engine.clone();
+            engine
+                .require_pulumi_version(pulumirpc::RequirePulumiVersionRequest {
+                    pulumi_version_range: range,
+                })
+                .await
+                .map_err(|e| Error::new(e.message().to_string()))?;
+        }
+        Ok(())
+    }
+
     /// Read an existing resource's state from its provider without managing
     /// it. Returns a resource handle whose outputs are the read state.
     pub fn read_resource(

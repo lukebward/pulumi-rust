@@ -6,8 +6,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -39,11 +39,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
@@ -51,12 +51,12 @@ impl Provider {
 pub mod index_mine {
     #[derive(Clone, Debug)]
     pub struct ResourceArgs {
-        pub text: pulumi::Output<String>,
+        pub text: pulumi::Output<std::string::String>,
     }
 
     impl ResourceArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.text;
                 inputs.push(("text".to_string(), v.cast()));
@@ -92,27 +92,27 @@ pub mod index_mine {
             &self.resource
         }
 
-        pub fn urn(&self) -> pulumi::Output<String> {
+        pub fn urn(&self) -> pulumi::Output<std::string::String> {
             self.resource.urn()
         }
 
-        pub fn id(&self) -> pulumi::Output<String> {
+        pub fn id(&self) -> pulumi::Output<std::string::String> {
             self.resource.id()
         }
 
-        pub fn text(&self) -> pulumi::Output<String> {
+        pub fn text(&self) -> pulumi::Output<std::string::String> {
             self.resource.output("text").cast()
         }
     }
 
     #[derive(Clone, Debug)]
     pub struct ConcatWorldArgs {
-        pub value: pulumi::Output<String>,
+        pub value: pulumi::Output<std::string::String>,
     }
 
     impl ConcatWorldArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.value;
                 inputs.push(("value".to_string(), v.cast()));
@@ -137,12 +137,12 @@ pub mod index_mine {
 pub mod index_mine_nested {
     #[derive(Clone, Debug)]
     pub struct ResourceArgs {
-        pub text: pulumi::Output<String>,
+        pub text: pulumi::Output<std::string::String>,
     }
 
     impl ResourceArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.text;
                 inputs.push(("text".to_string(), v.cast()));
@@ -178,27 +178,27 @@ pub mod index_mine_nested {
             &self.resource
         }
 
-        pub fn urn(&self) -> pulumi::Output<String> {
+        pub fn urn(&self) -> pulumi::Output<std::string::String> {
             self.resource.urn()
         }
 
-        pub fn id(&self) -> pulumi::Output<String> {
+        pub fn id(&self) -> pulumi::Output<std::string::String> {
             self.resource.id()
         }
 
-        pub fn text(&self) -> pulumi::Output<String> {
+        pub fn text(&self) -> pulumi::Output<std::string::String> {
             self.resource.output("text").cast()
         }
     }
 
     #[derive(Clone, Debug)]
     pub struct ConcatWorldArgs {
-        pub value: pulumi::Output<String>,
+        pub value: pulumi::Output<std::string::String>,
     }
 
     impl ConcatWorldArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.value;
                 inputs.push(("value".to_string(), v.cast()));
@@ -223,7 +223,7 @@ pub mod index_mine_nested {
 pub mod types {
     #[derive(Clone, Debug)]
     pub struct IndexMineNestedConcatWorldResult {
-        pub result: String,
+        pub result: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for IndexMineNestedConcatWorldResult {
@@ -237,7 +237,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct IndexMineConcatWorldResult {
-        pub result: String,
+        pub result: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for IndexMineConcatWorldResult {
