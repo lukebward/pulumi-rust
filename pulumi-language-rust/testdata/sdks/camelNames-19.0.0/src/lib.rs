@@ -32,6 +32,8 @@ impl Provider {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }
@@ -90,6 +92,8 @@ pub mod cool_module {
                 plugin_download_url: "".to_string(),
                 inputs: args.into_inputs(),
                 options,
+                package: None,
+                deferred_inputs: vec![],
             });
             SomeResource { resource }
         }

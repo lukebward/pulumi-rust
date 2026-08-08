@@ -36,6 +36,8 @@ impl Sink {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Sink { resource }
     }
@@ -88,6 +90,8 @@ impl Provider {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }

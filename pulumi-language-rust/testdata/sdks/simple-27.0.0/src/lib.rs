@@ -32,6 +32,8 @@ impl Provider {
             plugin_download_url: "https://github.com/pulumi/pulumi-simple/releases/v${VERSION}".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }
@@ -85,6 +87,8 @@ impl Resource {
             plugin_download_url: "https://github.com/pulumi/pulumi-simple/releases/v${VERSION}".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Resource { resource }
     }

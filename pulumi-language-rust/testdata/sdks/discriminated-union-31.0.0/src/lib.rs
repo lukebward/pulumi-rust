@@ -40,6 +40,8 @@ impl Example {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Example { resource }
     }
@@ -96,6 +98,8 @@ impl Provider {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }

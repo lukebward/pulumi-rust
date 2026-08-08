@@ -37,6 +37,8 @@ impl Container {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Container { resource }
     }
@@ -98,6 +100,8 @@ impl MapContainer {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         MapContainer { resource }
     }
@@ -155,6 +159,8 @@ impl Receiver {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Receiver { resource }
     }
@@ -212,6 +218,8 @@ impl Target {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Target { resource }
     }
@@ -264,6 +272,8 @@ impl Provider {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }

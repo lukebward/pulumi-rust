@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let my_stash = ctx.register_resource(pulumi::RegisterRequest { type_: "pulumi:index:Stash".to_string(), name: "myStash".to_string(), custom: true, remote: false, version: String::new(), plugin_download_url: String::new(), inputs: vec![("input".to_string(), pulumi::pv::object(vec![("key".to_string(), pulumi::pv::array(vec![pulumi::pv::string("value"), pulumi::pv::string("s")])), ("".to_string(), pulumi::pv::bool(false))]))], options: pulumi::ResourceOptions::default() });
+        let my_stash = ctx.register_resource(pulumi::RegisterRequest { type_: "pulumi:index:Stash".to_string(), name: "myStash".to_string(), custom: true, remote: false, version: String::new(), plugin_download_url: String::new(), inputs: vec![("input".to_string(), pulumi::pv::object(vec![("key".to_string(), pulumi::pv::array(vec![pulumi::pv::string("value"), pulumi::pv::string("s")])), ("".to_string(), pulumi::pv::bool(false))]))], options: pulumi::ResourceOptions::default(), package: None, deferred_inputs: vec![] });
         ctx.export("stashInput", my_stash.output("input"));
         ctx.export("stashOutput", my_stash.output("output"));
         Ok(())

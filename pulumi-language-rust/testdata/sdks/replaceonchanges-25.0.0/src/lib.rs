@@ -32,6 +32,8 @@ impl Provider {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }
@@ -91,6 +93,8 @@ impl ResourceA {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         ResourceA { resource }
     }
@@ -152,6 +156,8 @@ impl ResourceB {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         ResourceB { resource }
     }

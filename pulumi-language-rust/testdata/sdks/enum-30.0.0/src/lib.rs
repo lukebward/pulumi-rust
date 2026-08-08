@@ -56,6 +56,8 @@ impl Deluxe {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Deluxe { resource }
     }
@@ -136,6 +138,8 @@ impl Res {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Res { resource }
     }
@@ -192,6 +196,8 @@ impl Provider {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }
@@ -249,6 +255,8 @@ pub mod r#mod {
                 plugin_download_url: "".to_string(),
                 inputs: args.into_inputs(),
                 options,
+                package: None,
+                deferred_inputs: vec![],
             });
             Res { resource }
         }
@@ -315,6 +323,8 @@ pub mod mod_nested {
                 plugin_download_url: "".to_string(),
                 inputs: args.into_inputs(),
                 options,
+                package: None,
+                deferred_inputs: vec![],
             });
             Res { resource }
         }

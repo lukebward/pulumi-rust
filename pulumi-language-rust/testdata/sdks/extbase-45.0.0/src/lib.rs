@@ -33,6 +33,7 @@ impl Base {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         Base { resource }
     }
@@ -86,6 +87,7 @@ impl Provider {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }

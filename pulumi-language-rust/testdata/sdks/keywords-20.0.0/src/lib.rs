@@ -47,6 +47,8 @@ impl SomeResource {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         SomeResource { resource }
     }
@@ -107,6 +109,8 @@ impl Provider {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }
@@ -171,6 +175,8 @@ pub mod lambda {
                 plugin_download_url: "".to_string(),
                 inputs: args.into_inputs(),
                 options,
+                package: None,
+                deferred_inputs: vec![],
             });
             SomeResource { resource }
         }
@@ -248,6 +254,8 @@ pub mod module {
                 plugin_download_url: "".to_string(),
                 inputs: args.into_inputs(),
                 options,
+                package: None,
+                deferred_inputs: vec![],
             });
             Lambda { resource }
         }

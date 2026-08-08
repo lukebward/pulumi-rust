@@ -33,6 +33,7 @@ impl GoodbyeWorld {
             inputs: args.into_inputs(),
             options,
             package: Some(pulumi::PackageDescriptor { base_name: "parameterized".to_string(), base_version: "1.2.3".to_string(), download_url: "".to_string(), name: "byepackage".to_string(), version: "2.0.0".to_string(), base64_parameter: "R29vZGJ5ZVdvcmxk".to_string(), extension: false }),
+            deferred_inputs: vec![],
         });
         GoodbyeWorld { resource }
     }
@@ -86,6 +87,7 @@ impl GoodbyeWorldComponent {
             inputs: args.into_inputs(),
             options,
             package: Some(pulumi::PackageDescriptor { base_name: "parameterized".to_string(), base_version: "1.2.3".to_string(), download_url: "".to_string(), name: "byepackage".to_string(), version: "2.0.0".to_string(), base64_parameter: "R29vZGJ5ZVdvcmxk".to_string(), extension: false }),
+            deferred_inputs: vec![],
         });
         GoodbyeWorldComponent { resource }
     }
@@ -139,6 +141,7 @@ impl Provider {
             inputs: args.into_inputs(),
             options,
             package: Some(pulumi::PackageDescriptor { base_name: "parameterized".to_string(), base_version: "1.2.3".to_string(), download_url: "".to_string(), name: "byepackage".to_string(), version: "2.0.0".to_string(), base64_parameter: "R29vZGJ5ZVdvcmxk".to_string(), extension: false }),
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }
