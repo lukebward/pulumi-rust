@@ -461,6 +461,86 @@ impl Context {
         }
     }
 
+    /// A handle to an already-registered resource identified by its URN,
+    /// used when the engine hands a provider the parent of a component it
+    /// is constructing.
+    pub fn resource_from_urn(&self, urn: &str) -> Resource {
+        let urn = urn.to_string();
+        let dry_run = self.dry_run();
+        let fut = async move {
+            Arc::new(RegisterOutcome {
+                urn,
+                id: None,
+                outputs: PropertyMap::new(),
+                error: None,
+                failed: None,
+                unknown: false,
+            })
+        }
+        .boxed()
+        .shared();
+        Resource {
+            state: fut,
+            custom: false,
+            dry_run,
+            provider: None,
+            version: String::new(),
+            plugin_download_url: String::new(),
+            providers: Arc::new(BTreeMap::new()),
+        }
+    }
+
+    /// A handle to a provider named by a `urn::id` reference, as the engine
+    /// passes them to a component provider's Construct.
+    pub fn provider_from_reference(&self, reference: &str) -> Resource {
+        let (urn, id) = match reference.rsplit_once("::") {
+            Some((urn, id)) => (urn.to_string(), id.to_string()),
+            None => (reference.to_string(), String::new()),
+        };
+        let dry_run = self.dry_run();
+        let fut = async move {
+            Arc::new(RegisterOutcome {
+                urn,
+                id: Some(id),
+                outputs: PropertyMap::new(),
+                error: None,
+                failed: None,
+                unknown: false,
+            })
+        }
+        .boxed()
+        .shared();
+        Resource {
+            state: fut,
+            custom: true,
+            dry_run,
+            provider: None,
+            version: String::new(),
+            plugin_download_url: String::new(),
+            providers: Arc::new(BTreeMap::new()),
+        }
+    }
+
+    /// Wait for every registration started so far, without publishing stack
+    /// outputs. A component provider uses this before answering Construct.
+    pub async fn drain(&self) -> Result<()> {
+        loop {
+            let batch: Vec<_> = {
+                let mut pending = self.inner.pending.lock().unwrap();
+                std::mem::take(&mut *pending)
+            };
+            if batch.is_empty() {
+                return Ok(());
+            }
+            for fut in batch {
+                let outcome = fut.await;
+                if let Some(err) = &outcome.error {
+                    return Err(Error::new(err.clone()));
+                }
+            }
+        }
+    }
+
     /// Publish a component's outputs. Tracked like a registration so the
     /// program does not exit before it completes.
     pub fn register_resource_outputs(

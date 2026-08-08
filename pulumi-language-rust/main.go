@@ -266,6 +266,130 @@ func (host *rustLanguageHost) InstallDependencies(
 	return nil
 }
 
+// Link points a plugin project's `pulumi` dependency at the packed core SDK
+// artifact, so a policy pack or provider builds against the SDK the engine
+// handed us rather than whatever its manifest happened to name.
+func (host *rustLanguageHost) Link(
+	ctx context.Context, req *pulumirpc.LinkRequest,
+) (*pulumirpc.LinkResponse, error) {
+	dir := req.GetInfo().GetProgramDirectory()
+	if dir == "" {
+		dir = req.GetInfo().GetRootDirectory()
+	}
+	manifest := filepath.Join(dir, "Cargo.toml")
+	contents, err := os.ReadFile(manifest)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", manifest, err)
+	}
+
+	updated := string(contents)
+	for _, dep := range req.GetPackages() {
+		name := dep.GetPackage().GetName()
+		if name == "" || dep.GetPath() == "" {
+			continue
+		}
+		crate := name
+		if name != "pulumi" {
+			crate = crateName(name)
+		}
+		updated = rewritePathDependency(updated, crate, dep.GetPath())
+	}
+	if updated != string(contents) {
+		if err := os.WriteFile(manifest, []byte(updated), 0o600); err != nil {
+			return nil, fmt.Errorf("writing %s: %w", manifest, err)
+		}
+	}
+	return &pulumirpc.LinkResponse{}, nil
+}
+
+// rewritePathDependency repoints one dependency's path, adding the
+// dependency when the manifest does not already name it.
+func rewritePathDependency(manifest, crate, path string) string {
+	lines := strings.Split(manifest, "\n")
+	prefix := crate + " ="
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
+			lines[i] = fmt.Sprintf("%s = { path = %q }", crate, path)
+			return strings.Join(lines, "\n")
+		}
+	}
+	// Not present: append under [dependencies], or start that section.
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "[dependencies]" {
+			entry := fmt.Sprintf("%s = { path = %q }", crate, path)
+			lines = append(lines[:i+1], append([]string{entry}, lines[i+1:]...)...)
+			return strings.Join(lines, "\n")
+		}
+	}
+	return manifest + fmt.Sprintf("\n[dependencies]\n%s = { path = %q }\n", crate, path)
+}
+
+// crateName mirrors the codegen's package-to-crate naming.
+func crateName(pkgName string) string {
+	sanitized := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r + ('a' - 'A')
+		default:
+			return '_'
+		}
+	}, pkgName)
+	return "pulumi_" + sanitized
+}
+
+// RunPlugin builds and runs a Rust plugin program (a policy pack or a
+// provider), streaming its output back to the engine. The engine reads the
+// plugin's gRPC port from the first line of stdout, so stdout is passed
+// through untouched.
+func (host *rustLanguageHost) RunPlugin(
+	req *pulumirpc.RunPluginRequest, server pulumirpc.LanguageRuntime_RunPluginServer,
+) error {
+	closer, stdout, stderr, err := rpcutil.MakeRunPluginStreams(server, false)
+	if err != nil {
+		return err
+	}
+	defer closer.Close()
+
+	dir := req.GetInfo().GetProgramDirectory()
+	if dir == "" {
+		dir = req.GetPwd()
+	}
+
+	// Build first so cargo's own progress never reaches stdout ahead of the
+	// port line.
+	build, err := cargoCommand(server.Context(), dir, req.GetEnv(), "build", "--quiet")
+	if err != nil {
+		return err
+	}
+	build.Stdout = stderr
+	build.Stderr = stderr
+	if err := build.Run(); err != nil {
+		return fmt.Errorf("cargo build in %s failed: %w", dir, err)
+	}
+
+	args := append([]string{"run", "--quiet", "--"}, req.GetArgs()...)
+	cmd, err := cargoCommand(server.Context(), dir, req.GetEnv(), args...)
+	if err != nil {
+		return err
+	}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if asExitError(err, &exitErr) {
+			return server.Send(&pulumirpc.RunPluginResponse{
+				Output: &pulumirpc.RunPluginResponse_Exitcode{Exitcode: int32(exitErr.ExitCode())},
+			})
+		}
+		return fmt.Errorf("running plugin in %s: %w", dir, err)
+	}
+	return server.Send(&pulumirpc.RunPluginResponse{
+		Output: &pulumirpc.RunPluginResponse_Exitcode{Exitcode: 0},
+	})
+}
+
 // pathDependency describes one local path dependency of a program.
 type pathDependency struct {
 	// The Cargo dependency key (crate name).

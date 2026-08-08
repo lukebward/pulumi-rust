@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"strings"
 	"sync"
 	"testing"
 
@@ -134,6 +133,8 @@ func TestLanguage(t *testing.T) {
 		SnapshotDirectory:    snapshotDir,
 		CoreSdkDirectory:     "../sdk/rust/pulumi",
 		CoreSdkVersion:       "0.1.0",
+		PolicyPackDirectory: "./testdata/policies",
+		ProvidersDirectory:  "./testdata/providers",
 		SnapshotEdits: []*testingrpc.PrepareLanguageTestsRequest_Replacement{
 			{
 				Pattern:     rootDir + "/artifacts",
@@ -149,12 +150,6 @@ func TestLanguage(t *testing.T) {
 			t.Parallel()
 			if expected, ok := expectedFailures[tt]; ok {
 				t.Skipf("test %s is expected to fail: %s", tt, expected)
-			}
-			if strings.HasPrefix(tt, "policy-") {
-				t.Skipf("rust doesn't support policy tests yet: %s", tt)
-			}
-			if strings.HasPrefix(tt, "provider-") {
-				t.Skipf("rust doesn't support provider tests yet: %s", tt)
 			}
 
 			result, err := engine.RunLanguageTest(t.Context(), &testingrpc.RunLanguageTestRequest{
