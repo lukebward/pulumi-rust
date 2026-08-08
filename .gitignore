@@ -1,0 +1,8 @@
+/sdk/rust/target/
+**/target/
+*.crate
+/pulumi-language-rust/pulumi-language-rust
+/bin/
+.pulumi-test-tmp/
+Cargo.lock
+!/sdk/rust/Cargo.lock

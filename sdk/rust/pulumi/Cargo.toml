@@ -1,0 +1,29 @@
+[package]
+name = "pulumi"
+description = "Pulumi Rust SDK core runtime (experimental)"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/lukebward/pulumi-rust"
+
+[lib]
+# The generated proto bindings carry doc comments that are not Rust doctests.
+doctest = false
+
+[dependencies]
+tonic = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+[build-dependencies]
+tonic-build = { version = "0.12", default-features = false, features = ["prost"] }
+protox = "0.7"
+
+# Standalone crate: never adopt an enclosing workspace. This matters because
+# the crate is copied verbatim into conformance-test artifact directories.
+[workspace]
