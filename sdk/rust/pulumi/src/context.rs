@@ -52,6 +52,8 @@ pub(crate) struct ContextInner {
     /// Package references handed out by RegisterPackage, memoized so each
     /// parameterized package registers exactly once.
     pub package_refs: tokio::sync::Mutex<HashMap<PackageDescriptor, String>>,
+    /// Resource states fetched through the builtin getResource, by URN.
+    pub hydrated: tokio::sync::Mutex<HashMap<String, PropertyValue>>,
     /// In-flight resource registrations the run must drain before finishing.
     pub pending: Mutex<Vec<Shared<BoxFuture<'static, Arc<RegisterOutcome>>>>>,
     /// Stack exports accumulated by [`Context::export`].
@@ -274,7 +276,7 @@ impl Resource {
                 return OutputData {
                     value: PropertyValue::Failed(msg.as_str().into()),
                     secret: false,
-                    deps: vec![],
+                    deps: if o.urn.is_empty() { vec![] } else { vec![o.urn.clone()] },
                 };
             }
             OutputData {
@@ -307,13 +309,13 @@ impl Resource {
         Output::from_data_future(async move {
             let o = state.await;
             if let Some(msg) = &o.failed {
-                // A failed registration has no dependencies to offer: a
-                // recovered value must not depend on the resource that
-                // failed, or the engine skips whatever consumes it.
+                // Keep the dependency: under continue-on-error the engine
+                // must still skip whatever consumes a failed resource.
+                // `recover` drops it explicitly for the value it recovers.
                 return OutputData {
                     value: PropertyValue::Failed(msg.as_str().into()),
                     secret: false,
-                    deps: vec![],
+                    deps: if o.urn.is_empty() { vec![] } else { vec![o.urn.clone()] },
                 };
             }
             let mut data = match o.outputs.get(&name) {
@@ -896,22 +898,51 @@ pub(crate) async fn hydrate(v: PropertyValue) -> PropertyValue {
         PropertyValue::ResourceReference(r) => r.clone(),
         _ => return v,
     };
-    let Some(inner) = ACTIVE.get().cloned() else {
-        return v;
-    };
+    match resource_state(&r.urn).await {
+        Some(state) => state,
+        None => v,
+    }
+}
+
+/// Touch a resource reference so its resource is hydrated, but keep the
+/// value as the reference. Forwarding a reference to another resource must
+/// still send a reference, yet the engine only stands up the builtin
+/// provider once a program actually asks for a resource's state.
+pub(crate) async fn touch_reference(v: PropertyValue) -> PropertyValue {
+    if let PropertyValue::ResourceReference(r) = &v {
+        let _ = resource_state(&r.urn).await;
+    }
+    v
+}
+
+/// Fetch a resource's outputs through the engine's built-in `getResource`,
+/// once per URN.
+async fn resource_state(urn: &str) -> Option<PropertyValue> {
+    let inner = ACTIVE.get().cloned()?;
+    {
+        let cache = inner.hydrated.lock().await;
+        if let Some(v) = cache.get(urn) {
+            return Some(v.clone());
+        }
+    }
     let args = vec![(
         "urn".to_string(),
-        Output::from_value(PropertyValue::String(r.urn.clone())),
+        Output::from_value(PropertyValue::String(urn.to_string())),
     )];
-    match do_invoke(inner, "pulumi:pulumi:getResource".to_string(), args, InvokeOptions::default())
-        .await
-    {
-        Ok(data) => match data.value {
-            PropertyValue::Object(m) => m.get("state").cloned().unwrap_or(v),
-            _ => v,
-        },
-        Err(_) => v,
-    }
+    let data = do_invoke(
+        inner.clone(),
+        "pulumi:pulumi:getResource".to_string(),
+        args,
+        InvokeOptions::default(),
+    )
+    .await
+    .ok()?;
+    let state = match data.value {
+        PropertyValue::Object(m) => m.get("state").cloned()?,
+        _ => return None,
+    };
+    inner.hydrated.lock().await.insert(urn.to_string(), state.clone());
+    Some(state)
 }
 
 /// Build the `args` object a hook command sees.

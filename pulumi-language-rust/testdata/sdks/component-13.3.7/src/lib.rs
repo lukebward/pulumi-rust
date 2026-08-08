@@ -107,11 +107,11 @@ impl ComponentCustomRefInputOutput {
     }
 
     pub fn input_ref(&self) -> pulumi::Output<pulumi::PropertyValue> {
-        self.resource.output("inputRef").cast()
+        self.resource.output("inputRef").hydrated().cast()
     }
 
     pub fn output_ref(&self) -> pulumi::Output<pulumi::PropertyValue> {
-        self.resource.output("outputRef").cast()
+        self.resource.output("outputRef").hydrated().cast()
     }
 }
 
@@ -166,7 +166,7 @@ impl ComponentCustomRefOutput {
     }
 
     pub fn r#ref(&self) -> pulumi::Output<pulumi::PropertyValue> {
-        self.resource.output("ref").cast()
+        self.resource.output("ref").hydrated().cast()
     }
 
     pub fn value(&self) -> pulumi::Output<std::string::String> {

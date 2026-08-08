@@ -273,6 +273,20 @@ func fieldNamesFor(props []*schema.Property) map[string]string {
 	return names
 }
 
+// isResourceRef reports whether a schema type is a reference to a resource,
+// looking through the optional and input wrappers.
+func isResourceRef(t schema.Type) bool {
+	switch t := t.(type) {
+	case *schema.OptionalType:
+		return isResourceRef(t.ElementType)
+	case *schema.InputType:
+		return isResourceRef(t.ElementType)
+	case *schema.ResourceType:
+		return true
+	}
+	return false
+}
+
 // inputFieldFor computes the Rust representation of an input property.
 func (g *pkgGenerator) inputFieldFor(p *schema.Property, qualify string) inputField {
 	f := inputField{
@@ -560,11 +574,17 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 			accessor += "_"
 		}
 		typ := g.plainType(p.Type, qualify)
+		// A resource-typed output is a reference the engine must hydrate,
+		// even when the program only forwards it onward.
+		hydrate := ""
+		if isResourceRef(p.Type) {
+			hydrate = ".hydrated()"
+		}
 		fmt.Fprintf(w, "\n    pub fn %s(&self) -> pulumi::Output<%s> {\n", accessor, typ)
 		if p.Secret {
-			fmt.Fprintf(w, "        self.resource.output(%q).as_secret().cast()\n", p.Name)
+			fmt.Fprintf(w, "        self.resource.output(%q).as_secret()%s.cast()\n", p.Name, hydrate)
 		} else {
-			fmt.Fprintf(w, "        self.resource.output(%q).cast()\n", p.Name)
+			fmt.Fprintf(w, "        self.resource.output(%q)%s.cast()\n", p.Name, hydrate)
 		}
 		fmt.Fprintf(w, "    }\n")
 	}

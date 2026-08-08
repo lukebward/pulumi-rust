@@ -220,7 +220,7 @@ impl PropertyValue {
     /// True if this value or anything nested inside it is unknown.
     pub fn contains_unknown(&self) -> bool {
         match self {
-            PropertyValue::Computed => true,
+            PropertyValue::Computed | PropertyValue::Failed(_) => true,
             PropertyValue::Secret(v) => v.contains_unknown(),
             PropertyValue::Output(o) => match &o.value {
                 None => true,
@@ -274,9 +274,12 @@ impl PropertyValue {
     /// engine negotiates).
     pub fn to_proto(&self) -> Value {
         match self {
-            PropertyValue::Null | PropertyValue::Missing | PropertyValue::Failed(_) => {
+            PropertyValue::Null | PropertyValue::Missing => {
                 Value { kind: Some(Kind::NullValue(0)) }
             }
+            // A value whose resource failed to register never materialized,
+            // so it travels as unknown.
+            PropertyValue::Failed(_) => string_value(UNKNOWN_STRING_VALUE),
             PropertyValue::Bool(b) => Value { kind: Some(Kind::BoolValue(*b)) },
             PropertyValue::Number(n) => Value { kind: Some(Kind::NumberValue(*n)) },
             PropertyValue::String(s) => string_value(s.clone()),

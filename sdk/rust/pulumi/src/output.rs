@@ -170,6 +170,25 @@ impl<T> Output<T> {
         })
     }
 
+    /// Ensure a resource-reference value's resource is hydrated, keeping the
+    /// value itself unchanged. Generated accessors for resource-typed
+    /// outputs use this so the engine hydrates the reference even when the
+    /// program only forwards it.
+    pub fn hydrated(&self) -> Output<T> {
+        let data = self.data.clone();
+        Output::from_data_future(async move {
+            let d = data.await;
+            if matches!(d.value, PropertyValue::Computed) {
+                return d;
+            }
+            OutputData {
+                value: crate::context::touch_reference(d.value).await,
+                secret: d.secret,
+                deps: d.deps,
+            }
+        })
+    }
+
     pub fn index(&self, key: impl Into<PropIndex>) -> Output<PropertyValue> {
         let key = key.into();
         let data = self.data.clone();
