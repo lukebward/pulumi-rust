@@ -534,6 +534,7 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 	fmt.Fprintf(w, "            inputs: args.into_inputs(),\n")
 	fmt.Fprintf(w, "            options,\n")
 	fmt.Fprintf(w, "            package: %s,\n", g.packageDescriptorExpr())
+	fmt.Fprintf(w, "            deferred_inputs: vec![],\n")
 	fmt.Fprintf(w, "        });\n")
 	fmt.Fprintf(w, "        %s { resource }\n", name)
 	fmt.Fprintf(w, "    }\n\n")

@@ -1,0 +1,11 @@
+[package]
+name = "l3-component-invoke"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_config = { path = "ROOT/artifacts/pulumi_config-9.0.0" }
+pulumi_multi_argument_invoke = { path = "ROOT/artifacts/pulumi_multi_argument_invoke-44.0.0" }
+
+[workspace]

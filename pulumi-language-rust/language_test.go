@@ -38,6 +38,12 @@ import (
 // currently skipped. Entries here are honest debt: each one is a feature the
 // Rust language implementation does not support yet.
 var expectedFailures = map[string]string{
+	// Mutually dependent components combined with a ranged component. The
+	// SDK has the deferred-output primitive needed to break the cycle, but
+	// components do not support the range option yet. Every in-tree Pulumi
+	// language skips this test.
+	"l3-deferred-outputs": "deferred outputs through ranged components are not implemented",
+
 	// The engine ends up with one fewer default provider than the test
 	// expects for a namespaced package; the namespace's effect on provider
 	// identity is not modelled yet.
@@ -52,17 +58,7 @@ var expectedFailures = map[string]string{
 
 
 	// Local (in-language) components are not implemented in programgen.
-	"l3-component-simple":                "local components are not implemented",
-	"l3-component-nested":                "local components are not implemented",
-	"l3-component-invoke":                "local components are not implemented",
-	"l3-component-config-objects":        "local components are not implemented",
-	"l3-component-config-primitives":     "local components are not implemented",
-	"l3-component-primitive-conversions": "local components are not implemented",
-	"l3-component-provider":              "local components are not implemented",
-	"l3-component-provider-inheritance":  "local components are not implemented",
 	"l3-deferred-outputs":                "local components are not implemented",
-	"l3-resource-keyword-overlap":        "local components are not implemented",
-	"l3-rewrite-conversions":             "local components are not implemented",
 
 }
 

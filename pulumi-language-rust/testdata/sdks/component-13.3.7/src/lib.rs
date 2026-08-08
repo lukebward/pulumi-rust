@@ -38,6 +38,7 @@ impl ComponentCallable {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         ComponentCallable { resource }
     }
@@ -92,6 +93,7 @@ impl ComponentCustomRefInputOutput {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         ComponentCustomRefInputOutput { resource }
     }
@@ -150,6 +152,7 @@ impl ComponentCustomRefOutput {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         ComponentCustomRefOutput { resource }
     }
@@ -208,6 +211,7 @@ impl ComponentForeignChild {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         ComponentForeignChild { resource }
     }
@@ -262,6 +266,7 @@ impl Custom {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         Custom { resource }
     }
@@ -315,6 +320,7 @@ impl Provider {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }

@@ -29,6 +29,7 @@ impl StackReference {
             inputs: vec![("name".to_string(), stack_name)],
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         StackReference { resource }
     }

@@ -504,3 +504,33 @@ mod tests {
         assert_eq!(d.value, PropertyValue::String("n=3".into()));
     }
 }
+
+/// Resolves a [`deferred_output`] once the producing value is available.
+pub struct DeferredResolver {
+    tx: tokio::sync::oneshot::Sender<Output<PropertyValue>>,
+}
+
+impl DeferredResolver {
+    /// Supply the value the deferred output stands for.
+    pub fn resolve(self, value: Output<PropertyValue>) {
+        let _ = self.tx.send(value);
+    }
+}
+
+/// An output whose value arrives later, used to break the cycle between two
+/// components that each consume the other's outputs. An unresolved deferred
+/// output reads as unknown rather than hanging.
+pub fn deferred_output() -> (Output<PropertyValue>, DeferredResolver) {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Output<PropertyValue>>();
+    let out = Output::from_data_future(async move {
+        match rx.await {
+            Ok(o) => o.data().await,
+            Err(_) => OutputData {
+                value: PropertyValue::Computed,
+                secret: false,
+                deps: vec![],
+            },
+        }
+    });
+    (out, DeferredResolver { tx })
+}

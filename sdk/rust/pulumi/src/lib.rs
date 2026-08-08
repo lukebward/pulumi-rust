@@ -24,7 +24,7 @@ pub use context::{
 };
 pub use convert::{FromPropertyValue, IntoPropertyValue};
 pub use error::{Error, Result};
-pub use output::{Output, OutputData};
+pub use output::{deferred_output, DeferredResolver, Output, OutputData};
 pub use hooks::{ResourceHook, ResourceHookBinding};
 pub use pv::{range_entries, RangeEntry};
 pub use runtime::run;

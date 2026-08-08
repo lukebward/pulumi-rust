@@ -209,6 +209,10 @@ pub struct RegisterRequest {
     /// package is registered once per program and its reference travels with
     /// every registration.
     pub package: Option<PackageDescriptor>,
+    /// Inputs that must not be awaited while registering, because they come
+    /// from another component that is itself waiting on this one. Their
+    /// values still flow to the component's children.
+    pub deferred_inputs: Vec<String>,
 }
 
 /// A parameterized package: a base plugin plus the parameter that turns it
@@ -238,6 +242,9 @@ pub struct Resource {
     provider: Option<Arc<Resource>>,
     version: String,
     plugin_download_url: String,
+    /// The providers this resource was registered with, so children and
+    /// invokes parented to it resolve the same providers.
+    providers: Arc<BTreeMap<String, Resource>>,
 }
 
 impl std::fmt::Debug for Resource {
@@ -249,6 +256,11 @@ impl std::fmt::Debug for Resource {
 impl Resource {
     /// Identity helper so generated code can treat SDK-typed wrappers and
     /// raw resources uniformly.
+    /// The providers this resource carries, by package name.
+    pub fn pulumi_providers(&self) -> &BTreeMap<String, Resource> {
+        &self.providers
+    }
+
     pub fn pulumi_resource(&self) -> &Resource {
         self
     }
@@ -421,6 +433,16 @@ impl Context {
         } else {
             req.options.plugin_download_url.clone()
         };
+        // Children and invokes parented here inherit these providers, plus
+        // whatever the parent already carried.
+        let mut providers: BTreeMap<String, Resource> = match &req.options.parent {
+            Some(p) => p.providers.as_ref().clone(),
+            None => BTreeMap::new(),
+        };
+        for (pkg, p) in &req.options.providers {
+            providers.insert(pkg.clone(), p.clone());
+        }
+        let providers = Arc::new(providers);
         let fut = async move { Arc::new(do_register(inner, req).await) }.boxed().shared();
         // Drive the registration immediately so independent resources
         // register concurrently, then track it for draining at shutdown.
@@ -433,7 +455,53 @@ impl Context {
             provider,
             version,
             plugin_download_url,
+            providers,
         }
+    }
+
+    /// Publish a component's outputs. Tracked like a registration so the
+    /// program does not exit before it completes.
+    pub fn register_resource_outputs(
+        &self,
+        resource: &Resource,
+        outputs: Vec<(String, Output<PropertyValue>)>,
+    ) {
+        let inner = self.inner.clone();
+        let state = resource.state.clone();
+        let secrets = self.inner.features.secrets;
+        let fut = async move {
+            let outcome = state.await;
+            let mut props = BTreeMap::new();
+            for (name, out) in outputs {
+                let data = out.data().await;
+                let mut value = if !data.known() { PropertyValue::Computed } else { data.value };
+                if data.secret && secrets {
+                    value = PropertyValue::Secret(Box::new(value));
+                }
+                props.insert(name, value);
+            }
+            let mut monitor = inner.monitor.clone();
+            let error = monitor
+                .register_resource_outputs(pulumirpc::RegisterResourceOutputsRequest {
+                    urn: outcome.urn.clone(),
+                    outputs: Some(marshal_properties(&props)),
+                })
+                .await
+                .err()
+                .map(|e| format!("registering outputs for {}: {}", outcome.urn, e.message()));
+            Arc::new(RegisterOutcome {
+                urn: outcome.urn.clone(),
+                id: None,
+                outputs: PropertyMap::new(),
+                error,
+                failed: None,
+                unknown: false,
+            })
+        }
+        .boxed()
+        .shared();
+        tokio::spawn(fut.clone());
+        self.inner.pending.lock().unwrap().push(fut);
     }
 
     /// Register a resource lifecycle hook, returning a handle to name in a
@@ -621,6 +689,7 @@ impl Context {
             provider: None,
             version: String::new(),
             plugin_download_url: String::new(),
+            providers: Arc::new(BTreeMap::new()),
         }
     }
 
@@ -978,6 +1047,11 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
     let mut object = BTreeMap::new();
     let mut property_dependencies = HashMap::new();
     for (key, out) in req.inputs {
+        // A deferred input would deadlock: the component supplying it is
+        // waiting on this registration. Leave it out entirely.
+        if req.deferred_inputs.contains(&key) {
+            continue;
+        }
         let data = out.data().await;
         for d in &data.deps {
             dependencies.insert(d.clone());
@@ -1291,13 +1365,25 @@ async fn do_invoke(
         return Ok(OutputData { value: PropertyValue::Computed, secret, deps });
     }
 
-    let provider = match &opts.provider {
+    let mut provider = match &opts.provider {
         Some(p) => match p.provider_ref().data().await.value {
             PropertyValue::String(s) => s,
             _ => String::new(),
         },
         None => String::new(),
     };
+    // With no explicit provider, an invoke parented to a resource is served
+    // by the provider that parent names for the invoke's package.
+    if provider.is_empty() {
+        if let Some(parent) = &opts.parent {
+            let pkg = tok.split(':').next().unwrap_or_default().to_string();
+            if let Some(p) = parent.pulumi_providers().get(&pkg) {
+                if let PropertyValue::String(s) = p.provider_ref().data().await.value {
+                    provider = s;
+                }
+            }
+        }
+    }
 
     // Advertise every dependency (explicit and argument-derived) so engines
     // that support INVOKE_DEPENDS_ON can sequence the invoke.

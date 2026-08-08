@@ -17,6 +17,7 @@
 package codegen
 
 import (
+	"path/filepath"
 	"strings"
 	"unicode"
 )
@@ -162,4 +163,9 @@ func modIdent(mod string) string {
 		out = "types_"
 	}
 	return out
+}
+
+// componentModuleName maps a component's directory to a Rust module name.
+func componentModuleName(dirPath string) string {
+	return escapeIdent(snakeCase(filepath.Base(dirPath)))
 }
