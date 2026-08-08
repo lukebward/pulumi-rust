@@ -169,3 +169,21 @@ func modIdent(mod string) string {
 func componentModuleName(dirPath string) string {
 	return escapeIdent(snakeCase(filepath.Base(dirPath)))
 }
+
+// componentReservedMembers are identifiers a generated component module
+// emits itself. A component output or config folding onto one of these
+// would collide with the struct field or method, so it gets a suffix.
+var componentReservedMembers = map[string]bool{
+	"resource": true, "pulumi_resource": true, "pulumi_deferred": true,
+	"new": true, "default": true,
+}
+
+// componentMemberName maps a component config or output name to the Rust
+// field and accessor name it uses.
+func componentMemberName(name string) string {
+	out := fieldName(name)
+	if componentReservedMembers[out] {
+		out += "_"
+	}
+	return out
+}

@@ -65,8 +65,23 @@ impl ResourceHookBinding {
 /// when it fails.
 pub(crate) async fn run_command(argv: Output<PropertyValue>) -> Option<String> {
     let value = argv.data().await.value;
-    let parts: Vec<String> = match value {
-        PropertyValue::Array(items) => items.iter().map(crate::output::display).collect(),
+    // pv::array re-attaches a secret/output envelope to any element that is
+    // secret or carries dependencies; strip those before rendering, or the
+    // command sees a debug dump instead of its argument.
+    fn unwrap(v: &PropertyValue) -> PropertyValue {
+        match v {
+            PropertyValue::Secret(inner) => unwrap(inner),
+            PropertyValue::Output(o) => match &o.value {
+                Some(inner) => unwrap(inner),
+                None => PropertyValue::Computed,
+            },
+            other => other.clone(),
+        }
+    }
+    let parts: Vec<String> = match unwrap(&value) {
+        PropertyValue::Array(items) => {
+            items.iter().map(|v| crate::output::display(&unwrap(v))).collect()
+        }
         other => vec![crate::output::display(&other)],
     };
     let Some((program, args)) = parts.split_first() else {

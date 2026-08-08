@@ -580,11 +580,12 @@ impl Context {
                     None,
                     request.old_outputs.as_ref(),
                 );
-                let error = crate::hooks::run_command(command(args)).await.unwrap_or_default();
-                // Retrying is what makes a flaky create eventually succeed.
+                // The operation is retried if and only if the hook's command
+                // exits successfully; a failing command is not a hook error.
+                let failed = crate::hooks::run_command(command(args)).await;
                 Ok(prost::Message::encode_to_vec(&pulumirpc::ErrorHookResponse {
-                    error,
-                    retry: true,
+                    error: String::new(),
+                    retry: failed.is_none(),
                 }))
             })
         }));

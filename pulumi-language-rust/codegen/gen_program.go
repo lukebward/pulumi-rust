@@ -327,7 +327,7 @@ func (g *programGenerator) writeComponentModule(w *bytes.Buffer, body *bytes.Buf
 	fmt.Fprintf(w, "pub struct %sArgs {\n", typeName)
 	for _, c := range configs {
 		fmt.Fprintf(w, "    pub %s: Option<pulumi::Output<pulumi::PropertyValue>>,\n",
-			fieldName(c.LogicalName()))
+			componentMemberName(c.LogicalName()))
 	}
 	fmt.Fprintf(w, "    /// Inputs supplied by a component that is itself waiting on this\n")
 	fmt.Fprintf(w, "    /// one; they reach the children but are left out of the\n")
@@ -338,7 +338,7 @@ func (g *programGenerator) writeComponentModule(w *bytes.Buffer, body *bytes.Buf
 	fmt.Fprintf(w, "    fn default() -> Self {\n")
 	fmt.Fprintf(w, "        %sArgs {\n", typeName)
 	for _, c := range configs {
-		fmt.Fprintf(w, "            %s: None,\n", fieldName(c.LogicalName()))
+		fmt.Fprintf(w, "            %s: None,\n", componentMemberName(c.LogicalName()))
 	}
 	fmt.Fprintf(w, "            pulumi_deferred: vec![],\n")
 	fmt.Fprintf(w, "        }\n    }\n}\n\n")
@@ -346,7 +346,7 @@ func (g *programGenerator) writeComponentModule(w *bytes.Buffer, body *bytes.Buf
 	fmt.Fprintf(w, "pub struct %s {\n", typeName)
 	fmt.Fprintf(w, "    resource: pulumi::Resource,\n")
 	for _, o := range g.componentOutputNames() {
-		fmt.Fprintf(w, "    %s: pulumi::Output<pulumi::PropertyValue>,\n", fieldName(o))
+		fmt.Fprintf(w, "    %s: pulumi::Output<pulumi::PropertyValue>,\n", componentMemberName(o))
 	}
 	fmt.Fprintf(w, "}\n\n")
 
@@ -357,7 +357,7 @@ func (g *programGenerator) writeComponentModule(w *bytes.Buffer, body *bytes.Buf
 	fmt.Fprintf(w, "        let mut __inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = vec![];\n")
 	fmt.Fprintf(w, "        let mut __deferred: Vec<String> = vec![];\n")
 	for _, c := range configs {
-		field := fieldName(c.LogicalName())
+		field := componentMemberName(c.LogicalName())
 		fmt.Fprintf(w, "        if let Some(v) = &args.%s { __inputs.push((%s.to_string(), v.clone())); }\n",
 			field, rustString(c.LogicalName()))
 	}
@@ -381,13 +381,13 @@ func (g *programGenerator) writeComponentModule(w *bytes.Buffer, body *bytes.Buf
 	fmt.Fprintf(w, "        Ok(%s {\n", typeName)
 	fmt.Fprintf(w, "            resource: __component,\n")
 	for i, o := range g.componentOutputNames() {
-		fmt.Fprintf(w, "            %s: __out_%d,\n", fieldName(o), i)
+		fmt.Fprintf(w, "            %s: __out_%d,\n", componentMemberName(o), i)
 	}
 	fmt.Fprintf(w, "        })\n    }\n\n")
 	fmt.Fprintf(w, "    pub fn pulumi_resource(&self) -> &pulumi::Resource {\n        &self.resource\n    }\n")
 	for _, o := range g.componentOutputNames() {
 		fmt.Fprintf(w, "    pub fn %s(&self) -> pulumi::Output<pulumi::PropertyValue> {\n        self.%s.clone()\n    }\n",
-			fieldName(o), fieldName(o))
+			componentMemberName(o), componentMemberName(o))
 	}
 	fmt.Fprintf(w, "}\n")
 }
@@ -431,7 +431,7 @@ func (g *programGenerator) genConfigVariable(w *bytes.Buffer, cfg *pcl.ConfigVar
 	if g.isComponent {
 		name := g.declareVar(cfg.Name())
 		g.declaredVars = append(g.declaredVars, name)
-		field := fieldName(cfg.LogicalName())
+		field := componentMemberName(cfg.LogicalName())
 		fallback := "pulumi::Output::from_value(pulumi::PropertyValue::Null)"
 		if cfg.DefaultValue != nil {
 			converted, _ := pcl.RewriteConversions(cfg.DefaultValue, cfg.Type())
@@ -1094,7 +1094,7 @@ func (g *programGenerator) genComponent(w *bytes.Buffer, c *pcl.Component) {
 				value = converted
 			}
 		}
-		fields = append(fields, fmt.Sprintf("%s: Some(%s)", fieldName(attr.Name), g.expr(value)))
+		fields = append(fields, fmt.Sprintf("%s: Some(%s)", componentMemberName(attr.Name), g.expr(value)))
 	}
 	args := fmt.Sprintf("%sArgs { ..Default::default() }", path)
 	if len(fields) > 0 {
@@ -1901,7 +1901,7 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 		if attr.Name == "urn" {
 			return g.traversalChain(comp+".pulumi_resource().urn().cast::<pulumi::PropertyValue>()", rest[1:])
 		}
-		return g.traversalChain(fmt.Sprintf("%s.%s()", comp, fieldName(attr.Name)), rest[1:])
+		return g.traversalChain(fmt.Sprintf("%s.%s()", comp, componentMemberName(attr.Name)), rest[1:])
 	case *pcl.ConfigVariable, *pcl.LocalVariable:
 		base := g.refVar(expr.RootName) + ".clone()"
 		return g.traversalChain(base, rest)
