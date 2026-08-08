@@ -3,12 +3,12 @@
 
 #[derive(Clone, Debug)]
 pub struct ConfigurerArgs {
-    pub provider_config: pulumi::Output<String>,
+    pub provider_config: pulumi::Output<std::string::String>,
 }
 
 impl ConfigurerArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.provider_config;
             inputs.push(("providerConfig".to_string(), v.cast()));
@@ -44,23 +44,23 @@ impl Configurer {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn provider_config(&self) -> pulumi::Output<String> {
+    pub fn provider_config(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("providerConfig").cast()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct CustomArgs {
-    pub value: pulumi::Output<String>,
+    pub value: pulumi::Output<std::string::String>,
 }
 
 impl CustomArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.value;
             inputs.push(("value".to_string(), v.cast()));
@@ -96,31 +96,31 @@ impl Custom {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn config(&self) -> pulumi::Output<String> {
+    pub fn config(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("config").cast()
     }
 
-    pub fn value(&self) -> pulumi::Output<String> {
+    pub fn value(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("value").cast()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct ProviderArgs {
-    pub config: pulumi::Output<String>,
+    pub config: pulumi::Output<std::string::String>,
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.config;
             inputs.push(("config".to_string(), v.cast()));
@@ -156,15 +156,15 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn config(&self) -> pulumi::Output<String> {
+    pub fn config(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("config").cast()
     }
 }

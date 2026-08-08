@@ -6,8 +6,8 @@ pub struct ConfigFetcherArgs {
 }
 
 impl ConfigFetcherArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -39,15 +39,15 @@ impl ConfigFetcher {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn config(&self) -> pulumi::Output<String> {
+    pub fn config(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("config").cast()
     }
 }
@@ -60,54 +60,54 @@ pub struct ProviderArgs {
     pub int1: Option<pulumi::Output<i32>>,
     pub int2: Option<pulumi::Output<i32>>,
     pub int3: Option<pulumi::Output<i32>>,
-    pub list_bool1: Option<pulumi::Output<Vec<bool>>>,
-    pub list_bool2: Option<pulumi::Output<Vec<bool>>>,
-    pub list_bool3: Option<pulumi::Output<Vec<bool>>>,
-    pub list_int1: Option<pulumi::Output<Vec<i32>>>,
-    pub list_int2: Option<pulumi::Output<Vec<i32>>>,
-    pub list_int3: Option<pulumi::Output<Vec<i32>>>,
-    pub list_num1: Option<pulumi::Output<Vec<f64>>>,
-    pub list_num2: Option<pulumi::Output<Vec<f64>>>,
-    pub list_num3: Option<pulumi::Output<Vec<f64>>>,
-    pub list_secret_bool1: Option<pulumi::Output<Vec<bool>>>,
-    pub list_secret_bool2: Option<pulumi::Output<Vec<bool>>>,
-    pub list_secret_bool3: Option<pulumi::Output<Vec<bool>>>,
-    pub list_secret_int1: Option<pulumi::Output<Vec<i32>>>,
-    pub list_secret_int2: Option<pulumi::Output<Vec<i32>>>,
-    pub list_secret_int3: Option<pulumi::Output<Vec<i32>>>,
-    pub list_secret_num1: Option<pulumi::Output<Vec<f64>>>,
-    pub list_secret_num2: Option<pulumi::Output<Vec<f64>>>,
-    pub list_secret_num3: Option<pulumi::Output<Vec<f64>>>,
-    pub list_secret_string1: Option<pulumi::Output<Vec<String>>>,
-    pub list_secret_string2: Option<pulumi::Output<Vec<String>>>,
-    pub list_secret_string3: Option<pulumi::Output<Vec<String>>>,
-    pub list_string1: Option<pulumi::Output<Vec<String>>>,
-    pub list_string2: Option<pulumi::Output<Vec<String>>>,
-    pub list_string3: Option<pulumi::Output<Vec<String>>>,
-    pub map_bool1: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_bool2: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_bool3: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_int1: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_int2: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_int3: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_num1: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_num2: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_num3: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_secret_bool1: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_secret_bool2: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_secret_bool3: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_secret_int1: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_secret_int2: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_secret_int3: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_secret_num1: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_secret_num2: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_secret_num3: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_secret_string1: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_secret_string2: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_secret_string3: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_string1: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_string2: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_string3: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
+    pub list_bool1: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_bool2: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_bool3: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_int1: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_int2: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_int3: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_num1: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_num2: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_num3: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_secret_bool1: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_secret_bool2: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_secret_bool3: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_secret_int1: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_secret_int2: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_secret_int3: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_secret_num1: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_secret_num2: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_secret_num3: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_secret_string1: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_secret_string2: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_secret_string3: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_string1: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_string2: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_string3: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub map_bool1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_bool2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_bool3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_int1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_int2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_int3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_num1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_num2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_num3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_secret_bool1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_secret_bool2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_secret_bool3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_secret_int1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_secret_int2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_secret_int3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_secret_num1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_secret_num2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_secret_num3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_secret_string1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_secret_string2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_secret_string3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_string1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_string2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_string3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
     pub num1: Option<pulumi::Output<f64>>,
     pub num2: Option<pulumi::Output<f64>>,
     pub num3: Option<pulumi::Output<f64>>,
@@ -144,17 +144,17 @@ pub struct ProviderArgs {
     pub secret_num1: Option<pulumi::Output<f64>>,
     pub secret_num2: Option<pulumi::Output<f64>>,
     pub secret_num3: Option<pulumi::Output<f64>>,
-    pub secret_string1: Option<pulumi::Output<String>>,
-    pub secret_string2: Option<pulumi::Output<String>>,
-    pub secret_string3: Option<pulumi::Output<String>>,
-    pub string1: Option<pulumi::Output<String>>,
-    pub string2: Option<pulumi::Output<String>>,
-    pub string3: Option<pulumi::Output<String>>,
+    pub secret_string1: Option<pulumi::Output<std::string::String>>,
+    pub secret_string2: Option<pulumi::Output<std::string::String>>,
+    pub secret_string3: Option<pulumi::Output<std::string::String>>,
+    pub string1: Option<pulumi::Output<std::string::String>>,
+    pub string2: Option<pulumi::Output<std::string::String>>,
+    pub string3: Option<pulumi::Output<std::string::String>>,
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         if let Some(v) = self.bool1 {
             inputs.push(("bool1".to_string(), v.cast()));
         }
@@ -201,40 +201,40 @@ impl ProviderArgs {
             inputs.push(("listNum3".to_string(), v.cast()));
         }
         if let Some(v) = self.list_secret_bool1 {
-            inputs.push(("listSecretBool1".to_string(), v.cast()));
+            inputs.push(("listSecretBool1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_bool2 {
-            inputs.push(("listSecretBool2".to_string(), v.cast()));
+            inputs.push(("listSecretBool2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_bool3 {
-            inputs.push(("listSecretBool3".to_string(), v.cast()));
+            inputs.push(("listSecretBool3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_int1 {
-            inputs.push(("listSecretInt1".to_string(), v.cast()));
+            inputs.push(("listSecretInt1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_int2 {
-            inputs.push(("listSecretInt2".to_string(), v.cast()));
+            inputs.push(("listSecretInt2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_int3 {
-            inputs.push(("listSecretInt3".to_string(), v.cast()));
+            inputs.push(("listSecretInt3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_num1 {
-            inputs.push(("listSecretNum1".to_string(), v.cast()));
+            inputs.push(("listSecretNum1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_num2 {
-            inputs.push(("listSecretNum2".to_string(), v.cast()));
+            inputs.push(("listSecretNum2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_num3 {
-            inputs.push(("listSecretNum3".to_string(), v.cast()));
+            inputs.push(("listSecretNum3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_string1 {
-            inputs.push(("listSecretString1".to_string(), v.cast()));
+            inputs.push(("listSecretString1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_string2 {
-            inputs.push(("listSecretString2".to_string(), v.cast()));
+            inputs.push(("listSecretString2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_string3 {
-            inputs.push(("listSecretString3".to_string(), v.cast()));
+            inputs.push(("listSecretString3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_string1 {
             inputs.push(("listString1".to_string(), v.cast()));
@@ -273,40 +273,40 @@ impl ProviderArgs {
             inputs.push(("mapNum3".to_string(), v.cast()));
         }
         if let Some(v) = self.map_secret_bool1 {
-            inputs.push(("mapSecretBool1".to_string(), v.cast()));
+            inputs.push(("mapSecretBool1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_bool2 {
-            inputs.push(("mapSecretBool2".to_string(), v.cast()));
+            inputs.push(("mapSecretBool2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_bool3 {
-            inputs.push(("mapSecretBool3".to_string(), v.cast()));
+            inputs.push(("mapSecretBool3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_int1 {
-            inputs.push(("mapSecretInt1".to_string(), v.cast()));
+            inputs.push(("mapSecretInt1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_int2 {
-            inputs.push(("mapSecretInt2".to_string(), v.cast()));
+            inputs.push(("mapSecretInt2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_int3 {
-            inputs.push(("mapSecretInt3".to_string(), v.cast()));
+            inputs.push(("mapSecretInt3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_num1 {
-            inputs.push(("mapSecretNum1".to_string(), v.cast()));
+            inputs.push(("mapSecretNum1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_num2 {
-            inputs.push(("mapSecretNum2".to_string(), v.cast()));
+            inputs.push(("mapSecretNum2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_num3 {
-            inputs.push(("mapSecretNum3".to_string(), v.cast()));
+            inputs.push(("mapSecretNum3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_string1 {
-            inputs.push(("mapSecretString1".to_string(), v.cast()));
+            inputs.push(("mapSecretString1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_string2 {
-            inputs.push(("mapSecretString2".to_string(), v.cast()));
+            inputs.push(("mapSecretString2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_string3 {
-            inputs.push(("mapSecretString3".to_string(), v.cast()));
+            inputs.push(("mapSecretString3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_string1 {
             inputs.push(("mapString1".to_string(), v.cast()));
@@ -354,40 +354,40 @@ impl ProviderArgs {
             inputs.push(("objNum3".to_string(), v.into_output()));
         }
         if let Some(v) = self.obj_secret_bool1 {
-            inputs.push(("objSecretBool1".to_string(), v.into_output()));
+            inputs.push(("objSecretBool1".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_bool2 {
-            inputs.push(("objSecretBool2".to_string(), v.into_output()));
+            inputs.push(("objSecretBool2".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_bool3 {
-            inputs.push(("objSecretBool3".to_string(), v.into_output()));
+            inputs.push(("objSecretBool3".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_int1 {
-            inputs.push(("objSecretInt1".to_string(), v.into_output()));
+            inputs.push(("objSecretInt1".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_int2 {
-            inputs.push(("objSecretInt2".to_string(), v.into_output()));
+            inputs.push(("objSecretInt2".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_int3 {
-            inputs.push(("objSecretInt3".to_string(), v.into_output()));
+            inputs.push(("objSecretInt3".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_num1 {
-            inputs.push(("objSecretNum1".to_string(), v.into_output()));
+            inputs.push(("objSecretNum1".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_num2 {
-            inputs.push(("objSecretNum2".to_string(), v.into_output()));
+            inputs.push(("objSecretNum2".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_num3 {
-            inputs.push(("objSecretNum3".to_string(), v.into_output()));
+            inputs.push(("objSecretNum3".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_string1 {
-            inputs.push(("objSecretString1".to_string(), v.into_output()));
+            inputs.push(("objSecretString1".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_string2 {
-            inputs.push(("objSecretString2".to_string(), v.into_output()));
+            inputs.push(("objSecretString2".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_string3 {
-            inputs.push(("objSecretString3".to_string(), v.into_output()));
+            inputs.push(("objSecretString3".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_string1 {
             inputs.push(("objString1".to_string(), v.into_output()));
@@ -399,40 +399,40 @@ impl ProviderArgs {
             inputs.push(("objString3".to_string(), v.into_output()));
         }
         if let Some(v) = self.secret_bool1 {
-            inputs.push(("secretBool1".to_string(), v.cast()));
+            inputs.push(("secretBool1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_bool2 {
-            inputs.push(("secretBool2".to_string(), v.cast()));
+            inputs.push(("secretBool2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_bool3 {
-            inputs.push(("secretBool3".to_string(), v.cast()));
+            inputs.push(("secretBool3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_int1 {
-            inputs.push(("secretInt1".to_string(), v.cast()));
+            inputs.push(("secretInt1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_int2 {
-            inputs.push(("secretInt2".to_string(), v.cast()));
+            inputs.push(("secretInt2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_int3 {
-            inputs.push(("secretInt3".to_string(), v.cast()));
+            inputs.push(("secretInt3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_num1 {
-            inputs.push(("secretNum1".to_string(), v.cast()));
+            inputs.push(("secretNum1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_num2 {
-            inputs.push(("secretNum2".to_string(), v.cast()));
+            inputs.push(("secretNum2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_num3 {
-            inputs.push(("secretNum3".to_string(), v.cast()));
+            inputs.push(("secretNum3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_string1 {
-            inputs.push(("secretString1".to_string(), v.cast()));
+            inputs.push(("secretString1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_string2 {
-            inputs.push(("secretString2".to_string(), v.cast()));
+            inputs.push(("secretString2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_string3 {
-            inputs.push(("secretString3".to_string(), v.cast()));
+            inputs.push(("secretString3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.string1 {
             inputs.push(("string1".to_string(), v.cast()));
@@ -457,6 +457,10 @@ pub struct Provider {
 
 impl Provider {
     pub fn new(ctx: &pulumi::Context, name: &str, args: ProviderArgs, options: pulumi::ResourceOptions) -> Provider {
+        let mut options = options;
+        options.additional_secret_outputs.push("secretString1".to_string());
+        options.additional_secret_outputs.push("secretString2".to_string());
+        options.additional_secret_outputs.push("secretString3".to_string());
         let resource = ctx.register_resource(pulumi::RegisterRequest {
             type_: "pulumi:providers:config-grpc".to_string(),
             name: name.to_string(),
@@ -474,35 +478,35 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn secret_string1(&self) -> pulumi::Output<Option<String>> {
-        self.resource.output("secretString1").cast()
+    pub fn secret_string1(&self) -> pulumi::Output<Option<std::string::String>> {
+        self.resource.output("secretString1").as_secret().cast()
     }
 
-    pub fn secret_string2(&self) -> pulumi::Output<Option<String>> {
-        self.resource.output("secretString2").cast()
+    pub fn secret_string2(&self) -> pulumi::Output<Option<std::string::String>> {
+        self.resource.output("secretString2").as_secret().cast()
     }
 
-    pub fn secret_string3(&self) -> pulumi::Output<Option<String>> {
-        self.resource.output("secretString3").cast()
+    pub fn secret_string3(&self) -> pulumi::Output<Option<std::string::String>> {
+        self.resource.output("secretString3").as_secret().cast()
     }
 
-    pub fn string1(&self) -> pulumi::Output<Option<String>> {
+    pub fn string1(&self) -> pulumi::Output<Option<std::string::String>> {
         self.resource.output("string1").cast()
     }
 
-    pub fn string2(&self) -> pulumi::Output<Option<String>> {
+    pub fn string2(&self) -> pulumi::Output<Option<std::string::String>> {
         self.resource.output("string2").cast()
     }
 
-    pub fn string3(&self) -> pulumi::Output<Option<String>> {
+    pub fn string3(&self) -> pulumi::Output<Option<std::string::String>> {
         self.resource.output("string3").cast()
     }
 }
@@ -515,54 +519,54 @@ pub struct ToSecretArgs {
     pub int1: Option<pulumi::Output<i32>>,
     pub int2: Option<pulumi::Output<i32>>,
     pub int3: Option<pulumi::Output<i32>>,
-    pub list_bool1: Option<pulumi::Output<Vec<bool>>>,
-    pub list_bool2: Option<pulumi::Output<Vec<bool>>>,
-    pub list_bool3: Option<pulumi::Output<Vec<bool>>>,
-    pub list_int1: Option<pulumi::Output<Vec<i32>>>,
-    pub list_int2: Option<pulumi::Output<Vec<i32>>>,
-    pub list_int3: Option<pulumi::Output<Vec<i32>>>,
-    pub list_num1: Option<pulumi::Output<Vec<f64>>>,
-    pub list_num2: Option<pulumi::Output<Vec<f64>>>,
-    pub list_num3: Option<pulumi::Output<Vec<f64>>>,
-    pub list_secret_bool1: Option<pulumi::Output<Vec<bool>>>,
-    pub list_secret_bool2: Option<pulumi::Output<Vec<bool>>>,
-    pub list_secret_bool3: Option<pulumi::Output<Vec<bool>>>,
-    pub list_secret_int1: Option<pulumi::Output<Vec<i32>>>,
-    pub list_secret_int2: Option<pulumi::Output<Vec<i32>>>,
-    pub list_secret_int3: Option<pulumi::Output<Vec<i32>>>,
-    pub list_secret_num1: Option<pulumi::Output<Vec<f64>>>,
-    pub list_secret_num2: Option<pulumi::Output<Vec<f64>>>,
-    pub list_secret_num3: Option<pulumi::Output<Vec<f64>>>,
-    pub list_secret_string1: Option<pulumi::Output<Vec<String>>>,
-    pub list_secret_string2: Option<pulumi::Output<Vec<String>>>,
-    pub list_secret_string3: Option<pulumi::Output<Vec<String>>>,
-    pub list_string1: Option<pulumi::Output<Vec<String>>>,
-    pub list_string2: Option<pulumi::Output<Vec<String>>>,
-    pub list_string3: Option<pulumi::Output<Vec<String>>>,
-    pub map_bool1: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_bool2: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_bool3: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_int1: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_int2: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_int3: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_num1: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_num2: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_num3: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_secret_bool1: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_secret_bool2: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_secret_bool3: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
-    pub map_secret_int1: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_secret_int2: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_secret_int3: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
-    pub map_secret_num1: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_secret_num2: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_secret_num3: Option<pulumi::Output<std::collections::BTreeMap<String, f64>>>,
-    pub map_secret_string1: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_secret_string2: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_secret_string3: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_string1: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_string2: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
-    pub map_string3: Option<pulumi::Output<std::collections::BTreeMap<String, String>>>,
+    pub list_bool1: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_bool2: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_bool3: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_int1: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_int2: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_int3: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_num1: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_num2: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_num3: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_secret_bool1: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_secret_bool2: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_secret_bool3: Option<pulumi::Output<std::vec::Vec<bool>>>,
+    pub list_secret_int1: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_secret_int2: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_secret_int3: Option<pulumi::Output<std::vec::Vec<i32>>>,
+    pub list_secret_num1: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_secret_num2: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_secret_num3: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub list_secret_string1: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_secret_string2: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_secret_string3: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_string1: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_string2: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub list_string3: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub map_bool1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_bool2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_bool3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_int1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_int2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_int3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_num1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_num2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_num3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_secret_bool1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_secret_bool2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_secret_bool3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
+    pub map_secret_int1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_secret_int2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_secret_int3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
+    pub map_secret_num1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_secret_num2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_secret_num3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, f64>>>,
+    pub map_secret_string1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_secret_string2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_secret_string3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_string1: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_string2: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub map_string3: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
     pub num1: Option<pulumi::Output<f64>>,
     pub num2: Option<pulumi::Output<f64>>,
     pub num3: Option<pulumi::Output<f64>>,
@@ -599,17 +603,17 @@ pub struct ToSecretArgs {
     pub secret_num1: Option<pulumi::Output<f64>>,
     pub secret_num2: Option<pulumi::Output<f64>>,
     pub secret_num3: Option<pulumi::Output<f64>>,
-    pub secret_string1: Option<pulumi::Output<String>>,
-    pub secret_string2: Option<pulumi::Output<String>>,
-    pub secret_string3: Option<pulumi::Output<String>>,
-    pub string1: Option<pulumi::Output<String>>,
-    pub string2: Option<pulumi::Output<String>>,
-    pub string3: Option<pulumi::Output<String>>,
+    pub secret_string1: Option<pulumi::Output<std::string::String>>,
+    pub secret_string2: Option<pulumi::Output<std::string::String>>,
+    pub secret_string3: Option<pulumi::Output<std::string::String>>,
+    pub string1: Option<pulumi::Output<std::string::String>>,
+    pub string2: Option<pulumi::Output<std::string::String>>,
+    pub string3: Option<pulumi::Output<std::string::String>>,
 }
 
 impl ToSecretArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         if let Some(v) = self.bool1 {
             inputs.push(("bool1".to_string(), v.cast()));
         }
@@ -656,40 +660,40 @@ impl ToSecretArgs {
             inputs.push(("listNum3".to_string(), v.cast()));
         }
         if let Some(v) = self.list_secret_bool1 {
-            inputs.push(("listSecretBool1".to_string(), v.cast()));
+            inputs.push(("listSecretBool1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_bool2 {
-            inputs.push(("listSecretBool2".to_string(), v.cast()));
+            inputs.push(("listSecretBool2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_bool3 {
-            inputs.push(("listSecretBool3".to_string(), v.cast()));
+            inputs.push(("listSecretBool3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_int1 {
-            inputs.push(("listSecretInt1".to_string(), v.cast()));
+            inputs.push(("listSecretInt1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_int2 {
-            inputs.push(("listSecretInt2".to_string(), v.cast()));
+            inputs.push(("listSecretInt2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_int3 {
-            inputs.push(("listSecretInt3".to_string(), v.cast()));
+            inputs.push(("listSecretInt3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_num1 {
-            inputs.push(("listSecretNum1".to_string(), v.cast()));
+            inputs.push(("listSecretNum1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_num2 {
-            inputs.push(("listSecretNum2".to_string(), v.cast()));
+            inputs.push(("listSecretNum2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_num3 {
-            inputs.push(("listSecretNum3".to_string(), v.cast()));
+            inputs.push(("listSecretNum3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_string1 {
-            inputs.push(("listSecretString1".to_string(), v.cast()));
+            inputs.push(("listSecretString1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_string2 {
-            inputs.push(("listSecretString2".to_string(), v.cast()));
+            inputs.push(("listSecretString2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_secret_string3 {
-            inputs.push(("listSecretString3".to_string(), v.cast()));
+            inputs.push(("listSecretString3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.list_string1 {
             inputs.push(("listString1".to_string(), v.cast()));
@@ -728,40 +732,40 @@ impl ToSecretArgs {
             inputs.push(("mapNum3".to_string(), v.cast()));
         }
         if let Some(v) = self.map_secret_bool1 {
-            inputs.push(("mapSecretBool1".to_string(), v.cast()));
+            inputs.push(("mapSecretBool1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_bool2 {
-            inputs.push(("mapSecretBool2".to_string(), v.cast()));
+            inputs.push(("mapSecretBool2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_bool3 {
-            inputs.push(("mapSecretBool3".to_string(), v.cast()));
+            inputs.push(("mapSecretBool3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_int1 {
-            inputs.push(("mapSecretInt1".to_string(), v.cast()));
+            inputs.push(("mapSecretInt1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_int2 {
-            inputs.push(("mapSecretInt2".to_string(), v.cast()));
+            inputs.push(("mapSecretInt2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_int3 {
-            inputs.push(("mapSecretInt3".to_string(), v.cast()));
+            inputs.push(("mapSecretInt3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_num1 {
-            inputs.push(("mapSecretNum1".to_string(), v.cast()));
+            inputs.push(("mapSecretNum1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_num2 {
-            inputs.push(("mapSecretNum2".to_string(), v.cast()));
+            inputs.push(("mapSecretNum2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_num3 {
-            inputs.push(("mapSecretNum3".to_string(), v.cast()));
+            inputs.push(("mapSecretNum3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_string1 {
-            inputs.push(("mapSecretString1".to_string(), v.cast()));
+            inputs.push(("mapSecretString1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_string2 {
-            inputs.push(("mapSecretString2".to_string(), v.cast()));
+            inputs.push(("mapSecretString2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_secret_string3 {
-            inputs.push(("mapSecretString3".to_string(), v.cast()));
+            inputs.push(("mapSecretString3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.map_string1 {
             inputs.push(("mapString1".to_string(), v.cast()));
@@ -809,40 +813,40 @@ impl ToSecretArgs {
             inputs.push(("objNum3".to_string(), v.into_output()));
         }
         if let Some(v) = self.obj_secret_bool1 {
-            inputs.push(("objSecretBool1".to_string(), v.into_output()));
+            inputs.push(("objSecretBool1".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_bool2 {
-            inputs.push(("objSecretBool2".to_string(), v.into_output()));
+            inputs.push(("objSecretBool2".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_bool3 {
-            inputs.push(("objSecretBool3".to_string(), v.into_output()));
+            inputs.push(("objSecretBool3".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_int1 {
-            inputs.push(("objSecretInt1".to_string(), v.into_output()));
+            inputs.push(("objSecretInt1".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_int2 {
-            inputs.push(("objSecretInt2".to_string(), v.into_output()));
+            inputs.push(("objSecretInt2".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_int3 {
-            inputs.push(("objSecretInt3".to_string(), v.into_output()));
+            inputs.push(("objSecretInt3".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_num1 {
-            inputs.push(("objSecretNum1".to_string(), v.into_output()));
+            inputs.push(("objSecretNum1".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_num2 {
-            inputs.push(("objSecretNum2".to_string(), v.into_output()));
+            inputs.push(("objSecretNum2".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_num3 {
-            inputs.push(("objSecretNum3".to_string(), v.into_output()));
+            inputs.push(("objSecretNum3".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_string1 {
-            inputs.push(("objSecretString1".to_string(), v.into_output()));
+            inputs.push(("objSecretString1".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_string2 {
-            inputs.push(("objSecretString2".to_string(), v.into_output()));
+            inputs.push(("objSecretString2".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_secret_string3 {
-            inputs.push(("objSecretString3".to_string(), v.into_output()));
+            inputs.push(("objSecretString3".to_string(), pulumi::pv::secret(v.into_output())));
         }
         if let Some(v) = self.obj_string1 {
             inputs.push(("objString1".to_string(), v.into_output()));
@@ -854,40 +858,40 @@ impl ToSecretArgs {
             inputs.push(("objString3".to_string(), v.into_output()));
         }
         if let Some(v) = self.secret_bool1 {
-            inputs.push(("secretBool1".to_string(), v.cast()));
+            inputs.push(("secretBool1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_bool2 {
-            inputs.push(("secretBool2".to_string(), v.cast()));
+            inputs.push(("secretBool2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_bool3 {
-            inputs.push(("secretBool3".to_string(), v.cast()));
+            inputs.push(("secretBool3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_int1 {
-            inputs.push(("secretInt1".to_string(), v.cast()));
+            inputs.push(("secretInt1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_int2 {
-            inputs.push(("secretInt2".to_string(), v.cast()));
+            inputs.push(("secretInt2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_int3 {
-            inputs.push(("secretInt3".to_string(), v.cast()));
+            inputs.push(("secretInt3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_num1 {
-            inputs.push(("secretNum1".to_string(), v.cast()));
+            inputs.push(("secretNum1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_num2 {
-            inputs.push(("secretNum2".to_string(), v.cast()));
+            inputs.push(("secretNum2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_num3 {
-            inputs.push(("secretNum3".to_string(), v.cast()));
+            inputs.push(("secretNum3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_string1 {
-            inputs.push(("secretString1".to_string(), v.cast()));
+            inputs.push(("secretString1".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_string2 {
-            inputs.push(("secretString2".to_string(), v.cast()));
+            inputs.push(("secretString2".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.secret_string3 {
-            inputs.push(("secretString3".to_string(), v.cast()));
+            inputs.push(("secretString3".to_string(), pulumi::pv::secret(v.cast())));
         }
         if let Some(v) = self.string1 {
             inputs.push(("string1".to_string(), v.cast()));
@@ -921,8 +925,8 @@ pub mod types {
     }
 
     impl Tbool1Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -940,8 +944,8 @@ pub mod types {
     }
 
     impl Tbool2Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -959,8 +963,8 @@ pub mod types {
     }
 
     impl Tbool3Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -978,8 +982,8 @@ pub mod types {
     }
 
     impl Tint1Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -997,8 +1001,8 @@ pub mod types {
     }
 
     impl Tint2Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -1016,8 +1020,8 @@ pub mod types {
     }
 
     impl Tint3Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -1035,8 +1039,8 @@ pub mod types {
     }
 
     impl Tnum1Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -1054,8 +1058,8 @@ pub mod types {
     }
 
     impl Tnum2Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -1073,8 +1077,8 @@ pub mod types {
     }
 
     impl Tnum3Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -1092,8 +1096,8 @@ pub mod types {
     }
 
     impl TsecretBool1Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1111,8 +1115,8 @@ pub mod types {
     }
 
     impl TsecretBool2Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1130,8 +1134,8 @@ pub mod types {
     }
 
     impl TsecretBool3Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1149,8 +1153,8 @@ pub mod types {
     }
 
     impl TsecretInt1Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1168,8 +1172,8 @@ pub mod types {
     }
 
     impl TsecretInt2Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1187,8 +1191,8 @@ pub mod types {
     }
 
     impl TsecretInt3Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1206,8 +1210,8 @@ pub mod types {
     }
 
     impl TsecretNum1Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1225,8 +1229,8 @@ pub mod types {
     }
 
     impl TsecretNum2Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1244,8 +1248,8 @@ pub mod types {
     }
 
     impl TsecretNum3Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1259,12 +1263,12 @@ pub mod types {
 
     #[derive(Clone, Debug, Default)]
     pub struct TsecretString1Args {
-        pub secret_x: Option<pulumi::Output<String>>,
+        pub secret_x: Option<pulumi::Output<std::string::String>>,
     }
 
     impl TsecretString1Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1278,12 +1282,12 @@ pub mod types {
 
     #[derive(Clone, Debug, Default)]
     pub struct TsecretString2Args {
-        pub secret_x: Option<pulumi::Output<String>>,
+        pub secret_x: Option<pulumi::Output<std::string::String>>,
     }
 
     impl TsecretString2Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1297,12 +1301,12 @@ pub mod types {
 
     #[derive(Clone, Debug, Default)]
     pub struct TsecretString3Args {
-        pub secret_x: Option<pulumi::Output<String>>,
+        pub secret_x: Option<pulumi::Output<std::string::String>>,
     }
 
     impl TsecretString3Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.secret_x {
                 inputs.push(("secretX".to_string(), v.cast()));
             }
@@ -1316,12 +1320,12 @@ pub mod types {
 
     #[derive(Clone, Debug, Default)]
     pub struct Tstring1Args {
-        pub x: Option<pulumi::Output<String>>,
+        pub x: Option<pulumi::Output<std::string::String>>,
     }
 
     impl Tstring1Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -1335,12 +1339,12 @@ pub mod types {
 
     #[derive(Clone, Debug, Default)]
     pub struct Tstring2Args {
-        pub x: Option<pulumi::Output<String>>,
+        pub x: Option<pulumi::Output<std::string::String>>,
     }
 
     impl Tstring2Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -1354,12 +1358,12 @@ pub mod types {
 
     #[derive(Clone, Debug, Default)]
     pub struct Tstring3Args {
-        pub x: Option<pulumi::Output<String>>,
+        pub x: Option<pulumi::Output<std::string::String>>,
     }
 
     impl Tstring3Args {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.x {
                 inputs.push(("x".to_string(), v.cast()));
             }
@@ -1625,7 +1629,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct TsecretString1 {
-        pub secret_x: Option<String>,
+        pub secret_x: Option<std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for TsecretString1 {
@@ -1639,7 +1643,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct TsecretString2 {
-        pub secret_x: Option<String>,
+        pub secret_x: Option<std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for TsecretString2 {
@@ -1653,7 +1657,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct TsecretString3 {
-        pub secret_x: Option<String>,
+        pub secret_x: Option<std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for TsecretString3 {
@@ -1667,7 +1671,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct Tstring1 {
-        pub x: Option<String>,
+        pub x: Option<std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for Tstring1 {
@@ -1681,7 +1685,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct Tstring2 {
-        pub x: Option<String>,
+        pub x: Option<std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for Tstring2 {
@@ -1695,7 +1699,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct Tstring3 {
-        pub x: Option<String>,
+        pub x: Option<std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for Tstring3 {
@@ -1715,54 +1719,54 @@ pub mod types {
         pub int1: i32,
         pub int2: i32,
         pub int3: i32,
-        pub list_bool1: Vec<bool>,
-        pub list_bool2: Vec<bool>,
-        pub list_bool3: Vec<bool>,
-        pub list_int1: Vec<i32>,
-        pub list_int2: Vec<i32>,
-        pub list_int3: Vec<i32>,
-        pub list_num1: Vec<f64>,
-        pub list_num2: Vec<f64>,
-        pub list_num3: Vec<f64>,
-        pub list_secret_bool1: Vec<bool>,
-        pub list_secret_bool2: Vec<bool>,
-        pub list_secret_bool3: Vec<bool>,
-        pub list_secret_int1: Vec<i32>,
-        pub list_secret_int2: Vec<i32>,
-        pub list_secret_int3: Vec<i32>,
-        pub list_secret_num1: Vec<f64>,
-        pub list_secret_num2: Vec<f64>,
-        pub list_secret_num3: Vec<f64>,
-        pub list_secret_string1: Vec<String>,
-        pub list_secret_string2: Vec<String>,
-        pub list_secret_string3: Vec<String>,
-        pub list_string1: Vec<String>,
-        pub list_string2: Vec<String>,
-        pub list_string3: Vec<String>,
-        pub map_bool1: std::collections::BTreeMap<String, bool>,
-        pub map_bool2: std::collections::BTreeMap<String, bool>,
-        pub map_bool3: std::collections::BTreeMap<String, bool>,
-        pub map_int1: std::collections::BTreeMap<String, i32>,
-        pub map_int2: std::collections::BTreeMap<String, i32>,
-        pub map_int3: std::collections::BTreeMap<String, i32>,
-        pub map_num1: std::collections::BTreeMap<String, f64>,
-        pub map_num2: std::collections::BTreeMap<String, f64>,
-        pub map_num3: std::collections::BTreeMap<String, f64>,
-        pub map_secret_bool1: std::collections::BTreeMap<String, bool>,
-        pub map_secret_bool2: std::collections::BTreeMap<String, bool>,
-        pub map_secret_bool3: std::collections::BTreeMap<String, bool>,
-        pub map_secret_int1: std::collections::BTreeMap<String, i32>,
-        pub map_secret_int2: std::collections::BTreeMap<String, i32>,
-        pub map_secret_int3: std::collections::BTreeMap<String, i32>,
-        pub map_secret_num1: std::collections::BTreeMap<String, f64>,
-        pub map_secret_num2: std::collections::BTreeMap<String, f64>,
-        pub map_secret_num3: std::collections::BTreeMap<String, f64>,
-        pub map_secret_string1: std::collections::BTreeMap<String, String>,
-        pub map_secret_string2: std::collections::BTreeMap<String, String>,
-        pub map_secret_string3: std::collections::BTreeMap<String, String>,
-        pub map_string1: std::collections::BTreeMap<String, String>,
-        pub map_string2: std::collections::BTreeMap<String, String>,
-        pub map_string3: std::collections::BTreeMap<String, String>,
+        pub list_bool1: std::vec::Vec<bool>,
+        pub list_bool2: std::vec::Vec<bool>,
+        pub list_bool3: std::vec::Vec<bool>,
+        pub list_int1: std::vec::Vec<i32>,
+        pub list_int2: std::vec::Vec<i32>,
+        pub list_int3: std::vec::Vec<i32>,
+        pub list_num1: std::vec::Vec<f64>,
+        pub list_num2: std::vec::Vec<f64>,
+        pub list_num3: std::vec::Vec<f64>,
+        pub list_secret_bool1: std::vec::Vec<bool>,
+        pub list_secret_bool2: std::vec::Vec<bool>,
+        pub list_secret_bool3: std::vec::Vec<bool>,
+        pub list_secret_int1: std::vec::Vec<i32>,
+        pub list_secret_int2: std::vec::Vec<i32>,
+        pub list_secret_int3: std::vec::Vec<i32>,
+        pub list_secret_num1: std::vec::Vec<f64>,
+        pub list_secret_num2: std::vec::Vec<f64>,
+        pub list_secret_num3: std::vec::Vec<f64>,
+        pub list_secret_string1: std::vec::Vec<std::string::String>,
+        pub list_secret_string2: std::vec::Vec<std::string::String>,
+        pub list_secret_string3: std::vec::Vec<std::string::String>,
+        pub list_string1: std::vec::Vec<std::string::String>,
+        pub list_string2: std::vec::Vec<std::string::String>,
+        pub list_string3: std::vec::Vec<std::string::String>,
+        pub map_bool1: std::collections::BTreeMap<std::string::String, bool>,
+        pub map_bool2: std::collections::BTreeMap<std::string::String, bool>,
+        pub map_bool3: std::collections::BTreeMap<std::string::String, bool>,
+        pub map_int1: std::collections::BTreeMap<std::string::String, i32>,
+        pub map_int2: std::collections::BTreeMap<std::string::String, i32>,
+        pub map_int3: std::collections::BTreeMap<std::string::String, i32>,
+        pub map_num1: std::collections::BTreeMap<std::string::String, f64>,
+        pub map_num2: std::collections::BTreeMap<std::string::String, f64>,
+        pub map_num3: std::collections::BTreeMap<std::string::String, f64>,
+        pub map_secret_bool1: std::collections::BTreeMap<std::string::String, bool>,
+        pub map_secret_bool2: std::collections::BTreeMap<std::string::String, bool>,
+        pub map_secret_bool3: std::collections::BTreeMap<std::string::String, bool>,
+        pub map_secret_int1: std::collections::BTreeMap<std::string::String, i32>,
+        pub map_secret_int2: std::collections::BTreeMap<std::string::String, i32>,
+        pub map_secret_int3: std::collections::BTreeMap<std::string::String, i32>,
+        pub map_secret_num1: std::collections::BTreeMap<std::string::String, f64>,
+        pub map_secret_num2: std::collections::BTreeMap<std::string::String, f64>,
+        pub map_secret_num3: std::collections::BTreeMap<std::string::String, f64>,
+        pub map_secret_string1: std::collections::BTreeMap<std::string::String, std::string::String>,
+        pub map_secret_string2: std::collections::BTreeMap<std::string::String, std::string::String>,
+        pub map_secret_string3: std::collections::BTreeMap<std::string::String, std::string::String>,
+        pub map_string1: std::collections::BTreeMap<std::string::String, std::string::String>,
+        pub map_string2: std::collections::BTreeMap<std::string::String, std::string::String>,
+        pub map_string3: std::collections::BTreeMap<std::string::String, std::string::String>,
         pub num1: f64,
         pub num2: f64,
         pub num3: f64,
@@ -1799,12 +1803,12 @@ pub mod types {
         pub secret_num1: f64,
         pub secret_num2: f64,
         pub secret_num3: f64,
-        pub secret_string1: String,
-        pub secret_string2: String,
-        pub secret_string3: String,
-        pub string1: String,
-        pub string2: String,
-        pub string3: String,
+        pub secret_string1: std::string::String,
+        pub secret_string2: std::string::String,
+        pub secret_string3: std::string::String,
+        pub string1: std::string::String,
+        pub string2: std::string::String,
+        pub string3: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for ToSecretResult {

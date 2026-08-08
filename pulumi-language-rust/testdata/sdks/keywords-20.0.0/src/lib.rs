@@ -3,14 +3,14 @@
 
 #[derive(Clone, Debug)]
 pub struct SomeResourceArgs {
-    pub builtins: pulumi::Output<String>,
-    pub lambda: pulumi::Output<String>,
-    pub property: pulumi::Output<String>,
+    pub builtins: pulumi::Output<std::string::String>,
+    pub lambda: pulumi::Output<std::string::String>,
+    pub property: pulumi::Output<std::string::String>,
 }
 
 impl SomeResourceArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.builtins;
             inputs.push(("builtins".to_string(), v.cast()));
@@ -54,23 +54,23 @@ impl SomeResource {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn builtins(&self) -> pulumi::Output<String> {
+    pub fn builtins(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("builtins").cast()
     }
 
-    pub fn lambda(&self) -> pulumi::Output<String> {
+    pub fn lambda(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("lambda").cast()
     }
 
-    pub fn property(&self) -> pulumi::Output<String> {
+    pub fn property(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("property").cast()
     }
 }
@@ -80,8 +80,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -113,11 +113,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
@@ -125,14 +125,14 @@ impl Provider {
 pub mod lambda {
     #[derive(Clone, Debug)]
     pub struct SomeResourceArgs {
-        pub builtins: pulumi::Output<String>,
-        pub lambda: pulumi::Output<String>,
-        pub property: pulumi::Output<String>,
+        pub builtins: pulumi::Output<std::string::String>,
+        pub lambda: pulumi::Output<std::string::String>,
+        pub property: pulumi::Output<std::string::String>,
     }
 
     impl SomeResourceArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.builtins;
                 inputs.push(("builtins".to_string(), v.cast()));
@@ -176,23 +176,23 @@ pub mod lambda {
             &self.resource
         }
 
-        pub fn urn(&self) -> pulumi::Output<String> {
+        pub fn urn(&self) -> pulumi::Output<std::string::String> {
             self.resource.urn()
         }
 
-        pub fn id(&self) -> pulumi::Output<String> {
+        pub fn id(&self) -> pulumi::Output<std::string::String> {
             self.resource.id()
         }
 
-        pub fn builtins(&self) -> pulumi::Output<String> {
+        pub fn builtins(&self) -> pulumi::Output<std::string::String> {
             self.resource.output("builtins").cast()
         }
 
-        pub fn lambda(&self) -> pulumi::Output<String> {
+        pub fn lambda(&self) -> pulumi::Output<std::string::String> {
             self.resource.output("lambda").cast()
         }
 
-        pub fn property(&self) -> pulumi::Output<String> {
+        pub fn property(&self) -> pulumi::Output<std::string::String> {
             self.resource.output("property").cast()
         }
     }
@@ -201,14 +201,14 @@ pub mod lambda {
 pub mod module {
     #[derive(Clone, Debug)]
     pub struct LambdaArgs {
-        pub builtins: pulumi::Output<String>,
-        pub lambda: pulumi::Output<String>,
-        pub property: pulumi::Output<String>,
+        pub builtins: pulumi::Output<std::string::String>,
+        pub lambda: pulumi::Output<std::string::String>,
+        pub property: pulumi::Output<std::string::String>,
     }
 
     impl LambdaArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.builtins;
                 inputs.push(("builtins".to_string(), v.cast()));
@@ -252,23 +252,23 @@ pub mod module {
             &self.resource
         }
 
-        pub fn urn(&self) -> pulumi::Output<String> {
+        pub fn urn(&self) -> pulumi::Output<std::string::String> {
             self.resource.urn()
         }
 
-        pub fn id(&self) -> pulumi::Output<String> {
+        pub fn id(&self) -> pulumi::Output<std::string::String> {
             self.resource.id()
         }
 
-        pub fn builtins(&self) -> pulumi::Output<String> {
+        pub fn builtins(&self) -> pulumi::Output<std::string::String> {
             self.resource.output("builtins").cast()
         }
 
-        pub fn lambda(&self) -> pulumi::Output<String> {
+        pub fn lambda(&self) -> pulumi::Output<std::string::String> {
             self.resource.output("lambda").cast()
         }
 
-        pub fn property(&self) -> pulumi::Output<String> {
+        pub fn property(&self) -> pulumi::Output<std::string::String> {
             self.resource.output("property").cast()
         }
     }

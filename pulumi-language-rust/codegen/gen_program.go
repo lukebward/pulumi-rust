@@ -133,12 +133,16 @@ type programGenerator struct {
 	// functionSchemas caches token -> function lookups across packages.
 	functionSchemas map[string]*schema.Function
 	packages        []*schema.Package
+	// builtinVars tracks variables bound to raw pulumi builtin resources
+	// (e.g. pulumi:index:Stash), which use dynamic property accessors.
+	builtinVars map[string]bool
 }
 
 func newProgramGenerator(program *pcl.Program) *programGenerator {
 	return &programGenerator{
 		program:         program,
 		functionSchemas: map[string]*schema.Function{},
+		builtinVars:     map[string]bool{},
 	}
 }
 
@@ -169,6 +173,8 @@ func (g *programGenerator) generate() ([]byte, hcl.Diagnostics) {
 			g.genLocalVariable(&body, n)
 		case *pcl.OutputVariable:
 			g.genOutputVariable(&body, n)
+		case *pcl.ReadResource:
+			g.genReadResource(&body, n)
 		case *pcl.Component:
 			g.errorf(n.Definition.Syntax.DefRange(), "components are not yet supported by the Rust program generator")
 		default:
@@ -285,6 +291,10 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 		g.genStackReference(w, r)
 		return
 	}
+	if token, _ := r.GetToken(); isBuiltinResourceToken(token) {
+		g.genBuiltinResource(w, r)
+		return
+	}
 
 	structPath, _ := g.resourcePath(r)
 	name := varName(r.Name())
@@ -313,6 +323,76 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 
 	fmt.Fprintf(w, "let %s = %s::new(&ctx, %s, %s, %s);\n",
 		name, structPath, rustString(r.LogicalName()), args, options)
+}
+
+// isBuiltinResourceToken reports whether a token names an engine-builtin
+// resource served by the pulumi builtin provider (e.g. pulumi:index:Stash).
+func isBuiltinResourceToken(token string) bool {
+	parts := strings.Split(token, ":")
+	if len(parts) == 2 {
+		parts = []string{parts[0], "index", parts[1]}
+	}
+	return parts[0] == "pulumi" && parts[1] != "providers" && parts[1] != "pulumi"
+}
+
+// genBuiltinResource registers an engine-builtin resource dynamically.
+func (g *programGenerator) genBuiltinResource(w *bytes.Buffer, r *pcl.Resource) {
+	token, _ := r.GetToken()
+	parts := strings.Split(token, ":")
+	if len(parts) == 2 {
+		parts = []string{parts[0], "index", parts[1]}
+	}
+	canonical := strings.Join(parts, ":")
+
+	var inputs []string
+	for _, input := range r.Inputs {
+		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
+			rustString(input.Name), g.expr(input.Value)))
+	}
+	name := varName(r.Name())
+	g.builtinVars[name] = true
+	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: true, remote: false, version: String::new(), plugin_download_url: String::new(), inputs: vec![%s], options: %s });\n",
+		name, rustString(canonical), rustString(r.LogicalName()),
+		strings.Join(inputs, ", "), g.resourceOptions(r))
+}
+
+// genReadResource emits a read of an existing resource's state.
+func (g *programGenerator) genReadResource(w *bytes.Buffer, r *pcl.ReadResource) {
+	token, _ := r.GetToken()
+	parts := strings.Split(token, ":")
+	if len(parts) == 2 {
+		parts = []string{parts[0], "index", parts[1]}
+	}
+	canonical := strings.Join(parts, ":")
+
+	version := ""
+	if r.Schema != nil && r.Schema.PackageReference != nil {
+		if v := r.Schema.PackageReference.Version(); v != nil {
+			version = v.String()
+		}
+	}
+
+	idExpr := "pulumi::pv::null()"
+	var inputs []string
+	for _, input := range r.Inputs {
+		if input.Name == "id" {
+			idExpr = g.expr(input.Value)
+			continue
+		}
+		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
+			rustString(input.Name), g.expr(input.Value)))
+	}
+	name := varName(r.Name())
+	g.builtinVars[name] = true
+	fmt.Fprintf(w, "let %s = ctx.read_resource(%s, %s, %s, vec![%s], %s, %s);\n",
+		name, rustString(canonical), rustString(r.LogicalName()), idExpr,
+		strings.Join(inputs, ", "), rustString(version), g.readResourceOptions(r))
+}
+
+// readResourceOptions maps a read resource's options (currently none of the
+// interesting ones apply).
+func (g *programGenerator) readResourceOptions(r *pcl.ReadResource) string {
+	return "pulumi::ResourceOptions::default()"
 }
 
 // genStackReference emits a pulumi::StackReference for the builtin
@@ -663,12 +743,47 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 		}
 	}
 
+	if opts.Providers != nil {
+		var elems []string
+		appendProvider := func(key string, e model.Expression) {
+			if res, ok := g.resourceRef(e); ok {
+				elems = append(elems, fmt.Sprintf("(%s.to_string(), %s.pulumi_resource().clone())",
+					rustString(key), res))
+			} else {
+				g.errorf(subject, "unsupported providers element")
+			}
+		}
+		switch v := unwrapConvert(opts.Providers).(type) {
+		case *model.TupleConsExpression:
+			for _, e := range v.Expressions {
+				if _, r, ok := g.resourceRefNode(e); ok {
+					token, _ := r.GetToken()
+					pkg := strings.TrimPrefix(token, "pulumi:providers:")
+					appendProvider(pkg, e)
+				} else {
+					g.errorf(subject, "unsupported providers element")
+				}
+			}
+		case *model.ObjectConsExpression:
+			for _, item := range v.Items {
+				key, ok := literalString(item.Key)
+				if !ok {
+					g.errorf(subject, "unsupported providers key")
+					continue
+				}
+				appendProvider(key, item.Value)
+			}
+		default:
+			g.errorf(subject, "unsupported providers expression")
+		}
+		setField("providers", "vec!["+strings.Join(elems, ", ")+"]")
+	}
+
 	unsupported := []struct {
 		name string
 		expr model.Expression
 	}{
 		{"aliases", opts.Aliases},
-		{"providers", opts.Providers},
 		{"hideDiffs", opts.HideDiffs},
 		{"replaceWith", opts.ReplaceWith},
 		{"replacementTrigger", opts.ReplacementTrigger},
@@ -705,16 +820,23 @@ func (g *programGenerator) stringList(expr model.Expression) (string, bool) {
 
 // resourceRef resolves an expression referring to a resource variable.
 func (g *programGenerator) resourceRef(expr model.Expression) (string, bool) {
+	name, _, ok := g.resourceRefNode(expr)
+	return name, ok
+}
+
+// resourceRefNode resolves a resource reference to its variable name and
+// bound resource node.
+func (g *programGenerator) resourceRefNode(expr model.Expression) (string, *pcl.Resource, bool) {
 	scope, ok := unwrapConvert(expr).(*model.ScopeTraversalExpression)
 	if !ok {
-		return "", false
+		return "", nil, false
 	}
 	if len(scope.Parts) > 0 {
-		if _, ok := scope.Parts[0].(*pcl.Resource); ok {
-			return varName(scope.RootName), true
+		if r, ok := scope.Parts[0].(*pcl.Resource); ok {
+			return varName(scope.RootName), r, true
 		}
 	}
-	return "", false
+	return "", nil, false
 }
 
 // ---------------------------------------------------------------------------
@@ -814,11 +936,13 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 			return "pulumi::pv::null()"
 		}
 		var base string
-		switch attr.Name {
-		case "urn":
+		switch {
+		case attr.Name == "urn":
 			base = res + ".urn().cast::<pulumi::PropertyValue>()"
-		case "id":
+		case attr.Name == "id":
 			base = res + ".id().cast::<pulumi::PropertyValue>()"
+		case g.builtinVars[res]:
+			base = fmt.Sprintf("%s.output(%s)", res, rustString(attr.Name))
 		default:
 			base = fmt.Sprintf("%s.%s().cast::<pulumi::PropertyValue>()", res, fieldName(attr.Name))
 		}

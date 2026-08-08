@@ -4,16 +4,16 @@
 #[derive(Clone, Debug, Default)]
 pub struct ResourceArgs {
     pub boolean: Option<pulumi::Output<bool>>,
-    pub boolean_map: Option<pulumi::Output<std::collections::BTreeMap<String, bool>>>,
+    pub boolean_map: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>>,
     pub float: Option<pulumi::Output<f64>>,
     pub integer: Option<pulumi::Output<i32>>,
-    pub number_array: Option<pulumi::Output<Vec<f64>>>,
-    pub string: Option<pulumi::Output<String>>,
+    pub number_array: Option<pulumi::Output<std::vec::Vec<f64>>>,
+    pub string: Option<pulumi::Output<std::string::String>>,
 }
 
 impl ResourceArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         if let Some(v) = self.boolean {
             inputs.push(("boolean".to_string(), v.cast()));
         }
@@ -63,11 +63,11 @@ impl Resource {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
@@ -75,7 +75,7 @@ impl Resource {
         self.resource.output("boolean").cast()
     }
 
-    pub fn boolean_map(&self) -> pulumi::Output<Option<std::collections::BTreeMap<String, bool>>> {
+    pub fn boolean_map(&self) -> pulumi::Output<Option<std::collections::BTreeMap<std::string::String, bool>>> {
         self.resource.output("booleanMap").cast()
     }
 
@@ -87,11 +87,11 @@ impl Resource {
         self.resource.output("integer").cast()
     }
 
-    pub fn number_array(&self) -> pulumi::Output<Option<Vec<f64>>> {
+    pub fn number_array(&self) -> pulumi::Output<Option<std::vec::Vec<f64>>> {
         self.resource.output("numberArray").cast()
     }
 
-    pub fn string(&self) -> pulumi::Output<Option<String>> {
+    pub fn string(&self) -> pulumi::Output<Option<std::string::String>> {
         self.resource.output("string").cast()
     }
 }
@@ -101,8 +101,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -134,11 +134,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }

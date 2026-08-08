@@ -3,12 +3,12 @@
 
 #[derive(Clone, Debug)]
 pub struct StringResourceArgs {
-    pub text: pulumi::Output<String>,
+    pub text: pulumi::Output<std::string::String>,
 }
 
 impl StringResourceArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.text;
             inputs.push(("text".to_string(), v.cast()));
@@ -44,15 +44,15 @@ impl StringResource {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn text(&self) -> pulumi::Output<String> {
+    pub fn text(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("text").cast()
     }
 }
@@ -62,8 +62,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -95,23 +95,23 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct MyInvokeArgs {
-    pub value: pulumi::Output<String>,
+    pub value: pulumi::Output<std::string::String>,
 }
 
 impl MyInvokeArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.value;
             inputs.push(("value".to_string(), v.cast()));
@@ -135,12 +135,12 @@ pub fn my_invoke(ctx: &pulumi::Context, args: MyInvokeArgs, options: pulumi::Inv
 #[derive(Clone, Debug)]
 pub struct SecretInvokeArgs {
     pub secret_response: pulumi::Output<bool>,
-    pub value: pulumi::Output<String>,
+    pub value: pulumi::Output<std::string::String>,
 }
 
 impl SecretInvokeArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.secret_response;
             inputs.push(("secretResponse".to_string(), v.cast()));
@@ -170,8 +170,8 @@ pub struct UnitArgs {
 }
 
 impl UnitArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -191,7 +191,7 @@ pub fn unit(ctx: &pulumi::Context, args: UnitArgs, options: pulumi::InvokeOption
 pub mod types {
     #[derive(Clone, Debug)]
     pub struct MyInvokeResult {
-        pub result: String,
+        pub result: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for MyInvokeResult {
@@ -205,7 +205,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct SecretInvokeResult {
-        pub response: String,
+        pub response: std::string::String,
         pub secret: bool,
     }
 
@@ -221,7 +221,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct UnitResult {
-        pub result: String,
+        pub result: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for UnitResult {

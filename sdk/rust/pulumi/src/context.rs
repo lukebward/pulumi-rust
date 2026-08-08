@@ -134,6 +134,12 @@ impl std::fmt::Debug for Resource {
 }
 
 impl Resource {
+    /// Identity helper so generated code can treat SDK-typed wrappers and
+    /// raw resources uniformly.
+    pub fn pulumi_resource(&self) -> &Resource {
+        self
+    }
+
     /// The resource's URN.
     pub fn urn(&self) -> Output<String> {
         let state = self.state.clone();
@@ -259,6 +265,32 @@ impl Context {
         tokio::spawn(fut.clone());
         self.inner.pending.lock().unwrap().push(fut.clone());
         Resource { state: fut, custom, dry_run }
+    }
+
+    /// Read an existing resource's state from its provider without managing
+    /// it. Returns a resource handle whose outputs are the read state.
+    pub fn read_resource(
+        &self,
+        type_: impl Into<String>,
+        name: impl Into<String>,
+        id: Output<PropertyValue>,
+        inputs: Vec<(String, Output<PropertyValue>)>,
+        version: impl Into<String>,
+        options: ResourceOptions,
+    ) -> Resource {
+        let inner = self.inner.clone();
+        let dry_run = self.dry_run();
+        let type_ = type_.into();
+        let name = name.into();
+        let version = version.into();
+        let fut = async move {
+            Arc::new(do_read(inner, type_, name, id, inputs, version, options).await)
+        }
+        .boxed()
+        .shared();
+        tokio::spawn(fut.clone());
+        self.inner.pending.lock().unwrap().push(fut.clone());
+        Resource { state: fut, custom: true, dry_run }
     }
 
     /// Invoke a provider function, returning its result object as an output.
@@ -509,6 +541,79 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         outputs,
         error: None,
         unknown: response.unknown,
+    }
+}
+
+async fn do_read(
+    inner: Arc<ContextInner>,
+    type_: String,
+    name: String,
+    id: Output<PropertyValue>,
+    inputs: Vec<(String, Output<PropertyValue>)>,
+    version: String,
+    options: ResourceOptions,
+) -> RegisterOutcome {
+    let fail = |msg: String| RegisterOutcome {
+        urn: String::new(),
+        id: None,
+        outputs: PropertyMap::new(),
+        error: Some(msg),
+        unknown: false,
+    };
+
+    let id_str = match id.data().await.value {
+        PropertyValue::String(s) => s,
+        other => {
+            return fail(format!("read id must be a string, got {other:?}"));
+        }
+    };
+
+    let parent = match &options.parent {
+        Some(p) => await_urn(p).await,
+        None => inner.stack_urn.get().cloned().unwrap_or_default(),
+    };
+
+    let mut properties = BTreeMap::new();
+    let mut dependencies = BTreeSet::new();
+    for (key, out) in inputs {
+        let data = out.data().await;
+        for d in &data.deps {
+            dependencies.insert(d.clone());
+        }
+        properties.insert(key, encode_value(data, inner.features));
+    }
+
+    let request = pulumirpc::ReadResourceRequest {
+        id: id_str.clone(),
+        r#type: type_.clone(),
+        name: name.clone(),
+        parent,
+        properties: Some(marshal_properties(&properties)),
+        dependencies: dependencies.into_iter().filter(|d| !d.is_empty()).collect(),
+        version,
+        accept_secrets: true,
+        accept_resources: true,
+        additional_secret_outputs: options.additional_secret_outputs.clone(),
+        ..Default::default()
+    };
+
+    let mut monitor = inner.monitor.clone();
+    let response = match monitor.read_resource(request).await {
+        Ok(r) => r.into_inner(),
+        Err(e) => {
+            return fail(format!("reading resource {name} ({type_}): {}", e.message()));
+        }
+    };
+    let outputs = match &response.properties {
+        Some(s) => unmarshal_properties(s),
+        None => PropertyMap::new(),
+    };
+    RegisterOutcome {
+        urn: response.urn,
+        id: Some(id_str),
+        outputs,
+        error: None,
+        unknown: false,
     }
 }
 

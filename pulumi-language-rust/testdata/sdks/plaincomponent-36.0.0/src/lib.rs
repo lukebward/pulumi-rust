@@ -3,16 +3,16 @@
 
 #[derive(Clone, Debug)]
 pub struct ComponentArgs {
-    pub name: String,
+    pub name: std::string::String,
     pub settings: crate::types::SettingsArgs,
 }
 
 impl ComponentArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.name;
-            inputs.push(("name".to_string(), pulumi::Output::known(v)));
+            inputs.push(("name".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
         }
         {
             let v = self.settings;
@@ -49,23 +49,23 @@ impl Component {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn label(&self) -> pulumi::Output<String> {
+    pub fn label(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("label").cast()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct CustomArgs {
-    pub value: pulumi::Output<String>,
+    pub value: pulumi::Output<std::string::String>,
 }
 
 impl CustomArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.value;
             inputs.push(("value".to_string(), v.cast()));
@@ -101,15 +101,15 @@ impl Custom {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn value(&self) -> pulumi::Output<String> {
+    pub fn value(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("value").cast()
     }
 }
@@ -119,8 +119,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -152,11 +152,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
@@ -165,19 +165,19 @@ pub mod types {
     #[derive(Clone, Debug)]
     pub struct SettingsArgs {
         pub enabled: bool,
-        pub tags: std::collections::BTreeMap<String, String>,
+        pub tags: std::collections::BTreeMap<std::string::String, std::string::String>,
     }
 
     impl SettingsArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.enabled;
-                inputs.push(("enabled".to_string(), pulumi::Output::known(v)));
+                inputs.push(("enabled".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.tags;
-                inputs.push(("tags".to_string(), pulumi::Output::known(v)));
+                inputs.push(("tags".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             inputs
         }

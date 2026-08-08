@@ -6,8 +6,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -39,23 +39,23 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct InvokeArrayArgs {
-    pub value: pulumi::Output<String>,
+    pub value: pulumi::Output<std::string::String>,
 }
 
 impl InvokeArrayArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.value;
             inputs.push(("value".to_string(), v.cast()));
@@ -73,17 +73,17 @@ pub fn invoke_array(ctx: &pulumi::Context, args: InvokeArrayArgs, options: pulum
     if options.version.is_empty() {
         options.version = "21.0.0".to_string();
     }
-    ctx.invoke("scalar-returns:index:invokeArray", args.into_inputs(), options).cast()
+    pulumi::pv::single_value(ctx.invoke("scalar-returns:index:invokeArray", args.into_inputs(), options)).cast()
 }
 
 #[derive(Clone, Debug)]
 pub struct InvokeMapArgs {
-    pub value: pulumi::Output<String>,
+    pub value: pulumi::Output<std::string::String>,
 }
 
 impl InvokeMapArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.value;
             inputs.push(("value".to_string(), v.cast()));
@@ -101,17 +101,17 @@ pub fn invoke_map(ctx: &pulumi::Context, args: InvokeMapArgs, options: pulumi::I
     if options.version.is_empty() {
         options.version = "21.0.0".to_string();
     }
-    ctx.invoke("scalar-returns:index:invokeMap", args.into_inputs(), options).cast()
+    pulumi::pv::single_value(ctx.invoke("scalar-returns:index:invokeMap", args.into_inputs(), options)).cast()
 }
 
 #[derive(Clone, Debug)]
 pub struct InvokeSecretArgs {
-    pub value: pulumi::Output<String>,
+    pub value: pulumi::Output<std::string::String>,
 }
 
 impl InvokeSecretArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.value;
             inputs.push(("value".to_string(), v.cast()));
@@ -129,6 +129,6 @@ pub fn invoke_secret(ctx: &pulumi::Context, args: InvokeSecretArgs, options: pul
     if options.version.is_empty() {
         options.version = "21.0.0".to_string();
     }
-    ctx.invoke("scalar-returns:index:invokeSecret", args.into_inputs(), options).cast()
+    pulumi::pv::single_value(ctx.invoke("scalar-returns:index:invokeSecret", args.into_inputs(), options)).cast()
 }
 
