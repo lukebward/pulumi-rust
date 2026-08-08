@@ -1579,8 +1579,9 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 			}
 		}
 		if len(rest) == 0 {
-			// A bare resource reference: surface its URN.
-			return res + ".urn().cast::<pulumi::PropertyValue>()"
+			// A bare resource used as a value is a first-class resource
+			// reference, as in the other SDKs.
+			return res + ".pulumi_resource().reference()"
 		}
 		attr, ok := rest[0].(hcl.TraverseAttr)
 		if !ok {

@@ -126,7 +126,9 @@ pub async fn connect_context(settings: RunSettings) -> Result<Context> {
         pending: Mutex::new(vec![]),
         exports: Mutex::new(vec![]),
     };
-    Ok(Context { inner: Arc::new(inner) })
+    let inner = Arc::new(inner);
+    crate::context::set_active(inner.clone());
+    Ok(Context { inner })
 }
 
 /// Register the root stack resource.

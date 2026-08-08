@@ -300,6 +300,25 @@ impl Resource {
         })
     }
 
+    /// The resource as a first-class reference value, for inputs typed as a
+    /// resource. Deliberately carries no dependencies: the other SDKs
+    /// exclude resource references from property dependencies, and the
+    /// engine relies on that.
+    pub fn reference(&self) -> Output<PropertyValue> {
+        let state = self.state.clone();
+        let custom = self.custom;
+        let version = self.version.clone();
+        Output::from_data_future(async move {
+            let o = state.await;
+            let value = PropertyValue::ResourceReference(crate::value::ResourceReference {
+                urn: o.urn.clone(),
+                id: if custom { Some(o.id.clone().filter(|i| !i.is_empty())) } else { None },
+                package_version: version,
+            });
+            OutputData { value, secret: false, deps: vec![] }
+        })
+    }
+
     /// A `urn::id` provider reference for explicit-provider options.
     fn provider_ref(&self) -> Output<String> {
         let state = self.state.clone();
@@ -727,6 +746,41 @@ fn provider_ref_from_value(v: &PropertyValue) -> String {
             o.value.as_deref().map(provider_ref_from_value).unwrap_or_default()
         }
         _ => String::new(),
+    }
+}
+
+/// The running program's context, so value-level operations that need the
+/// monitor (hydrating a resource reference) can reach it. A program has
+/// exactly one context.
+static ACTIVE: std::sync::OnceLock<Arc<ContextInner>> = std::sync::OnceLock::new();
+
+pub(crate) fn set_active(inner: Arc<ContextInner>) {
+    let _ = ACTIVE.set(inner);
+}
+
+/// Fetch a referenced resource's outputs through the engine's built-in
+/// `getResource` function, so a program can read properties off a resource
+/// reference it received from a component.
+pub(crate) async fn hydrate(v: PropertyValue) -> PropertyValue {
+    let r = match &v {
+        PropertyValue::ResourceReference(r) => r.clone(),
+        _ => return v,
+    };
+    let Some(inner) = ACTIVE.get().cloned() else {
+        return v;
+    };
+    let args = vec![(
+        "urn".to_string(),
+        Output::from_value(PropertyValue::String(r.urn.clone())),
+    )];
+    match do_invoke(inner, "pulumi:pulumi:getResource".to_string(), args, InvokeOptions::default())
+        .await
+    {
+        Ok(data) => match data.value {
+            PropertyValue::Object(m) => m.get("state").cloned().unwrap_or(v),
+            _ => v,
+        },
+        Err(_) => v,
     }
 }
 

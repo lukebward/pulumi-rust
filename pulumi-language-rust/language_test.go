@@ -53,11 +53,6 @@ var expectedFailures = map[string]string{
 	// Package namespaces are not implemented.
 	"l2-namespaced-provider": "package namespaces are not implemented",
 
-	// Reading through resource-reference outputs requires hydration via
-	// pulumi:pulumi:getResource.
-	"l2-component-component-resource-ref": "resource reference hydration is not implemented",
-	"l2-component-program-resource-ref":   "resource reference hydration is not implemented",
-	"l2-component-property-deps":          "component property dependencies are not implemented",
 
 
 

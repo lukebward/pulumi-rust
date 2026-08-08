@@ -180,7 +180,10 @@ impl<T> Output<T> {
             if matches!(d.value, PropertyValue::Computed) {
                 return d;
             }
-            let elem = index_value(&d.value, &key);
+            // Reading a property off a resource reference means fetching
+            // that resource's state from the engine first.
+            let value = crate::context::hydrate(d.value).await;
+            let elem = index_value(&value, &key);
             let inner = OutputData::from_value(elem);
             OutputData {
                 value: inner.value,
