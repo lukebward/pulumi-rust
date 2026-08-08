@@ -200,9 +200,10 @@ type programGenerator struct {
 	componentOutputOrder []string
 	// componentArgs maps a component config name to its args field.
 	componentArgs map[string]bool
-	// deferredResolvers holds the resolvers a component instantiation must
-	// fulfil once the producing component exists.
-	deferredResolvers []string
+	// deferred records deferred outputs: a component consuming another
+	// component that appears later in the program gets a placeholder now,
+	// resolved once the producer is instantiated.
+	deferred []deferredOutput
 	// componentModules maps a component directory to its Rust module name.
 	componentModules map[string]string
 	// component is the component being emitted in component mode.
@@ -1056,6 +1057,15 @@ func componentTypeName(c *pcl.Component) string {
 	return pascalCase(c.DeclarationName())
 }
 
+// deferredOutput is one placeholder standing in for an output of a
+// component that has not been instantiated yet.
+type deferredOutput struct {
+	v        *pcl.DeferredOutputVariable
+	ident    string
+	resolver string
+	resolved bool
+}
+
 // componentToken is the type token a local component registers under.
 func componentToken(c *pcl.Component) string {
 	return "components:index:" + componentTypeName(c)
@@ -1066,6 +1076,18 @@ func componentToken(c *pcl.Component) string {
 // not declaration order: nodes are emitted topologically.
 func (g *programGenerator) componentOutputNames() []string {
 	return g.componentOutputOrder
+}
+
+// componentOutputsOf lists the outputs a component declares, in the order
+// its module numbers them.
+func (g *programGenerator) componentOutputsOf(c *pcl.Component) []string {
+	var names []string
+	for _, n := range pcl.Linearize(c.Program) {
+		if o, ok := n.(*pcl.OutputVariable); ok {
+			names = append(names, o.LogicalName())
+		}
+	}
+	return names
 }
 
 // genComponent instantiates a local component from the enclosing program.
@@ -1086,8 +1108,22 @@ func (g *programGenerator) genComponent(w *bytes.Buffer, c *pcl.Component) {
 	g.declaredVars = append(g.declaredVars, name)
 
 	var fields []string
+	var deferredKeys []string
+	var mine []int
 	for _, attr := range c.Inputs {
-		value := attr.Value
+		value, defs := pcl.ExtractDeferredOutputVariables(g.program, c, attr.Value)
+		if len(defs) > 0 {
+			deferredKeys = append(deferredKeys, attr.Name)
+		}
+		for _, d := range defs {
+			ident := g.declareVar(d.Name)
+			g.declaredVars = append(g.declaredVars, ident)
+			g.scopeVars[d.Name] = ident
+			g.deferred = append(g.deferred, deferredOutput{
+				v: d, ident: ident, resolver: g.declareVar("resolve_" + d.Name),
+			})
+			mine = append(mine, len(g.deferred)-1)
+		}
 		if destType, tdiags := c.InputType.Traverse(hcl.TraverseAttr{Name: attr.Name}); !tdiags.HasErrors() {
 			if mt, okType := destType.(model.Type); okType {
 				converted, _ := pcl.RewriteConversions(value, mt)
@@ -1096,13 +1132,57 @@ func (g *programGenerator) genComponent(w *bytes.Buffer, c *pcl.Component) {
 		}
 		fields = append(fields, fmt.Sprintf("%s: Some(%s)", componentMemberName(attr.Name), g.expr(value)))
 	}
+	// Declare the placeholders this instantiation consumes before it runs.
+	for _, i := range mine {
+		d := g.deferred[i]
+		fmt.Fprintf(w, "let (%s, %s) = pulumi::deferred_output();\n", d.ident, d.resolver)
+	}
+	if len(deferredKeys) > 0 {
+		var quoted []string
+		for _, k := range deferredKeys {
+			quoted = append(quoted, rustString(k)+".to_string()")
+		}
+		fields = append(fields, fmt.Sprintf("pulumi_deferred: vec![%s]", strings.Join(quoted, ", ")))
+	}
 	args := fmt.Sprintf("%sArgs { ..Default::default() }", path)
 	if len(fields) > 0 {
 		args = fmt.Sprintf("%sArgs { %s, ..Default::default() }", path, strings.Join(fields, ", "))
 	}
-	fmt.Fprintf(w, "let %s = %s::new(&ctx, %s, %s, %s).await?;\n",
-		name, path, g.resourceName(c.LogicalName()), args, g.componentOptions(c, subject))
-	g.componentVars[name] = c
+
+	if c.Options != nil && c.Options.Range != nil {
+		// A ranged component binds a dynamic array of its instances'
+		// outputs, so the rest of the program can iterate it.
+		g.rangedVars[name] = true
+		outputs := g.componentOutputsOf(c)
+		var entries []string
+		for _, o := range outputs {
+			entries = append(entries, fmt.Sprintf("(%s.to_string(), __instance.%s())",
+				rustString(o), componentMemberName(o)))
+		}
+		fmt.Fprintf(w, "let %s = {\n", name)
+		fmt.Fprintf(w, "let mut __outputs = Vec::new();\n")
+		fmt.Fprintf(w, "for __range in pulumi::range_entries(%s).await {\n", g.expr(c.Options.Range))
+		fmt.Fprintf(w, "let __instance = %s::new(&ctx, &__range.name(%s), %s, %s).await?;\n",
+			path, g.rangeBaseName(c.LogicalName()), args, g.componentOptions(c, subject))
+		fmt.Fprintf(w, "__outputs.push(pulumi::pv::object(vec![%s]));\n", strings.Join(entries, ", "))
+		fmt.Fprintf(w, "}\npulumi::pv::array(__outputs)\n};\n")
+		g.componentVars[name] = c
+	} else {
+		fmt.Fprintf(w, "let %s = %s::new(&ctx, %s, %s, %s).await?;\n",
+			name, path, g.resourceName(c.LogicalName()), args, g.componentOptions(c, subject))
+		g.componentVars[name] = c
+	}
+
+	// Now that this component exists, satisfy any placeholder that was
+	// waiting on one of its outputs.
+	for i := range g.deferred {
+		d := &g.deferred[i]
+		if d.resolved || d.v.SourceComponent != c {
+			continue
+		}
+		d.resolved = true
+		fmt.Fprintf(w, "%s.resolve(%s);\n", d.resolver, g.expr(d.v.Expr))
+	}
 }
 
 // componentOptions renders the options for a component instantiation.
@@ -1890,6 +1970,10 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 		return g.traversalChain(base, rest[1:])
 	case *pcl.Component:
 		comp := g.refVar(expr.RootName)
+		if g.rangedVars[comp] {
+			// Ranged components bind an array of their outputs.
+			return g.traversalChain(comp+".clone()", rest)
+		}
 		if len(rest) == 0 {
 			return comp + ".pulumi_resource().reference()"
 		}

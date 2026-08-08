@@ -36,14 +36,7 @@ import (
 // expectedFailures maps conformance test names to the reason they are
 // currently skipped. Entries here are honest debt: each one is a feature the
 // Rust language implementation does not support yet.
-var expectedFailures = map[string]string{
-	// Mutually dependent components combined with a ranged component. The
-	// SDK has the deferred-output primitive needed to break the cycle, but
-	// components do not support the range option yet. Every in-tree Pulumi
-	// language skips this test.
-	"l3-deferred-outputs": "deferred outputs through ranged components are not implemented",
-
-}
+var expectedFailures = map[string]string{}
 
 func runTestingHost(t *testing.T) (string, testingrpc.LanguageTestClient) {
 	// We can't just go run the pulumi-test-language package because of
