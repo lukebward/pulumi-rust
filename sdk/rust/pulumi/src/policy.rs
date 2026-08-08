@@ -227,35 +227,30 @@ struct Service {
 
 impl Service {
     /// The pack, built from the stack configuration when the pack is
-    /// produced by a factory.
-    fn pack(&self) -> PolicyPack {
+    /// produced by a factory. A factory failure surfaces as an error rather
+    /// than a nameless empty pack, so the user sees the real cause.
+    fn pack(&self) -> std::result::Result<PolicyPack, Status> {
         match &self.source {
-            PackSource::Fixed(p) => p.clone(),
+            PackSource::Fixed(p) => Ok(p.clone()),
             PackSource::Factory(f) => {
                 let stack = self.state.lock().unwrap().stack.clone();
-                f(stack).unwrap_or_else(|_| PolicyPack {
-                    name: String::new(),
-                    version: String::new(),
-                    enforcement_level: EnforcementLevel::Advisory,
-                    policies: vec![],
-                })
+                f(stack).map_err(|e| Status::internal(format!("building policy pack: {e}")))
             }
         }
     }
 }
 
 impl Service {
-    fn policy_config(&self, name: &str) -> (EnforcementLevel, PropertyMap) {
+    fn policy_config(&self, pack: &PolicyPack, name: &str) -> (EnforcementLevel, PropertyMap) {
         let state = self.state.lock().unwrap();
         match state.config.get(name) {
             Some((level, props)) => (*level, props.clone()),
             None => (
-                self.pack()
-                    .policies
+                pack.policies
                     .iter()
                     .find(|p| p.name == name)
                     .map(|p| p.enforcement_level)
-                    .unwrap_or(self.pack().enforcement_level),
+                    .unwrap_or(pack.enforcement_level),
                 PropertyMap::new(),
             ),
         }
@@ -270,12 +265,12 @@ impl Service {
         resource: AnalyzerResource,
     ) -> std::result::Result<Vec<pulumirpc::AnalyzeDiagnostic>, Status> {
         let mut diagnostics = vec![];
-        let pack = self.pack();
+        let pack = self.pack()?;
         for policy in &pack.policies {
             let Some(validate) = &policy.validate else {
                 continue;
             };
-            let (level, config) = self.policy_config(&policy.name);
+            let (level, config) = self.policy_config(&pack, &policy.name);
             if level == EnforcementLevel::Disabled {
                 continue;
             }
@@ -360,12 +355,12 @@ impl Analyzer for Service {
         let resource =
             resource_from_proto(r.r#type, r.name, r.urn, r.properties.as_ref());
         let mut remediations = vec![];
-        let pack = self.pack();
+        let pack = self.pack()?;
         for policy in &pack.policies {
             let Some(remediate) = &policy.remediate else {
                 continue;
             };
-            let (level, config) = self.policy_config(&policy.name);
+            let (level, config) = self.policy_config(&pack, &policy.name);
             if level == EnforcementLevel::Disabled {
                 continue;
             }
@@ -397,7 +392,7 @@ impl Analyzer for Service {
         &self,
         _request: Request<()>,
     ) -> std::result::Result<Response<pulumirpc::AnalyzerInfo>, Status> {
-        let pack = self.pack();
+        let pack = self.pack()?;
         let policies = pack
             .policies
             .iter()
@@ -430,7 +425,7 @@ impl Analyzer for Service {
         _request: Request<()>,
     ) -> std::result::Result<Response<pulumirpc::PluginInfo>, Status> {
         Ok(Response::new(pulumirpc::PluginInfo {
-            version: self.pack().version.clone(),
+            version: self.pack()?.version.clone(),
         }))
     }
 
