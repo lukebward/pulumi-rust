@@ -126,7 +126,12 @@ func cargoCommand(ctx context.Context, dir string, extraEnv []string, args ...st
 	}
 	cmd := exec.CommandContext(ctx, cargo, args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "CARGO_TARGET_DIR="+sharedTargetDir())
+	cmd.Env = append(os.Environ(),
+		"CARGO_TARGET_DIR="+sharedTargetDir(),
+		// Debug info dominates build-artifact size; conformance runs build
+		// hundreds of crates, so keep artifacts lean.
+		"CARGO_PROFILE_DEV_DEBUG=false",
+	)
 	cmd.Env = append(cmd.Env, extraEnv...)
 	return cmd, nil
 }

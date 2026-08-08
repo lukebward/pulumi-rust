@@ -1,9 +1,0 @@
-[package]
-name = "pulumi_component_property_deps"
-version = "1.33.7"
-edition = "2021"
-
-[dependencies]
-pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
-
-[workspace]
