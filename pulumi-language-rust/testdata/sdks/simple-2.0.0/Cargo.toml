@@ -1,0 +1,9 @@
+[package]
+name = "pulumi_simple"
+version = "2.0.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+
+[workspace]

@@ -200,7 +200,11 @@ func asExitError(err error, target **exec.ExitError) bool {
 }
 
 func constructRunEnv(req *pulumirpc.RunRequest, engineAddress string) ([]string, error) {
-	config, err := json.Marshal(req.GetConfig())
+	configMap := req.GetConfig()
+	if configMap == nil {
+		configMap = map[string]string{}
+	}
+	config, err := json.Marshal(configMap)
 	if err != nil {
 		return nil, fmt.Errorf("serializing config: %w", err)
 	}

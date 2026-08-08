@@ -746,7 +746,7 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 		res := varName(expr.RootName)
 		if len(rest) == 0 {
 			// A bare resource reference: surface its URN.
-			return res + ".urn().cast()"
+			return res + ".urn().cast::<pulumi::PropertyValue>()"
 		}
 		attr, ok := rest[0].(hcl.TraverseAttr)
 		if !ok {
@@ -756,11 +756,11 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 		var base string
 		switch attr.Name {
 		case "urn":
-			base = res + ".urn().cast()"
+			base = res + ".urn().cast::<pulumi::PropertyValue>()"
 		case "id":
-			base = res + ".id().cast()"
+			base = res + ".id().cast::<pulumi::PropertyValue>()"
 		default:
-			base = fmt.Sprintf("%s.%s().cast()", res, fieldName(attr.Name))
+			base = fmt.Sprintf("%s.%s().cast::<pulumi::PropertyValue>()", res, fieldName(attr.Name))
 		}
 		_ = root
 		return g.traversalChain(base, rest[1:])
@@ -927,6 +927,9 @@ func (g *programGenerator) invokeExpr(expr *model.FunctionCallExpression) string
 	if len(parts) == 2 {
 		parts = []string{parts[0], "index", parts[1]}
 	}
+	if len(parts) == 3 && parts[1] == "" {
+		parts[1] = "index"
+	}
 	canonical := strings.Join(parts, ":")
 	fn := g.lookupFunction(canonical)
 	if fn == nil {
@@ -970,7 +973,7 @@ func (g *programGenerator) invokeExpr(expr *model.FunctionCallExpression) string
 		options = g.invokeOptions(expr.Args[2], subject)
 	}
 
-	return fmt.Sprintf("%s(&ctx, %s, %s).cast()", fnPath, args, options)
+	return fmt.Sprintf("%s(&ctx, %s, %s).cast::<pulumi::PropertyValue>()", fnPath, args, options)
 }
 
 func (g *programGenerator) invokeOptions(expr model.Expression, subject hcl.Range) string {

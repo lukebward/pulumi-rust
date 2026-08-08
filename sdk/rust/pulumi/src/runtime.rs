@@ -27,12 +27,12 @@ pub fn settings_from_env() -> Result<RunSettings> {
         ));
     }
     let config: HashMap<String, String> = match env("PULUMI_CONFIG").as_str() {
-        "" => HashMap::new(),
+        "" | "null" => HashMap::new(),
         raw => serde_json::from_str(raw)
             .map_err(|e| Error::new(format!("parsing PULUMI_CONFIG: {e}")))?,
     };
     let config_secret_keys: Vec<String> = match env("PULUMI_CONFIG_SECRET_KEYS").as_str() {
-        "" => vec![],
+        "" | "null" => vec![],
         raw => serde_json::from_str(raw)
             .map_err(|e| Error::new(format!("parsing PULUMI_CONFIG_SECRET_KEYS: {e}")))?,
     };
