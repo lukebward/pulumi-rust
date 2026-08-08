@@ -4,20 +4,20 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let class = pulumi_simple::Resource::new(&ctx, "class", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        ctx.export("class", class.urn().cast::<pulumi::PropertyValue>());
+        ctx.export("class", class.pulumi_resource().reference());
         let export = pulumi_simple::Resource::new(&ctx, "export", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        ctx.export("export", export.urn().cast::<pulumi::PropertyValue>());
+        ctx.export("export", export.pulumi_resource().reference());
         let r#mod = pulumi_simple::Resource::new(&ctx, "mod", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        ctx.export("mod", r#mod.urn().cast::<pulumi::PropertyValue>());
+        ctx.export("mod", r#mod.pulumi_resource().reference());
         let import = pulumi_simple::Resource::new(&ctx, "import", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
         let object = pulumi_simple::Resource::new(&ctx, "object", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        ctx.export("object", object.urn().cast::<pulumi::PropertyValue>());
+        ctx.export("object", object.pulumi_resource().reference());
         let self_ = pulumi_simple::Resource::new(&ctx, "self", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        ctx.export("self", self_.urn().cast::<pulumi::PropertyValue>());
+        ctx.export("self", self_.pulumi_resource().reference());
         let this = pulumi_simple::Resource::new(&ctx, "this", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        ctx.export("this", this.urn().cast::<pulumi::PropertyValue>());
+        ctx.export("this", this.pulumi_resource().reference());
         let r#if = pulumi_simple::Resource::new(&ctx, "if", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        ctx.export("if", r#if.urn().cast::<pulumi::PropertyValue>());
+        ctx.export("if", r#if.pulumi_resource().reference());
         Ok(())
     });
 }
