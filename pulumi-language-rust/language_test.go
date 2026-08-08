@@ -40,13 +40,6 @@ import (
 var expectedFailures = map[string]string{
 
 
-	// Resource methods (call) are not implemented in codegen or the SDK.
-	"l2-component-call-simple":  "resource methods (call) are not implemented",
-	"l2-component-call-plain":   "resource methods (call) are not implemented",
-	"l2-provider-call":          "resource methods (call) are not implemented",
-	"l2-provider-call-explicit": "resource methods (call) are not implemented",
-	"l2-index-mod":              "resource methods (call) are not implemented",
-	"l2-module-format":          "resource methods (call) are not implemented",
 
 	// Package parameterization (RegisterPackage + parameterized SDKs) is
 	// not implemented.

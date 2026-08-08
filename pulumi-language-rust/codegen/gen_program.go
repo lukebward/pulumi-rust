@@ -841,6 +841,64 @@ func (g *programGenerator) plainLiteral(expr model.Expression, t schema.Type, su
 	return "Default::default()"
 }
 
+// callExpr renders the `call` intrinsic: a method invocation on a resource.
+// The method's fully qualified token comes from the receiver's schema.
+func (g *programGenerator) callExpr(expr *model.FunctionCallExpression) string {
+	subject := expr.SyntaxNode().Range()
+	if len(expr.Args) < 3 {
+		g.errorf(subject, "call needs a receiver, method name and arguments")
+		return "pulumi::pv::null()"
+	}
+	recv, res, ok := g.resourceRefNode(expr.Args[0])
+	if !ok || res.Schema == nil {
+		g.errorf(subject, "call's receiver must be a typed resource")
+		return "pulumi::pv::null()"
+	}
+	method, ok := literalString(expr.Args[1])
+	if !ok {
+		g.errorf(subject, "call's method name must be a string literal")
+		return "pulumi::pv::null()"
+	}
+	var tok string
+	singleValue := false
+	for _, m := range res.Schema.Methods {
+		if m.Name == method && m.Function != nil {
+			tok = m.Function.Token
+			// A method whose return type is not an object returns a single
+			// value under the well-known "res" key.
+			if m.Function.ReturnType != nil {
+				_, isObject := m.Function.ReturnType.(*schema.ObjectType)
+				singleValue = !isObject
+			}
+			break
+		}
+	}
+	if tok == "" {
+		g.errorf(subject, "resource has no method %q", method)
+		return "pulumi::pv::null()"
+	}
+
+	var args []string
+	if object, ok := unwrapConvert(expr.Args[2]).(*model.ObjectConsExpression); ok {
+		for _, item := range object.Items {
+			key, ok := keyString(item.Key)
+			if !ok {
+				g.errorf(subject, "unsupported call argument key")
+				continue
+			}
+			args = append(args, fmt.Sprintf("(%s.to_string(), %s)", rustString(key), g.expr(item.Value)))
+		}
+	} else {
+		g.errorf(subject, "call's arguments must be an object literal")
+	}
+	call := fmt.Sprintf("ctx.call(%s, %s.pulumi_resource(), vec![%s])",
+		rustString(tok), recv, strings.Join(args, ", "))
+	if singleValue {
+		call += ".index(\"res\")"
+	}
+	return call
+}
+
 // alias renders one element of the aliases option: either a literal URN
 // string or an object literal naming the parts that differed.
 func (g *programGenerator) alias(subject hcl.Range, e model.Expression) string {
@@ -920,7 +978,9 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 		if res, ok := g.resourceRef(opts.Provider); ok {
 			setField("provider", fmt.Sprintf("Some(%s.pulumi_resource().clone())", res))
 		} else {
-			g.errorf(subject, "unsupported provider expression")
+			// A provider can also arrive as a value, e.g. one returned from
+			// a resource method.
+			setField("provider_value", fmt.Sprintf("Some(%s)", g.expr(opts.Provider)))
 		}
 	}
 	if opts.DependsOn != nil {
@@ -1659,6 +1719,8 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 			return fmt.Sprintf("pulumi::pv::urn_type(%s.urn().cast::<pulumi::PropertyValue>())", res)
 		}
 		return fmt.Sprintf("pulumi::pv::urn_type(%s)", arg(0))
+	case pcl.Call:
+		return g.callExpr(expr)
 	case "recover":
 		// `error` is bound only inside the recovery expression.
 		saved := g.scopeVars["error"]

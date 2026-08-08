@@ -1,0 +1,10 @@
+[package]
+name = "l2-component-call-plain"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_configurer = { path = "ROOT/artifacts/pulumi_configurer-38.0.0" }
+
+[workspace]

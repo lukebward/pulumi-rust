@@ -82,6 +82,9 @@ pub struct ResourceOptions {
     pub protect: Option<bool>,
     /// Explicit provider for this resource.
     pub provider: Option<Resource>,
+    /// An explicit provider that arrived as a value rather than a resource,
+    /// e.g. one returned from a resource method.
+    pub provider_value: Option<Output<PropertyValue>>,
     /// Explicit providers for component resources, keyed by package name.
     pub providers: Vec<(String, Resource)>,
     pub version: String,
@@ -202,6 +205,11 @@ pub struct Resource {
     state: Shared<BoxFuture<'static, Arc<RegisterOutcome>>>,
     custom: bool,
     dry_run: bool,
+    /// The provider, version and plugin URL this resource was registered
+    /// with, so a method call on it reaches the same provider.
+    provider: Option<Arc<Resource>>,
+    version: String,
+    plugin_download_url: String,
 }
 
 impl std::fmt::Debug for Resource {
@@ -353,12 +361,62 @@ impl Context {
         let inner = self.inner.clone();
         let dry_run = self.dry_run();
         let custom = req.custom;
+        let provider = req.options.provider.clone().map(Arc::new);
+        let version = if req.options.version.is_empty() {
+            req.version.clone()
+        } else {
+            req.options.version.clone()
+        };
+        let plugin_download_url = if req.options.plugin_download_url.is_empty() {
+            req.plugin_download_url.clone()
+        } else {
+            req.options.plugin_download_url.clone()
+        };
         let fut = async move { Arc::new(do_register(inner, req).await) }.boxed().shared();
         // Drive the registration immediately so independent resources
         // register concurrently, then track it for draining at shutdown.
         tokio::spawn(fut.clone());
         self.inner.pending.lock().unwrap().push(fut.clone());
-        Resource { state: fut, custom, dry_run }
+        Resource {
+            state: fut,
+            custom,
+            dry_run,
+            provider,
+            version,
+            plugin_download_url,
+        }
+    }
+
+    /// Call a method on a resource. The receiver travels as `__self__`
+    /// alongside the arguments, and the method runs on the provider that
+    /// created the receiver.
+    pub fn call(
+        &self,
+        tok: impl Into<String>,
+        self_: &Resource,
+        args: Vec<(String, Output<PropertyValue>)>,
+    ) -> Output<PropertyValue> {
+        let inner = self.inner.clone();
+        let tok = tok.into();
+        let self_ = self_.clone();
+        Output::from_data_future(async move {
+            match do_call(inner.clone(), tok, self_, args).await {
+                Ok(data) => data,
+                Err(e) => {
+                    if let Some(engine) = &inner.engine {
+                        let mut engine = engine.clone();
+                        let _ = engine
+                            .log(pulumirpc::LogRequest {
+                                severity: pulumirpc::LogSeverity::Error as i32,
+                                message: format!("{e}"),
+                                ..Default::default()
+                            })
+                            .await;
+                    }
+                    std::process::exit(crate::runtime::EXIT_STATUS_LOGGED_ERROR);
+                }
+            }
+        })
     }
 
     /// Check the engine (CLI) version against a semver range, failing the
@@ -403,7 +461,14 @@ impl Context {
         .shared();
         tokio::spawn(fut.clone());
         self.inner.pending.lock().unwrap().push(fut.clone());
-        Resource { state: fut, custom: true, dry_run }
+        Resource {
+            state: fut,
+            custom: true,
+            dry_run,
+            provider: None,
+            version: String::new(),
+            plugin_download_url: String::new(),
+        }
     }
 
     /// Invoke a provider function, returning its result object as an output.
@@ -537,6 +602,25 @@ fn encode_value(data: OutputData, features: Features) -> PropertyValue {
     }
 }
 
+/// Render a `urn::id` provider reference from a value holding a resource
+/// reference, e.g. a provider returned from a resource method.
+fn provider_ref_from_value(v: &PropertyValue) -> String {
+    match v {
+        PropertyValue::ResourceReference(r) => {
+            let id = match &r.id {
+                Some(Some(id)) if !id.is_empty() => id.clone(),
+                _ => crate::value::UNKNOWN_STRING_VALUE.to_string(),
+            };
+            format!("{}::{}", r.urn, id)
+        }
+        PropertyValue::Secret(inner) => provider_ref_from_value(inner),
+        PropertyValue::Output(o) => {
+            o.value.as_deref().map(provider_ref_from_value).unwrap_or_default()
+        }
+        _ => String::new(),
+    }
+}
+
 async fn await_urn(r: &Resource) -> String {
     match r.urn().data().await.value {
         PropertyValue::String(urn) => urn,
@@ -565,7 +649,10 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
             PropertyValue::String(s) => s,
             _ => String::new(),
         },
-        None => String::new(),
+        None => match &req.options.provider_value {
+            Some(v) => provider_ref_from_value(&v.data().await.value),
+            None => String::new(),
+        },
     };
     let mut providers = HashMap::new();
     for (pkg, p) in &req.options.providers {
@@ -804,6 +891,105 @@ async fn do_read(
         error: None,
         unknown: false,
     }
+}
+
+/// Perform a resource method call, returning the provider's return object.
+async fn do_call(
+    inner: Arc<ContextInner>,
+    tok: String,
+    self_: Resource,
+    args: Vec<(String, Output<PropertyValue>)>,
+) -> Result<OutputData> {
+    let mut secret = false;
+    let mut deps: Vec<String> = vec![];
+    let mut arg_map = BTreeMap::new();
+    let mut arg_dependencies = HashMap::new();
+    for (key, out) in args {
+        let data = out.data().await;
+        secret |= data.secret;
+        deps.extend(data.deps.clone());
+        arg_dependencies.insert(
+            key.clone(),
+            pulumirpc::resource_call_request::ArgumentDependencies { urns: data.deps.clone() },
+        );
+        arg_map.insert(key, encode_value(data, inner.features));
+    }
+
+    // The receiver travels as a resource reference under __self__.
+    let outcome = self_.state.clone().await;
+    let self_ref = crate::value::ResourceReference {
+        urn: outcome.urn.clone(),
+        id: if self_.custom {
+            Some(outcome.id.clone().filter(|i| !i.is_empty()))
+        } else {
+            None
+        },
+        package_version: self_.version.clone(),
+    };
+    arg_map.insert("__self__".to_string(), PropertyValue::ResourceReference(self_ref));
+    if !outcome.urn.is_empty() {
+        arg_dependencies.insert(
+            "__self__".to_string(),
+            pulumirpc::resource_call_request::ArgumentDependencies {
+                urns: vec![outcome.urn.clone()],
+            },
+        );
+        deps.push(outcome.urn.clone());
+    }
+
+    let provider = match &self_.provider {
+        Some(p) => match p.provider_ref().data().await.value {
+            PropertyValue::String(s) => s,
+            _ => String::new(),
+        },
+        None => String::new(),
+    };
+
+    let request = pulumirpc::ResourceCallRequest {
+        tok: tok.clone(),
+        args: Some(marshal_properties(&arg_map)),
+        arg_dependencies,
+        provider,
+        version: self_.version.clone(),
+        plugin_download_url: self_.plugin_download_url.clone(),
+        accepts_byte_string: true,
+        ..Default::default()
+    };
+
+    let mut monitor = inner.monitor.clone();
+    let response = monitor
+        .call(request)
+        .await
+        .map_err(|e| Error::new(format!("calling {}: {}", tok, e.message())))?
+        .into_inner();
+    if !response.failures.is_empty() {
+        let msgs: Vec<_> = response
+            .failures
+            .iter()
+            .map(|f| {
+                if f.property.is_empty() {
+                    f.reason.clone()
+                } else {
+                    format!("{}: {}", f.property, f.reason)
+                }
+            })
+            .collect();
+        return Err(Error::new(format!("calling {}: {}", tok, msgs.join("; "))));
+    }
+
+    for d in response.return_dependencies.values() {
+        deps.extend(d.urns.iter().cloned());
+    }
+    let ret = match &response.r#return {
+        Some(s) => PropertyValue::Object(unmarshal_properties(s)),
+        None => PropertyValue::Object(BTreeMap::new()),
+    };
+    let data = OutputData::from_value(ret);
+    Ok(OutputData {
+        value: data.value,
+        secret: secret || data.secret,
+        deps: deps.into_iter().chain(data.deps).collect(),
+    })
 }
 
 async fn do_invoke(
