@@ -1,0 +1,3 @@
+name: component
+runtime: rust
+description: Grouping resources behind a reusable component.

@@ -1,0 +1,3 @@
+name: config-and-outputs
+runtime: rust
+description: Reading configuration and exporting stack outputs.

@@ -1,0 +1,10 @@
+[package]
+name = "random-password"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../sdk/rust/pulumi" }
+# Generate this SDK first:
+#   pulumi package gen-sdk random --language rust --out ./sdks
+pulumi_random = { path = "./sdks/random" }

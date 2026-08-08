@@ -1,0 +1,9 @@
+[package]
+name = "${PROJECT}"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# The Pulumi Rust SDK. While this is experimental and unpublished, point it
+# at a local checkout; once published, use a version requirement instead.
+pulumi = { path = "../pulumi-rust/sdk/rust/pulumi" }
