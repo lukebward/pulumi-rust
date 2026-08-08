@@ -137,6 +137,41 @@ pub fn from_base64(v: Output<PropertyValue>) -> Output<PropertyValue> {
     .cast()
 }
 
+/// Base64-encode a file's raw bytes (PCL `filebase64`).
+pub fn file_base64(path: Output<PropertyValue>) -> Output<PropertyValue> {
+    use base64::Engine;
+    path.cast::<String>()
+        .map(|p: String| {
+            let bytes = std::fs::read(p).unwrap_or_default();
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        })
+        .cast()
+}
+
+/// Base64-encoded SHA-256 of a file's bytes (PCL `filebase64sha256`).
+pub fn file_base64_sha256(path: Output<PropertyValue>) -> Output<PropertyValue> {
+    use base64::Engine;
+    use sha2::Digest;
+    path.cast::<String>()
+        .map(|p: String| {
+            let bytes = std::fs::read(p).unwrap_or_default();
+            let digest = sha2::Sha256::digest(&bytes);
+            base64::engine::general_purpose::STANDARD.encode(digest)
+        })
+        .cast()
+}
+
+/// Hex-encoded SHA-1 of a string (PCL `sha1`).
+pub fn sha1_hex(v: Output<PropertyValue>) -> Output<PropertyValue> {
+    use sha1::Digest;
+    v.cast::<String>()
+        .map(|s: String| {
+            let digest = sha1::Sha1::digest(s.as_bytes());
+            digest.iter().map(|b| format!("{b:02x}")).collect::<String>()
+        })
+        .cast()
+}
+
 /// Serialize a value to JSON (PCL `toJSON`).
 pub fn to_json(v: Output<PropertyValue>) -> Output<PropertyValue> {
     v.map(|p: PropertyValue| property_to_json_string(&p)).cast()
@@ -240,6 +275,62 @@ pub fn split(sep: Output<PropertyValue>, s: Output<PropertyValue>) -> Output<Pro
 /// Retrieve an element of a list (PCL `element`).
 pub fn element(list: Output<PropertyValue>, idx: Output<PropertyValue>) -> Output<PropertyValue> {
     crate::ops::index(list, idx)
+}
+
+/// The single element of a one-element list, or null (PCL `singleOrNone`).
+pub fn single_or_none(v: Output<PropertyValue>) -> Output<PropertyValue> {
+    v.map(|p: PropertyValue| match p {
+        PropertyValue::Array(a) if a.len() == 1 => {
+            strip_wrappers(&a[0])
+        }
+        _ => PropertyValue::Null,
+    })
+    .cast()
+}
+
+/// Look up a key in a map with a default (PCL `lookup`).
+pub fn lookup(
+    m: Output<PropertyValue>,
+    key: Output<PropertyValue>,
+    default: Output<PropertyValue>,
+) -> Output<PropertyValue> {
+    let found = crate::ops::index(m, key);
+    Output::from_data_future(async move {
+        let d = found.data().await;
+        if matches!(d.value, PropertyValue::Null) {
+            return default.data().await;
+        }
+        d
+    })
+}
+
+/// The numeric minimum of the arguments (PCL `min`).
+pub fn min(items: Vec<Output<PropertyValue>>) -> Output<PropertyValue> {
+    fold_numbers(items, f64::INFINITY, |acc, n| if n < acc { n } else { acc })
+}
+
+/// The numeric maximum of the arguments (PCL `max`).
+pub fn max(items: Vec<Output<PropertyValue>>) -> Output<PropertyValue> {
+    fold_numbers(items, f64::NEG_INFINITY, |acc, n| if n > acc { n } else { acc })
+}
+
+fn fold_numbers(
+    items: Vec<Output<PropertyValue>>,
+    init: f64,
+    f: impl Fn(f64, f64) -> f64 + Send + 'static,
+) -> Output<PropertyValue> {
+    array(items)
+        .cast::<Vec<PropertyValue>>()
+        .map(move |vals| {
+            let mut acc = init;
+            for v in vals {
+                if let PropertyValue::Number(n) = strip_wrappers(&v) {
+                    acc = f(acc, n);
+                }
+            }
+            PropertyValue::Number(acc)
+        })
+        .cast()
 }
 
 /// A [key, value] entry list of an object or list (PCL `entries`).

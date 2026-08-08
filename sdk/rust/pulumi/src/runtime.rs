@@ -75,14 +75,23 @@ async fn supports_feature(
 }
 
 /// Connect to the engine and build a [`Context`] ready to run a program.
+/// Matches the engine's 400MiB gRPC message cap.
+const MAX_RPC_MESSAGE_SIZE: usize = 1024 * 1024 * 400;
+
 pub async fn connect_context(settings: RunSettings) -> Result<Context> {
     let monitor_channel = connect(&settings.monitor_addr).await?;
-    let mut monitor = ResourceMonitorClient::new(monitor_channel);
+    let mut monitor = ResourceMonitorClient::new(monitor_channel)
+        .max_decoding_message_size(MAX_RPC_MESSAGE_SIZE)
+        .max_encoding_message_size(MAX_RPC_MESSAGE_SIZE);
 
     let engine = if settings.engine_addr.is_empty() {
         None
     } else {
-        Some(EngineClient::new(connect(&settings.engine_addr).await?))
+        Some(
+            EngineClient::new(connect(&settings.engine_addr).await?)
+                .max_decoding_message_size(MAX_RPC_MESSAGE_SIZE)
+                .max_encoding_message_size(MAX_RPC_MESSAGE_SIZE),
+        )
     };
 
     let features = Features {

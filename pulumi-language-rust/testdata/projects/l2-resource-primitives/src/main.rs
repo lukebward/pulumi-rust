@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let res = pulumi_primitive::Resource::new(&ctx, "res", pulumi_primitive::ResourceArgs { boolean: pulumi::pv::bool(true).cast(), boolean_map: pulumi::pv::object(vec![("t".to_string(), pulumi::pv::bool(true)), ("f".to_string(), pulumi::pv::bool(false))]).cast(), float: pulumi::pv::number(3.14).cast(), integer: pulumi::pv::number(42.0).cast(), number_array: pulumi::pv::array(vec![pulumi::pv::number(-1.0), pulumi::pv::number(0.0), pulumi::pv::number(1.0)]).cast(), string: pulumi::pv::string("hello").cast() }, pulumi::ResourceOptions::default());
+        let res = pulumi_primitive::Resource::new(&ctx, "res", pulumi_primitive::ResourceArgs { boolean: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast(), boolean_map: pulumi::pv::object(vec![("t".to_string(), pulumi::ops::to_bool(pulumi::pv::bool(true))), ("f".to_string(), pulumi::ops::to_bool(pulumi::pv::bool(false)))]).cast(), float: pulumi::ops::to_number(pulumi::pv::number(3.14)).cast(), integer: pulumi::ops::to_int(pulumi::pv::number(42.0)).cast(), number_array: pulumi::pv::array(vec![pulumi::ops::to_number(pulumi::pv::number(-1.0)), pulumi::ops::to_number(pulumi::pv::number(0.0)), pulumi::ops::to_number(pulumi::pv::number(1.0))]).cast(), string: pulumi::ops::to_string(pulumi::pv::string("hello")).cast() }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

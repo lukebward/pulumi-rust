@@ -279,6 +279,11 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 		return
 	}
 
+	if token, _ := r.GetToken(); token == "pulumi:pulumi:StackReference" {
+		g.genStackReference(w, r)
+		return
+	}
+
 	structPath, _ := g.resourcePath(r)
 	name := varName(r.Name())
 
@@ -306,6 +311,23 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 
 	fmt.Fprintf(w, "let %s = %s::new(&ctx, %s, %s, %s);\n",
 		name, structPath, rustString(r.LogicalName()), args, options)
+}
+
+// genStackReference emits a pulumi::StackReference for the builtin
+// pulumi:pulumi:StackReference resource type.
+func (g *programGenerator) genStackReference(w *bytes.Buffer, r *pcl.Resource) {
+	var nameExpr string
+	for _, input := range r.Inputs {
+		if input.Name == "name" {
+			nameExpr = g.expr(input.Value)
+		}
+	}
+	if nameExpr == "" {
+		g.errorf(r.Definition.Syntax.DefRange(), "stack reference requires a name input")
+		nameExpr = "pulumi::pv::null()"
+	}
+	fmt.Fprintf(w, "let %s = pulumi::StackReference::new(&ctx, %s, %s, %s);\n",
+		varName(r.Name()), rustString(r.LogicalName()), nameExpr, g.resourceOptions(r))
 }
 
 // typedArgsLiteral renders `Path { field: value, ... }` for a set of schema
@@ -876,6 +898,14 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 		return inner
 	case pcl.Invoke:
 		return g.invokeExpr(expr)
+	case "getOutput":
+		if scope, ok := expr.Args[0].(*model.ScopeTraversalExpression); ok && len(scope.Parts) > 0 {
+			if _, isRes := scope.Parts[0].(*pcl.Resource); isRes {
+				return fmt.Sprintf("%s.get_output(%s)", varName(scope.RootName), arg(1))
+			}
+		}
+		g.errorf(subject, "getOutput requires a stack reference variable")
+		return "pulumi::pv::null()"
 	case "secret":
 		return fmt.Sprintf("pulumi::pv::secret(%s)", arg(0))
 	case "unsecret":
@@ -916,6 +946,12 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 		return "pulumi::pv::null()"
 	case "readFile":
 		return fmt.Sprintf("pulumi::pv::read_file(%s)", arg(0))
+	case "filebase64":
+		return fmt.Sprintf("pulumi::pv::file_base64(%s)", arg(0))
+	case "filebase64sha256":
+		return fmt.Sprintf("pulumi::pv::file_base64_sha256(%s)", arg(0))
+	case "sha1":
+		return fmt.Sprintf("pulumi::pv::sha1_hex(%s)", arg(0))
 	case "toBase64":
 		return fmt.Sprintf("pulumi::pv::to_base64(%s)", arg(0))
 	case "fromBase64":
@@ -932,6 +968,20 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 		return fmt.Sprintf("pulumi::pv::element(%s, %s)", arg(0), arg(1))
 	case "entries":
 		return fmt.Sprintf("pulumi::pv::entries(%s)", arg(0))
+	case "singleOrNone":
+		return fmt.Sprintf("pulumi::pv::single_or_none(%s)", arg(0))
+	case "lookup":
+		def := "pulumi::pv::null()"
+		if len(expr.Args) > 2 {
+			def = g.expr(expr.Args[2])
+		}
+		return fmt.Sprintf("pulumi::pv::lookup(%s, %s, %s)", arg(0), arg(1), def)
+	case "min", "max":
+		var elems []string
+		for _, e := range expr.Args {
+			elems = append(elems, g.expr(e))
+		}
+		return fmt.Sprintf("pulumi::pv::%s(vec![%s])", expr.Name, strings.Join(elems, ", "))
 	}
 	g.errorf(subject, "function %q is not yet supported by the Rust program generator", expr.Name)
 	return "pulumi::pv::null()"

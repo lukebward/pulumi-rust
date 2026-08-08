@@ -12,6 +12,7 @@ pub mod ops;
 pub mod output;
 pub mod pv;
 pub mod runtime;
+pub mod stack_reference;
 pub mod value;
 
 pub use config::Config;
@@ -22,6 +23,7 @@ pub use convert::{FromPropertyValue, IntoPropertyValue};
 pub use error::{Error, Result};
 pub use output::{Output, OutputData};
 pub use runtime::run;
+pub use stack_reference::StackReference;
 pub use value::{Archive, Asset, AssetOrArchive, PropertyMap, PropertyValue};
 
 /// Generated gRPC bindings for the Pulumi engine protocol.

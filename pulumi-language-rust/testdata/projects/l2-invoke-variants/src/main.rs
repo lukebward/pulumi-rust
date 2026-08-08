@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let res = pulumi_simple_invoke::StringResource::new(&ctx, "res", pulumi_simple_invoke::StringResourceArgs { text: pulumi::pv::string("hello").cast() }, pulumi::ResourceOptions::default());
+        let res = pulumi_simple_invoke::StringResource::new(&ctx, "res", pulumi_simple_invoke::StringResourceArgs { text: pulumi::ops::to_string(pulumi::pv::string("hello")).cast() }, pulumi::ResourceOptions::default());
         ctx.export("outputInput", pulumi_simple_invoke::my_invoke(&ctx, pulumi_simple_invoke::MyInvokeArgs { value: res.text().cast::<pulumi::PropertyValue>().cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result"));
         ctx.export("unit", pulumi_simple_invoke::unit(&ctx, pulumi_simple_invoke::UnitArgs {  }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result"));
         Ok(())

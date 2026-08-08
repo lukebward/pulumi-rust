@@ -1,0 +1,9 @@
+[package]
+name = "pulumi_sync"
+version = "3.0.0-alpha.1.internal+exp.sha.2143768"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+
+[workspace]
