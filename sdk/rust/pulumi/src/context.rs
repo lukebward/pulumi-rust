@@ -653,6 +653,7 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         deleted_with,
         alias_specs: true,
         supports_result_reporting: true,
+        accepts_byte_string: true,
         aliases,
         hide_diffs: req.options.hide_diffs.clone(),
         replace_with,
@@ -819,6 +820,7 @@ async fn do_invoke(
         provider,
         version: opts.version.clone(),
         accept_resources: true,
+        accepts_byte_string: true,
         plugin_download_url: opts.plugin_download_url.clone(),
         depends_on: all_depends_on,
         ..Default::default()

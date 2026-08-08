@@ -117,6 +117,10 @@ pub enum PropertyValue {
     Bool(bool),
     Number(f64),
     String(String),
+    /// A string whose bytes are not valid UTF-8. Rust's `String` cannot hold
+    /// these, so they travel as raw bytes and marshal with the byte-string
+    /// signature.
+    ByteString(Vec<u8>),
     Array(Vec<PropertyValue>),
     Object(BTreeMap<String, PropertyValue>),
     Asset(Asset),
@@ -266,6 +270,15 @@ impl PropertyValue {
             PropertyValue::Bool(b) => Value { kind: Some(Kind::BoolValue(*b)) },
             PropertyValue::Number(n) => Value { kind: Some(Kind::NumberValue(*n)) },
             PropertyValue::String(s) => string_value(s.clone()),
+            PropertyValue::ByteString(bytes) => {
+                use base64::Engine;
+                let mut m = sig_object(BYTE_STRING_SIG);
+                m.insert(
+                    "value".into(),
+                    string_value(base64::engine::general_purpose::STANDARD.encode(bytes)),
+                );
+                object_value(m)
+            }
             PropertyValue::Array(vs) => Value {
                 kind: Some(Kind::ListValue(ListValue {
                     values: vs.iter().map(|v| v.to_proto()).collect(),
@@ -447,14 +460,16 @@ impl PropertyValue {
                 })
             }
             Some(BYTE_STRING_SIG) => {
-                // Strings with non-UTF8 bytes arrive base64 encoded; surface a
-                // lossy string since Rust strings must be valid UTF-8.
+                // Byte strings arrive base64 encoded. Valid UTF-8 becomes an
+                // ordinary string; anything else keeps its exact bytes.
                 use base64::Engine;
                 let decoded = get_string("value")
                     .and_then(|b| base64::engine::general_purpose::STANDARD.decode(b).ok())
-                    .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
                     .unwrap_or_default();
-                PropertyValue::String(decoded)
+                match String::from_utf8(decoded) {
+                    Ok(s) => PropertyValue::String(s),
+                    Err(e) => PropertyValue::ByteString(e.into_bytes()),
+                }
             }
             _ => {
                 let fields =

@@ -38,9 +38,6 @@ import (
 // currently skipped. Entries here are honest debt: each one is a feature the
 // Rust language implementation does not support yet.
 var expectedFailures = map[string]string{
-	// Sending non-UTF8 byte strings requires accepts_byte_string support in
-	// the SDK. Running the test without it panics the byte-sink provider.
-	"l2-raw-string-bytes": "accepts_byte_string is not implemented",
 
 	// try/can/recover builtins need error-tracking through expression
 	// evaluation, which the dynamic evaluator does not model yet.
