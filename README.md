@@ -70,7 +70,8 @@ resource-reference hydration, byte strings, and a handful of resource
 options (`aliases`, `hideDiffs`, `replaceWith`, `replacementTrigger`,
 `envVarMappings`).
 
-Builds share a cargo target directory (`$TMPDIR/pulumi-language-rust-target`)
+Builds share a cargo target directory
+(`$TMPDIR/pulumi-language-rust-target-$UID`)
 so the dependency graph compiles once per machine, not once per test.
 
 ## What a generated program looks like
