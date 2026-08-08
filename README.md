@@ -8,13 +8,22 @@ test suite](https://github.com/pulumi/pulumi/tree/master/pkg/testing/pulumi-test
 > Status: experimental. Built as an exploration of what a conformance-tested
 > Rust language implementation looks like. Not an official Pulumi project.
 
-**Conformance status** (pulumi/pulumi v3.256.0 suite, 180 tests): **119
-pass**, 47 skipped for named unimplemented features (see
-`expectedFailures` in `language_test.go`), and the `policy-*`/`provider-*`
-families (14) are skipped wholesale like other out-of-tree languages do
-while onboarding. Every non-skipped test passes, including the full
-`l1-*` output/config/builtin set, `l2` resources/invokes/options/secrets/
-assets/reads, and `l3` for/splat programs.
+**Conformance status** (pulumi/pulumi v3.256.0 suite, 180 tests): **164
+pass**, 2 skipped for named reasons, and the `policy-*`/`provider-*`
+families (14) are skipped wholesale — those require the language to author
+policy packs and component providers, each a separate gRPC server the SDK
+does not yet serve.
+
+Everything else passes: the full `l1-*` output/config/builtin set
+including `try`/`can`; `l2` resources, invokes, resource methods (`call`),
+every resource option, secrets, assets, reads, resource-reference
+hydration, lifecycle hooks, package parameterization and non-UTF8 byte
+strings; and `l3` for/splat programs, the `range` option and local
+(in-language) components.
+
+The two named skips are `l3-deferred-outputs` (mutually dependent
+components that also use `range`; every in-tree Pulumi language skips it)
+and `l2-namespaced-provider`.
 
 ## What's here
 
@@ -26,6 +35,8 @@ assets/reads, and `l3` for/splat programs.
 | Program codegen | `pulumi-language-rust/codegen/gen_program.go` | `GenerateProject` / `GenerateProgram`: PCL → Rust program with typed resource construction and dynamic expression evaluation |
 | Conformance entry | `pulumi-language-rust/language_test.go` | Runs the official `pulumi-test-language` suite against this implementation |
 | Snapshots | `pulumi-language-rust/testdata` | Committed golden outputs of generated SDKs and projects, validated byte-for-byte by the harness |
+| Examples | `examples/` | Runnable programs: configuration and outputs, component resources, and consuming a generated provider SDK |
+| Template | `templates/rust` | Starting point for a new Rust Pulumi project |
 
 ## How it fits together
 
@@ -60,15 +71,9 @@ go test -run 'TestLanguage/l2-resource-simple$' -v .
 PULUMI_ACCEPT=1 go test -run TestLanguage -timeout 120m .
 ```
 
-Tests that the implementation does not support yet are listed with reasons
-in `expectedFailures` in `language_test.go` — the same mechanism
-pulumi-dotnet and pulumi-java use while onboarding conformance. The skip
-list is feature-shaped: resource methods (`call`), package
-parameterization/namespaces, resource hooks, local (in-language)
-components, the `range` resource option, `try`/`can`/`recover`,
-resource-reference hydration, byte strings, and a handful of resource
-options (`aliases`, `hideDiffs`, `replaceWith`, `replacementTrigger`,
-`envVarMappings`).
+Tests the implementation does not support yet are listed with reasons in
+`expectedFailures` in `language_test.go` — the same mechanism
+pulumi-dotnet and pulumi-java use while onboarding conformance.
 
 Builds share a cargo target directory
 (`$TMPDIR/pulumi-language-rust-target-$UID`)
@@ -117,6 +122,31 @@ properties.
 - **Exit-code contract**: programs log unhandled errors to the engine and
   exit 32 ("already reported"), like the .NET and Go SDKs; the host maps
   that to a `bail` response.
+- **The SDK also serves gRPC.** Resource hooks run inside the program, so
+  the SDK starts an in-process `Callbacks` server and hands the engine its
+  address. That machinery is what a policy-pack or component-provider host
+  would build on next.
+
+## Writing a program
+
+See [`examples/`](./examples) for runnable programs and
+[`templates/rust`](./templates/rust) for a starting point. A minimal
+program reads config and exports an output:
+
+```rust
+fn main() {
+    pulumi::run(|ctx| async move {
+        let name = ctx
+            .config()
+            .get_string_or("name", pulumi::PropertyValue::String("world".to_string()));
+        ctx.export("greeting", pulumi::pv::concat(vec![
+            pulumi::pv::string("Hello, "),
+            name,
+        ]));
+        Ok(())
+    });
+}
+```
 
 ## License
 

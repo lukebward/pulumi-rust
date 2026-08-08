@@ -48,18 +48,6 @@ var expectedFailures = map[string]string{
 	// expects for a namespaced package; the namespace's effect on provider
 	// identity is not modelled yet.
 	"l2-namespaced-provider": "package namespaces are not implemented",
-
-
-
-
-
-
-
-
-
-	// Local (in-language) components are not implemented in programgen.
-	"l3-deferred-outputs":                "local components are not implemented",
-
 }
 
 func runTestingHost(t *testing.T) (string, testingrpc.LanguageTestClient) {
