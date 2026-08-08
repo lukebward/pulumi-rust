@@ -133,6 +133,10 @@ pub enum PropertyValue {
     /// from a property explicitly set to null. Only `try` and `can` observe
     /// it; everywhere else, including the wire, it behaves as null.
     Missing,
+    /// An internal sentinel for a value whose resource registration failed,
+    /// carrying the failure message. Only `recover`, `try` and `can`
+    /// observe it; on the wire it behaves as null.
+    Failed(std::sync::Arc<str>),
 }
 
 /// The payload of a first-class output value on the wire.
@@ -270,7 +274,9 @@ impl PropertyValue {
     /// engine negotiates).
     pub fn to_proto(&self) -> Value {
         match self {
-            PropertyValue::Null | PropertyValue::Missing => Value { kind: Some(Kind::NullValue(0)) },
+            PropertyValue::Null | PropertyValue::Missing | PropertyValue::Failed(_) => {
+                Value { kind: Some(Kind::NullValue(0)) }
+            }
             PropertyValue::Bool(b) => Value { kind: Some(Kind::BoolValue(*b)) },
             PropertyValue::Number(n) => Value { kind: Some(Kind::NumberValue(*n)) },
             PropertyValue::String(s) => string_value(s.clone()),

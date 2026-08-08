@@ -65,6 +65,10 @@ pub struct RegisterOutcome {
     pub id: Option<String>,
     pub outputs: PropertyMap,
     pub error: Option<String>,
+    /// True when the engine reported the registration itself failed. Under
+    /// continue-on-error the program keeps running, and `recover` turns
+    /// this into a fallback value.
+    pub failed: Option<String>,
     /// True when the engine skipped or elided the operation (e.g. targeted
     /// updates); outputs resolve as unknown.
     pub unknown: bool,
@@ -218,6 +222,13 @@ impl Resource {
         let state = self.state.clone();
         Output::from_data_future(async move {
             let o = state.await;
+            if let Some(msg) = &o.failed {
+                return OutputData {
+                    value: PropertyValue::Failed(msg.as_str().into()),
+                    secret: false,
+                    deps: vec![],
+                };
+            }
             OutputData {
                 value: PropertyValue::String(o.urn.clone()),
                 secret: false,
@@ -247,6 +258,16 @@ impl Resource {
         let dry_run = self.dry_run;
         Output::from_data_future(async move {
             let o = state.await;
+            if let Some(msg) = &o.failed {
+                // A failed registration has no dependencies to offer: a
+                // recovered value must not depend on the resource that
+                // failed, or the engine skips whatever consumes it.
+                return OutputData {
+                    value: PropertyValue::Failed(msg.as_str().into()),
+                    secret: false,
+                    deps: vec![],
+                };
+            }
             let mut data = match o.outputs.get(&name) {
                 Some(v) if !o.unknown => OutputData::from_value(v.clone()),
                 _ => OutputData {
@@ -529,6 +550,7 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         id: None,
         outputs: PropertyMap::new(),
         error: Some(msg),
+        failed: None,
         unknown: false,
     };
 
@@ -691,11 +713,20 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         Some(s) => unmarshal_properties(s),
         None => PropertyMap::new(),
     };
+    // The engine reports a failed registration in-band because we advertised
+    // supports_result_reporting; it sends no message, so synthesize one like
+    // the other SDKs do.
+    let failed = if response.result != pulumirpc::Result::Success as i32 {
+        Some(format!("resource {} [{}] failed to register", req.name, req.type_))
+    } else {
+        None
+    };
     RegisterOutcome {
         urn: response.urn,
         id: if req.custom { Some(response.id) } else { None },
         outputs,
         error: None,
+        failed,
         unknown: response.unknown,
     }
 }
@@ -714,6 +745,7 @@ async fn do_read(
         id: None,
         outputs: PropertyMap::new(),
         error: Some(msg),
+        failed: None,
         unknown: false,
     };
 
@@ -766,6 +798,7 @@ async fn do_read(
     };
     RegisterOutcome {
         urn: response.urn,
+        failed: None,
         id: Some(id_str),
         outputs,
         error: None,

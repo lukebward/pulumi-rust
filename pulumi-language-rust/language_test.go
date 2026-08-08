@@ -39,9 +39,6 @@ import (
 // Rust language implementation does not support yet.
 var expectedFailures = map[string]string{
 
-	// try/can/recover builtins need error-tracking through expression
-	// evaluation, which the dynamic evaluator does not model yet.
-	"l2-failed-create-recover-continue-on-error": "the recover() builtin is not implemented",
 
 	// Resource methods (call) are not implemented in codegen or the SDK.
 	"l2-component-call-simple":  "resource methods (call) are not implemented",

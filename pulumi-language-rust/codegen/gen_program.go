@@ -1659,6 +1659,21 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 			return fmt.Sprintf("pulumi::pv::urn_type(%s.urn().cast::<pulumi::PropertyValue>())", res)
 		}
 		return fmt.Sprintf("pulumi::pv::urn_type(%s)", arg(0))
+	case "recover":
+		// `error` is bound only inside the recovery expression.
+		saved := g.scopeVars["error"]
+		hadSaved := false
+		if _, ok := g.scopeVars["error"]; ok {
+			hadSaved = true
+		}
+		g.scopeVars["error"] = "__error"
+		recovery := g.expr(expr.Args[1])
+		if hadSaved {
+			g.scopeVars["error"] = saved
+		} else {
+			delete(g.scopeVars, "error")
+		}
+		return fmt.Sprintf("pulumi::ops::recover(%s, move |__error| %s)", arg(0), recovery)
 	case "try":
 		saved := g.fallible
 		g.fallible = true

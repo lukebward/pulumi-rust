@@ -1,0 +1,11 @@
+[package]
+name = "l2-failed-create-recover-continue-on-error"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_fail_on_create = { path = "ROOT/artifacts/pulumi_fail_on_create-4.0.0" }
+pulumi_simple = { path = "ROOT/artifacts/pulumi_simple-2.0.0" }
+
+[workspace]

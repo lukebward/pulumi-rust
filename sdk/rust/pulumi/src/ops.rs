@@ -380,11 +380,44 @@ pub fn index_checked(
 /// transparent secret and output wrappers a lookup may have added.
 fn is_missing(v: &PropertyValue) -> bool {
     match v {
-        PropertyValue::Missing => true,
+        PropertyValue::Missing | PropertyValue::Failed(_) => true,
         PropertyValue::Secret(inner) => is_missing(inner),
         PropertyValue::Output(o) => o.value.as_deref().is_some_and(is_missing),
         _ => false,
     }
+}
+
+/// The failure message a value carries, if its resource registration failed.
+fn failure_message(v: &PropertyValue) -> Option<String> {
+    match v {
+        PropertyValue::Failed(msg) => Some(msg.to_string()),
+        PropertyValue::Secret(inner) => failure_message(inner),
+        PropertyValue::Output(o) => o.value.as_deref().and_then(failure_message),
+        _ => None,
+    }
+}
+
+/// The `recover` builtin: the value, unless the resource backing it failed
+/// to register, in which case the recovery expression evaluated with
+/// `error` bound to the failure message.
+pub fn recover(
+    value: Output<PropertyValue>,
+    recovery: impl FnOnce(Output<PropertyValue>) -> Output<PropertyValue> + Send + 'static,
+) -> Output<PropertyValue> {
+    Output::from_data_future(async move {
+        let data = value.data().await;
+        match failure_message(&data.value) {
+            None => data,
+            Some(msg) => {
+                let err = Output::from_value(PropertyValue::String(msg));
+                // Deliberately drop the failed resource's dependencies: the
+                // recovered value must stand on its own.
+                let mut recovered = recovery(err).data().await;
+                recovered.deps.clear();
+                recovered
+            }
+        }
+    })
 }
 
 /// The `try` builtin: the first alternative that evaluates without a failed
