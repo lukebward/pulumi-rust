@@ -46,6 +46,9 @@ pub(crate) struct ContextInner {
     pub features: Features,
     pub config: Config,
     pub stack_urn: tokio::sync::OnceCell<String>,
+    /// The callbacks server, started lazily the first time a hook is
+    /// registered.
+    pub callbacks: tokio::sync::OnceCell<Arc<crate::callbacks::CallbackServer>>,
     /// In-flight resource registrations the run must drain before finishing.
     pub pending: Mutex<Vec<Shared<BoxFuture<'static, Arc<RegisterOutcome>>>>>,
     /// Stack exports accumulated by [`Context::export`].
@@ -110,6 +113,8 @@ pub struct ResourceOptions {
     /// Environment-variable remappings for provider resources
     /// (new key -> old key).
     pub env_var_mappings: Vec<(String, String)>,
+    /// Lifecycle hooks bound to this resource.
+    pub hooks: crate::hooks::ResourceHookBinding,
 }
 
 /// A previous identity of a resource.
@@ -387,6 +392,110 @@ impl Context {
         }
     }
 
+    /// Register a resource lifecycle hook, returning a handle to name in a
+    /// resource's options. The command closure receives the hook arguments
+    /// (urn, id, name, type and the resource's inputs and outputs) and
+    /// yields the argv to run.
+    pub async fn register_resource_hook(
+        &self,
+        name: impl Into<String>,
+        on_dry_run: bool,
+        ignore_errors: bool,
+        command: impl Fn(Output<PropertyValue>) -> Output<PropertyValue> + Send + Sync + 'static,
+    ) -> Result<crate::hooks::ResourceHook> {
+        let name = name.into();
+        let server = self.callback_server().await?;
+        let command = Arc::new(command);
+        let callback = server.register(Arc::new(move |bytes: Vec<u8>| {
+            let command = command.clone();
+            Box::pin(async move {
+                let request = <pulumirpc::ResourceHookRequest as prost::Message>::decode(
+                    bytes.as_slice(),
+                )
+                .map_err(|e| tonic::Status::invalid_argument(format!("{e}")))?;
+                let args = hook_args(
+                    &request.urn,
+                    &request.id,
+                    &request.name,
+                    &request.r#type,
+                    request.new_inputs.as_ref(),
+                    request.old_inputs.as_ref(),
+                    request.new_outputs.as_ref(),
+                    request.old_outputs.as_ref(),
+                );
+                let error = crate::hooks::run_command(command(args)).await.unwrap_or_default();
+                Ok(prost::Message::encode_to_vec(&pulumirpc::ResourceHookResponse { error }))
+            })
+        }));
+
+        let mut monitor = self.inner.monitor.clone();
+        monitor
+            .register_resource_hook(pulumirpc::RegisterResourceHookRequest {
+                name: name.clone(),
+                callback: Some(callback),
+                on_dry_run,
+                ignore_errors,
+            })
+            .await
+            .map_err(|e| Error::new(format!("registering hook {name}: {}", e.message())))?;
+        Ok(crate::hooks::ResourceHook { name })
+    }
+
+    /// Register an error hook, run when a resource operation fails.
+    pub async fn register_error_hook(
+        &self,
+        name: impl Into<String>,
+        command: impl Fn(Output<PropertyValue>) -> Output<PropertyValue> + Send + Sync + 'static,
+    ) -> Result<crate::hooks::ResourceHook> {
+        let name = name.into();
+        let server = self.callback_server().await?;
+        let command = Arc::new(command);
+        let callback = server.register(Arc::new(move |bytes: Vec<u8>| {
+            let command = command.clone();
+            Box::pin(async move {
+                let request =
+                    <pulumirpc::ErrorHookRequest as prost::Message>::decode(bytes.as_slice())
+                        .map_err(|e| tonic::Status::invalid_argument(format!("{e}")))?;
+                let args = hook_args(
+                    &request.urn,
+                    &request.id,
+                    &request.name,
+                    &request.r#type,
+                    request.new_inputs.as_ref(),
+                    request.old_inputs.as_ref(),
+                    None,
+                    request.old_outputs.as_ref(),
+                );
+                let error = crate::hooks::run_command(command(args)).await.unwrap_or_default();
+                // Retrying is what makes a flaky create eventually succeed.
+                Ok(prost::Message::encode_to_vec(&pulumirpc::ErrorHookResponse {
+                    error,
+                    retry: true,
+                }))
+            })
+        }));
+
+        let mut monitor = self.inner.monitor.clone();
+        monitor
+            .register_error_hook(pulumirpc::RegisterErrorHookRequest {
+                name: name.clone(),
+                callback: Some(callback),
+            })
+            .await
+            .map_err(|e| Error::new(format!("registering error hook {name}: {}", e.message())))?;
+        Ok(crate::hooks::ResourceHook { name })
+    }
+
+    async fn callback_server(&self) -> Result<Arc<crate::callbacks::CallbackServer>> {
+        self.inner
+            .callbacks
+            .get_or_try_init(|| async {
+                crate::callbacks::CallbackServer::start().await.map(Arc::new)
+            })
+            .await
+            .cloned()
+    }
+
     /// Call a method on a resource. The receiver travels as `__self__`
     /// alongside the arguments, and the method runs on the provider that
     /// created the receiver.
@@ -621,6 +730,35 @@ fn provider_ref_from_value(v: &PropertyValue) -> String {
     }
 }
 
+/// Build the `args` object a hook command sees.
+#[allow(clippy::too_many_arguments)]
+fn hook_args(
+    urn: &str,
+    id: &str,
+    name: &str,
+    type_: &str,
+    new_inputs: Option<&prost_types::Struct>,
+    old_inputs: Option<&prost_types::Struct>,
+    new_outputs: Option<&prost_types::Struct>,
+    old_outputs: Option<&prost_types::Struct>,
+) -> Output<PropertyValue> {
+    let mut m = BTreeMap::new();
+    m.insert("urn".to_string(), PropertyValue::String(urn.to_string()));
+    m.insert("id".to_string(), PropertyValue::String(id.to_string()));
+    m.insert("name".to_string(), PropertyValue::String(name.to_string()));
+    m.insert("type".to_string(), PropertyValue::String(type_.to_string()));
+    let mut put = |key: &str, s: Option<&prost_types::Struct>| {
+        if let Some(s) = s {
+            m.insert(key.to_string(), PropertyValue::Object(unmarshal_properties(s)));
+        }
+    };
+    put("newInputs", new_inputs);
+    put("oldInputs", old_inputs);
+    put("newOutputs", new_outputs);
+    put("oldOutputs", old_outputs);
+    Output::from_value(PropertyValue::Object(m))
+}
+
 async fn await_urn(r: &Resource) -> String {
     match r.urn().data().await.value {
         PropertyValue::String(urn) => urn,
@@ -780,6 +918,11 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         replace_with,
         replacement_trigger,
         env_var_mappings: req.options.env_var_mappings.iter().cloned().collect(),
+        hooks: if req.options.hooks.is_empty() {
+            None
+        } else {
+            Some(req.options.hooks.to_proto())
+        },
         ..Default::default()
     };
 

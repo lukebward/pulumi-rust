@@ -4,11 +4,13 @@
 //! Pulumi engine: connecting to the resource monitor, registering resources,
 //! flowing `Output` values between them, and exporting stack outputs.
 
+pub mod callbacks;
 pub mod config;
 pub mod context;
 pub mod convert;
 pub mod error;
 pub mod ops;
+pub mod hooks;
 pub mod output;
 pub mod pv;
 pub mod runtime;
@@ -23,6 +25,7 @@ pub use context::{
 pub use convert::{FromPropertyValue, IntoPropertyValue};
 pub use error::{Error, Result};
 pub use output::{Output, OutputData};
+pub use hooks::{ResourceHook, ResourceHookBinding};
 pub use pv::{range_entries, RangeEntry};
 pub use runtime::run;
 pub use stack_reference::StackReference;

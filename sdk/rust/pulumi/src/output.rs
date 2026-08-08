@@ -410,6 +410,11 @@ pub fn concat(parts: Vec<Output<PropertyValue>>) -> Output<String> {
 
 /// Render a property value the way Pulumi programs interpolate values into
 /// strings.
+/// Render a value as a string the way string interpolation does.
+pub(crate) fn display(v: &PropertyValue) -> String {
+    display_value(v)
+}
+
 fn display_value(v: &PropertyValue) -> String {
     match v {
         PropertyValue::Null => String::new(),

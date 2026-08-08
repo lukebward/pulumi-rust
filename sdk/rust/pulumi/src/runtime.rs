@@ -122,6 +122,7 @@ pub async fn connect_context(settings: RunSettings) -> Result<Context> {
         features,
         config,
         stack_urn: tokio::sync::OnceCell::new(),
+        callbacks: tokio::sync::OnceCell::new(),
         pending: Mutex::new(vec![]),
         exports: Mutex::new(vec![]),
     };

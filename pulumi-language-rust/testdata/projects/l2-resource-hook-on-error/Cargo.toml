@@ -1,0 +1,10 @@
+[package]
+name = "l2-resource-hook-on-error"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_flaky = { path = "ROOT/artifacts/pulumi_flaky-46.0.0" }
+
+[workspace]

@@ -22,7 +22,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Compile the vendored Pulumi protos without requiring a system protoc.
     let descriptors = protox::compile(&files, [&proto_dir])?;
     tonic_build::configure()
-        .build_server(false)
+                // The SDK serves the Callbacks service so the engine can invoke
+        // resource hooks back inside the program.
+        .build_server(true)
         .build_client(true)
         .compile_fds(descriptors)?;
     Ok(())

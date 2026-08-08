@@ -203,6 +203,8 @@ func (g *programGenerator) generate() ([]byte, hcl.Diagnostics) {
 			g.genOutputVariable(&body, n)
 		case *pcl.ReadResource:
 			g.genReadResource(&body, n)
+		case *pcl.Hook:
+			g.genHook(&body, n)
 		case *pcl.Component:
 			g.errorf(n.Definition.Syntax.DefRange(), "components are not yet supported by the Rust program generator")
 		case *pcl.PulumiBlock:
@@ -841,6 +843,57 @@ func (g *programGenerator) plainLiteral(expr model.Expression, t schema.Type, su
 	return "Default::default()"
 }
 
+// genHook emits the registration of a resource or error lifecycle hook. The
+// hook's command is a closure so it can reference program variables and the
+// hook arguments the engine supplies.
+func (g *programGenerator) genHook(w *bytes.Buffer, h *pcl.Hook) {
+	subject := h.Definition.Syntax.DefRange()
+	name := g.declareVar(h.Name())
+	g.declaredVars = append(g.declaredVars, name)
+
+	saved, hadSaved := g.scopeVars["args"]
+	g.scopeVars["args"] = "__args"
+	command := g.expr(h.Command)
+	// Restore the scope before computing captures, so the closure's own
+	// parameter is not hoisted into the capture prelude.
+	if hadSaved {
+		g.scopeVars["args"] = saved
+	} else {
+		delete(g.scopeVars, "args")
+	}
+	captures := g.captureClones([]string{command})
+
+	closure := fmt.Sprintf("move |__args| { %s }", command)
+	if captures != "" {
+		closure = fmt.Sprintf("{ %s %s }", captures, closure)
+	}
+
+	if h.Kind == pcl.HookKindError {
+		fmt.Fprintf(w, "let %s = ctx.register_error_hook(%s, %s).await?;\n",
+			name, rustString(h.Name()), closure)
+		return
+	}
+
+	onDryRun := false
+	if h.OnDryRun != nil {
+		if b, ok := literalBool(h.OnDryRun); ok {
+			onDryRun = b
+		} else {
+			g.errorf(subject, "unsupported onDryRun expression")
+		}
+	}
+	ignoreErrors := false
+	if h.IgnoreErrors != nil {
+		if b, ok := literalBool(h.IgnoreErrors); ok {
+			ignoreErrors = b
+		} else {
+			g.errorf(subject, "unsupported ignoreErrors expression")
+		}
+	}
+	fmt.Fprintf(w, "let %s = ctx.register_resource_hook(%s, %v, %v, %s).await?;\n",
+		name, rustString(h.Name()), onDryRun, ignoreErrors, closure)
+}
+
 // callExpr renders the `call` intrinsic: a method invocation on a resource.
 // The method's fully qualified token comes from the receiver's schema.
 func (g *programGenerator) callExpr(expr *model.FunctionCallExpression) string {
@@ -1129,6 +1182,38 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 			g.errorf(subject, "unsupported envVarMappings expression")
 		}
 	}
+	if opts.Hooks != nil {
+		if object, ok := unwrapConvert(opts.Hooks).(*model.ObjectConsExpression); ok {
+			var parts []string
+			for _, item := range object.Items {
+				key, ok := keyString(item.Key)
+				if !ok {
+					g.errorf(subject, "unsupported hooks key")
+					continue
+				}
+				tuple, ok := unwrapConvert(item.Value).(*model.TupleConsExpression)
+				if !ok {
+					g.errorf(subject, "hooks entries must be lists")
+					continue
+				}
+				var refs []string
+				for _, e := range tuple.Expressions {
+					scope, ok := unwrapConvert(e).(*model.ScopeTraversalExpression)
+					if !ok {
+						g.errorf(subject, "unsupported hook reference")
+						continue
+					}
+					refs = append(refs, g.refVar(scope.RootName)+".clone()")
+				}
+				parts = append(parts, fmt.Sprintf("%s: vec![%s]",
+					snakeCase(key), strings.Join(refs, ", ")))
+			}
+			setField("hooks", fmt.Sprintf("pulumi::ResourceHookBinding { %s, ..Default::default() }",
+				strings.Join(parts, ", ")))
+		} else {
+			g.errorf(subject, "unsupported hooks expression")
+		}
+	}
 	if opts.Aliases != nil {
 		if tuple, ok := unwrapConvert(opts.Aliases).(*model.TupleConsExpression); ok {
 			var elems []string
@@ -1176,17 +1261,6 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 		setField("providers", "vec!["+strings.Join(elems, ", ")+"]")
 	}
 
-	unsupported := []struct {
-		name string
-		expr model.Expression
-	}{
-		{"hooks", opts.Hooks},
-	}
-	for _, u := range unsupported {
-		if u.expr != nil {
-			g.errorf(subject, "resource option %q is not yet supported by the Rust program generator", u.name)
-		}
-	}
 
 	if len(fields) == 0 {
 		return "pulumi::ResourceOptions::default()"

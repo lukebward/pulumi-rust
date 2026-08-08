@@ -59,11 +59,6 @@ var expectedFailures = map[string]string{
 	"l2-component-program-resource-ref":   "resource reference hydration is not implemented",
 	"l2-component-property-deps":          "component property dependencies are not implemented",
 
-	// Resource lifecycle hooks are not implemented.
-	"l2-resource-hook-after-failure": "resource hooks are not implemented",
-	"l2-resource-hook-ignore-errors": "resource hooks are not implemented",
-	"l2-resource-hook-on-error":      "resource hooks are not implemented",
-	"l2-resource-option-hooks":       "resource hooks are not implemented",
 
 
 	// Local (in-language) components are not implemented in programgen.
