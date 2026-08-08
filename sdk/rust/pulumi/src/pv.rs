@@ -172,9 +172,21 @@ pub fn sha1_hex(v: Output<PropertyValue>) -> Output<PropertyValue> {
         .cast()
 }
 
-/// Serialize a value to JSON (PCL `toJSON`).
+/// Serialize a value to JSON (PCL `toJSON`). The result is secret when
+/// anything inside the value is.
 pub fn to_json(v: Output<PropertyValue>) -> Output<PropertyValue> {
-    v.map(|p: PropertyValue| property_to_json_string(&p)).cast()
+    Output::from_data_future(async move {
+        let d = v.data().await;
+        if !d.known() {
+            return d;
+        }
+        let secret = d.secret || d.value.contains_secret();
+        OutputData {
+            value: PropertyValue::String(property_to_json_string(&d.value)),
+            secret,
+            deps: d.deps,
+        }
+    })
 }
 
 fn property_to_json(v: &PropertyValue) -> serde_json::Value {
@@ -242,8 +254,9 @@ pub fn join(sep: Output<PropertyValue>, list: Output<PropertyValue>) -> Output<P
 /// The length of a string, list, or map (PCL `length`).
 pub fn length(v: Output<PropertyValue>) -> Output<PropertyValue> {
     v.map(|p: PropertyValue| {
+        use unicode_segmentation::UnicodeSegmentation;
         let n = match &p {
-            PropertyValue::String(s) => s.chars().count(),
+            PropertyValue::String(s) => s.graphemes(true).count(),
             PropertyValue::Array(a) => a.len(),
             PropertyValue::Object(m) => m.len(),
             _ => 0,
@@ -277,11 +290,22 @@ pub fn element(list: Output<PropertyValue>, idx: Output<PropertyValue>) -> Outpu
     crate::ops::index(list, idx)
 }
 
+/// Unwrap the sole property of a scalar-returning invoke's result object.
+pub fn single_value(v: Output<PropertyValue>) -> Output<PropertyValue> {
+    v.map(|p: PropertyValue| match p {
+        PropertyValue::Object(m) if m.len() == 1 => m.into_iter().next().unwrap().1,
+        other => other,
+    })
+    .cast()
+}
+
 /// The single element of a one-element list, or null (PCL `singleOrNone`).
 pub fn single_or_none(v: Output<PropertyValue>) -> Output<PropertyValue> {
     v.map(|p: PropertyValue| match p {
-        PropertyValue::Array(a) if a.len() == 1 => {
-            strip_wrappers(&a[0])
+        PropertyValue::Array(a) if a.len() == 1 => strip_wrappers(&a[0]),
+        PropertyValue::Array(a) if a.is_empty() => PropertyValue::Null,
+        PropertyValue::Array(a) => {
+            panic!("singleOrNone expected a list with at most one element, got {}", a.len())
         }
         _ => PropertyValue::Null,
     })

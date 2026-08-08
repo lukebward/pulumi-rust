@@ -254,6 +254,9 @@ impl Context {
         let dry_run = self.dry_run();
         let custom = req.custom;
         let fut = async move { Arc::new(do_register(inner, req).await) }.boxed().shared();
+        // Drive the registration immediately so independent resources
+        // register concurrently, then track it for draining at shutdown.
+        tokio::spawn(fut.clone());
         self.inner.pending.lock().unwrap().push(fut.clone());
         Resource { state: fut, custom, dry_run }
     }
@@ -519,8 +522,9 @@ async fn do_invoke(
         arg_map.insert(key, data.value);
     }
 
-    if !known {
-        // Can't invoke with unknown arguments; the result is wholly unknown.
+    if !known || (inner.settings.dry_run && !deps.is_empty()) {
+        // Can't invoke with unknown arguments; and during previews an invoke
+        // depending on not-yet-created resources must be skipped entirely.
         return Ok(OutputData { value: PropertyValue::Computed, secret, deps });
     }
 

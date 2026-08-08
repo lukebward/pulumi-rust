@@ -506,12 +506,17 @@ func (g *pkgGenerator) writeFunction(w *bytes.Buffer, f *schema.Function, qualif
 	g.writeArgsStruct(w, argsName, props, qualify, true)
 
 	resultType := "pulumi::PropertyValue"
+	scalarReturn := false
 	if f.Outputs != nil {
 		o := f.Outputs
 		if o.IsInputShape() {
 			o = o.PlainShape
 		}
 		resultType = qualify + g.typeNameForToken(o.Token)
+	} else if f.ReturnType != nil {
+		// Non-object returns arrive as a single-property object that the
+		// SDK unwraps to the scalar.
+		scalarReturn = true
 	}
 
 	fmt.Fprintf(w, "pub fn %s(ctx: &pulumi::Context, args: %s, options: pulumi::InvokeOptions) -> pulumi::Output<%s> {\n",
@@ -525,7 +530,11 @@ func (g *pkgGenerator) writeFunction(w *bytes.Buffer, f *schema.Function, qualif
 		fmt.Fprintf(w, "        options.plugin_download_url = %q.to_string();\n", g.pkg.PluginDownloadURL)
 		fmt.Fprintf(w, "    }\n")
 	}
-	fmt.Fprintf(w, "    ctx.invoke(%q, args.into_inputs(), options).cast()\n", f.Token)
+	if scalarReturn {
+		fmt.Fprintf(w, "    pulumi::pv::single_value(ctx.invoke(%q, args.into_inputs(), options)).cast()\n", f.Token)
+	} else {
+		fmt.Fprintf(w, "    ctx.invoke(%q, args.into_inputs(), options).cast()\n", f.Token)
+	}
 	fmt.Fprintf(w, "}\n\n")
 }
 

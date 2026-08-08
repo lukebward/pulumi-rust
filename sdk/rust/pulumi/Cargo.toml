@@ -21,6 +21,7 @@ serde_json = "1"
 base64 = "0.22"
 sha1 = "0.10"
 sha2 = "0.10"
+unicode-segmentation = "1"
 
 [build-dependencies]
 tonic-build = { version = "0.12", default-features = false, features = ["prost"] }

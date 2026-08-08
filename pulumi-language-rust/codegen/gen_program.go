@@ -237,7 +237,8 @@ func (g *programGenerator) genConfigVariable(w *bytes.Buffer, cfg *pcl.ConfigVar
 }
 
 func (g *programGenerator) genLocalVariable(w *bytes.Buffer, local *pcl.LocalVariable) {
-	fmt.Fprintf(w, "let %s = %s;\n", varName(local.Name()), g.expr(local.Definition.Value))
+	value, _ := pcl.RewriteConversions(local.Definition.Value, local.Type())
+	fmt.Fprintf(w, "let %s = %s;\n", varName(local.Name()), g.expr(value))
 }
 
 func (g *programGenerator) genOutputVariable(w *bytes.Buffer, output *pcl.OutputVariable) {
@@ -1045,7 +1046,13 @@ func (g *programGenerator) invokeExpr(expr *model.FunctionCallExpression) string
 	}
 	var inputs []*model.Attribute
 	if len(expr.Args) > 1 {
-		if object, ok := expr.Args[1].(*model.ObjectConsExpression); ok {
+		// Insert conversion intrinsics against the function's declared
+		// argument type so config-driven values coerce correctly.
+		if len(expr.Signature.Parameters) > 1 {
+			converted, _ := pcl.RewriteConversions(expr.Args[1], expr.Signature.Parameters[1].Type)
+			expr.Args[1] = converted
+		}
+		if object, ok := unwrapConvert(expr.Args[1]).(*model.ObjectConsExpression); ok {
 			for _, item := range object.Items {
 				key, ok := literalString(item.Key)
 				if !ok {

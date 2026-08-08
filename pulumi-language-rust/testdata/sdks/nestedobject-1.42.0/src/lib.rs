@@ -3,12 +3,12 @@
 
 #[derive(Clone, Debug)]
 pub struct ContainerArgs {
-    pub inputs: pulumi::Output<Vec<String>>,
+    pub inputs: pulumi::Output<std::vec::Vec<std::string::String>>,
 }
 
 impl ContainerArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.inputs;
             inputs.push(("inputs".to_string(), v.cast()));
@@ -44,31 +44,31 @@ impl Container {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn details(&self) -> pulumi::Output<Vec<crate::types::Detail>> {
+    pub fn details(&self) -> pulumi::Output<std::vec::Vec<crate::types::Detail>> {
         self.resource.output("details").cast()
     }
 
-    pub fn inputs(&self) -> pulumi::Output<Vec<String>> {
+    pub fn inputs(&self) -> pulumi::Output<std::vec::Vec<std::string::String>> {
         self.resource.output("inputs").cast()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct MapContainerArgs {
-    pub tags: pulumi::Output<std::collections::BTreeMap<String, String>>,
+    pub tags: pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>,
 }
 
 impl MapContainerArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.tags;
             inputs.push(("tags".to_string(), v.cast()));
@@ -104,27 +104,27 @@ impl MapContainer {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn tags(&self) -> pulumi::Output<std::collections::BTreeMap<String, String>> {
+    pub fn tags(&self) -> pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>> {
         self.resource.output("tags").cast()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct ReceiverArgs {
-    pub details: Vec<crate::types::DetailArgs>,
+    pub details: std::vec::Vec<crate::types::DetailArgs>,
 }
 
 impl ReceiverArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.details;
             inputs.push(("details".to_string(), pulumi::output::all(v.into_iter().map(|e| e.into_output()).collect()).cast()));
@@ -160,27 +160,27 @@ impl Receiver {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn details(&self) -> pulumi::Output<Vec<crate::types::Detail>> {
+    pub fn details(&self) -> pulumi::Output<std::vec::Vec<crate::types::Detail>> {
         self.resource.output("details").cast()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct TargetArgs {
-    pub name: pulumi::Output<String>,
+    pub name: pulumi::Output<std::string::String>,
 }
 
 impl TargetArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.name;
             inputs.push(("name".to_string(), v.cast()));
@@ -216,15 +216,15 @@ impl Target {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn name(&self) -> pulumi::Output<String> {
+    pub fn name(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("name").cast()
     }
 }
@@ -234,8 +234,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -267,23 +267,23 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct GetValuesArgs {
-    pub names: pulumi::Output<Vec<String>>,
+    pub names: pulumi::Output<std::vec::Vec<std::string::String>>,
 }
 
 impl GetValuesArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.names;
             inputs.push(("names".to_string(), v.cast()));
@@ -307,13 +307,13 @@ pub fn get_values(ctx: &pulumi::Context, args: GetValuesArgs, options: pulumi::I
 pub mod types {
     #[derive(Clone, Debug)]
     pub struct DetailArgs {
-        pub key: pulumi::Output<String>,
-        pub value: pulumi::Output<String>,
+        pub key: pulumi::Output<std::string::String>,
+        pub value: pulumi::Output<std::string::String>,
     }
 
     impl DetailArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.key;
                 inputs.push(("key".to_string(), v.cast()));
@@ -332,8 +332,8 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct Detail {
-        pub key: String,
-        pub value: String,
+        pub key: std::string::String,
+        pub value: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for Detail {
@@ -348,7 +348,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct GetValuesResult {
-        pub results: Vec<String>,
+        pub results: std::vec::Vec<std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for GetValuesResult {
