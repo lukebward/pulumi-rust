@@ -325,9 +325,23 @@ impl Context {
         let inner = self.inner.clone();
         let tok = tok.into();
         Output::from_data_future(async move {
-            match do_invoke(inner, tok, args, opts).await {
+            match do_invoke(inner.clone(), tok, args, opts).await {
                 Ok(data) => data,
-                Err(e) => panic!("invoke failed: {e}"),
+                Err(e) => {
+                    // An invoke failure is fatal to the program: report it to
+                    // the engine and bail with the logged-error exit code.
+                    if let Some(engine) = &inner.engine {
+                        let mut engine = engine.clone();
+                        let _ = engine
+                            .log(pulumirpc::LogRequest {
+                                severity: pulumirpc::LogSeverity::Error as i32,
+                                message: format!("{e}"),
+                                ..Default::default()
+                            })
+                            .await;
+                    }
+                    std::process::exit(crate::runtime::EXIT_STATUS_LOGGED_ERROR);
+                }
             }
         })
     }
@@ -381,15 +395,18 @@ impl Context {
             .cloned()
             .ok_or_else(|| Error::new("stack URN not initialized"))?;
         let mut monitor = self.inner.monitor.clone();
-        monitor
+        let outputs_result = monitor
             .register_resource_outputs(pulumirpc::RegisterResourceOutputsRequest {
                 urn,
                 outputs: Some(marshal_properties(&outputs)),
             })
-            .await?;
-        match first_error {
-            Some(e) => Err(e),
-            None => Ok(()),
+            .await;
+        // A registration failure is the root cause; don't let a subsequent
+        // outputs-RPC failure mask it.
+        match (first_error, outputs_result) {
+            (Some(e), _) => Err(e),
+            (None, Err(e)) => Err(e.into()),
+            (None, Ok(_)) => Ok(()),
         }
     }
 
@@ -677,6 +694,14 @@ async fn do_invoke(
         None => String::new(),
     };
 
+    // Advertise every dependency (explicit and argument-derived) so engines
+    // that support INVOKE_DEPENDS_ON can sequence the invoke.
+    let mut all_depends_on: Vec<String> = depends_on;
+    for d in &deps {
+        if !all_depends_on.contains(d) {
+            all_depends_on.push(d.clone());
+        }
+    }
     let request = pulumirpc::ResourceInvokeRequest {
         tok: tok.clone(),
         args: Some(marshal_properties(&arg_map)),
@@ -684,7 +709,7 @@ async fn do_invoke(
         version: opts.version.clone(),
         accept_resources: true,
         plugin_download_url: opts.plugin_download_url.clone(),
-        depends_on,
+        depends_on: all_depends_on,
         ..Default::default()
     };
 

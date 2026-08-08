@@ -59,7 +59,7 @@ func snakeCase(name string) string {
 	var b strings.Builder
 	prevLower := false
 	prevUnderscore := true // suppress leading underscore
-	for i, r := range name {
+	for _, r := range name {
 		switch {
 		case r == '-' || r == '.' || r == ' ' || r == '/' || r == ':' || r == '_':
 			if !prevUnderscore {
@@ -76,7 +76,7 @@ func snakeCase(name string) string {
 			prevLower = false
 			prevUnderscore = false
 		case unicode.IsDigit(r):
-			if i == 0 {
+			if b.Len() == 0 {
 				b.WriteRune('_')
 			}
 			b.WriteRune(r)
@@ -126,6 +126,10 @@ func pascalCase(name string) string {
 	if unicode.IsDigit([]rune(out)[0]) {
 		out = "X" + out
 	}
+	// Type-position keywords that cannot be raw identifiers.
+	if out == "Self" || out == "Crate" || out == "Super" {
+		out += "_"
+	}
 	return out
 }
 
@@ -151,6 +155,11 @@ func tokenMember(token string) string {
 }
 
 // modIdent converts a schema module name into a Rust module identifier.
+// The name "types" is reserved for the generated types module.
 func modIdent(mod string) string {
-	return escapeIdent(snakeCase(mod))
+	out := escapeIdent(snakeCase(mod))
+	if out == "types" {
+		out = "types_"
+	}
+	return out
 }

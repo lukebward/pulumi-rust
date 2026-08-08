@@ -254,6 +254,24 @@ type inputField struct {
 	defaultValue string
 }
 
+// fieldNamesFor assigns each property a unique Rust field name. Distinct
+// wire names can fold to the same snake_case identifier; later ones get
+// underscore suffixes. Deterministic given the property order, so the SDK
+// generator and program generator agree.
+func fieldNamesFor(props []*schema.Property) map[string]string {
+	names := map[string]string{}
+	used := map[string]bool{}
+	for _, p := range props {
+		candidate := fieldName(p.Name)
+		for used[candidate] {
+			candidate += "_"
+		}
+		names[p.Name] = candidate
+		used[candidate] = true
+	}
+	return names
+}
+
 // inputFieldFor computes the Rust representation of an input property.
 func (g *pkgGenerator) inputFieldFor(p *schema.Property, qualify string) inputField {
 	f := inputField{
@@ -341,10 +359,12 @@ func unwrapToObject(t schema.Type) (*schema.ObjectType, bool) {
 func (g *pkgGenerator) writeArgsStruct(
 	w *bytes.Buffer, name string, props []*schema.Property, qualify string, wrapSecrets bool,
 ) {
+	names := fieldNamesFor(props)
 	fields := make([]inputField, len(props))
 	allOptional := true
 	for i, p := range props {
 		fields[i] = g.inputFieldFor(p, qualify)
+		fields[i].rustName = names[p.Name]
 		if !fields[i].optional {
 			allOptional = false
 		}
@@ -379,7 +399,11 @@ func (g *pkgGenerator) writeArgsStruct(
 			fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, conv)
 			if f.defaultValue != "" {
 				fmt.Fprintf(w, "        } else {\n")
-				fmt.Fprintf(w, "            inputs.push((%q.to_string(), pulumi::Output::from_value(%s)));\n", f.wireName, f.defaultValue)
+				def := fmt.Sprintf("pulumi::Output::from_value(%s)", f.defaultValue)
+				if f.secret && wrapSecrets {
+					def = "pulumi::pv::secret(" + def + ")"
+				}
+				fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, def)
 			}
 			fmt.Fprintf(w, "        }\n")
 		} else {
@@ -401,10 +425,11 @@ func (g *pkgGenerator) writeArgsStruct(
 func (g *pkgGenerator) writeOutputStruct(
 	w *bytes.Buffer, name string, props []*schema.Property, qualify string,
 ) {
+	names := fieldNamesFor(props)
 	fmt.Fprintf(w, "#[derive(Clone, Debug)]\n")
 	fmt.Fprintf(w, "pub struct %s {\n", name)
 	for _, p := range props {
-		fmt.Fprintf(w, "    pub %s: %s,\n", fieldName(p.Name), g.plainType(p.Type, qualify))
+		fmt.Fprintf(w, "    pub %s: %s,\n", names[p.Name], g.plainType(p.Type, qualify))
 	}
 	fmt.Fprintf(w, "}\n\n")
 
@@ -414,7 +439,7 @@ func (g *pkgGenerator) writeOutputStruct(
 	fmt.Fprintf(w, "        Ok(%s {\n", name)
 	for _, p := range props {
 		fmt.Fprintf(w, "            %s: pulumi::convert::from_property_map(&m, %q)?,\n",
-			fieldName(p.Name), p.Name)
+			names[p.Name], p.Name)
 	}
 	fmt.Fprintf(w, "        })\n")
 	fmt.Fprintf(w, "    }\n")
@@ -439,7 +464,7 @@ func plainConstValue(v any) string {
 		}
 		return fmt.Sprintf("pulumi::PropertyValue::Number(%s)", s)
 	case string:
-		return fmt.Sprintf("pulumi::PropertyValue::String(%q.to_string())", v)
+		return fmt.Sprintf("pulumi::PropertyValue::String(%s.to_string())", rustString(v))
 	}
 	return ""
 }
@@ -526,6 +551,10 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 	// surfaced as secrets, even while the value is unknown.
 	for _, p := range r.Properties {
 		accessor := fieldName(p.Name)
+		switch accessor {
+		case "new", "urn", "id", "pulumi_resource":
+			accessor += "_"
+		}
 		typ := g.plainType(p.Type, qualify)
 		fmt.Fprintf(w, "\n    pub fn %s(&self) -> pulumi::Output<%s> {\n", accessor, typ)
 		if p.Secret {

@@ -1,0 +1,10 @@
+[package]
+name = "l2-provider-grpc-config-secret"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_config_grpc = { path = "ROOT/artifacts/pulumi_config_grpc-1.0.0" }
+
+[workspace]

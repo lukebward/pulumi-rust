@@ -90,7 +90,7 @@ pub fn asset_archive(entries: Vec<(String, Output<PropertyValue>)>) -> Output<Pr
     object(entries).cast::<crate::value::PropertyMap>().map(|m| {
         let mut assets = std::collections::BTreeMap::new();
         for (k, v) in m {
-            match v {
+            match strip_wrappers(&v) {
                 PropertyValue::Asset(a) => {
                     assets.insert(k, crate::value::AssetOrArchive::Asset(a));
                 }
@@ -232,11 +232,11 @@ fn strip_wrappers(v: &PropertyValue) -> PropertyValue {
 pub fn join(sep: Output<PropertyValue>, list: Output<PropertyValue>) -> Output<PropertyValue> {
     array(vec![sep, list])
         .cast::<Vec<PropertyValue>>().map(|vals| {
-            let sep = match &vals[0] {
-                PropertyValue::String(s) => s.clone(),
+            let sep = match strip_wrappers(&vals[0]) {
+                PropertyValue::String(s) => s,
                 _ => String::new(),
             };
-            let parts: Vec<String> = match &vals[1] {
+            let parts: Vec<String> = match &strip_wrappers(&vals[1]) {
                 PropertyValue::Array(a) => a
                     .iter()
                     .map(|v| match strip_wrappers(v) {
@@ -270,12 +270,12 @@ pub fn length(v: Output<PropertyValue>) -> Output<PropertyValue> {
 pub fn split(sep: Output<PropertyValue>, s: Output<PropertyValue>) -> Output<PropertyValue> {
     array(vec![sep, s])
         .cast::<Vec<PropertyValue>>().map(|vals| {
-            let sep = match &vals[0] {
-                PropertyValue::String(s) => s.clone(),
+            let sep = match strip_wrappers(&vals[0]) {
+                PropertyValue::String(s) => s,
                 _ => String::new(),
             };
-            let s = match &vals[1] {
-                PropertyValue::String(s) => s.clone(),
+            let s = match strip_wrappers(&vals[1]) {
+                PropertyValue::String(s) => s,
                 _ => String::new(),
             };
             PropertyValue::Array(

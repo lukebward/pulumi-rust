@@ -1,0 +1,10 @@
+[package]
+name = "l2-discriminated-union"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_discriminated_union = { path = "ROOT/artifacts/pulumi_discriminated_union-31.0.0" }
+
+[workspace]

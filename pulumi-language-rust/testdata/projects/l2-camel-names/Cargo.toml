@@ -1,0 +1,10 @@
+[package]
+name = "l2-camel-names"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_camelnames = { path = "ROOT/artifacts/pulumi_camelnames-19.0.0" }
+
+[workspace]

@@ -1,0 +1,10 @@
+[package]
+name = "l2-proxy-index"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_ref_ref = { path = "ROOT/artifacts/pulumi_ref_ref-12.0.0" }
+
+[workspace]

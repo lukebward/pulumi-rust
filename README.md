@@ -54,7 +54,13 @@ PULUMI_ACCEPT=1 go test -run TestLanguage -timeout 120m .
 
 Tests that the implementation does not support yet are listed with reasons
 in `expectedFailures` in `language_test.go` — the same mechanism
-pulumi-dotnet and pulumi-java use while onboarding conformance.
+pulumi-dotnet and pulumi-java use while onboarding conformance. The skip
+list is feature-shaped: resource methods (`call`), package
+parameterization/namespaces, resource hooks, local (in-language)
+components, the `range` resource option, `try`/`can`/`recover`,
+resource-reference hydration, byte strings, and a handful of resource
+options (`aliases`, `hideDiffs`, `replaceWith`, `replacementTrigger`,
+`envVarMappings`).
 
 Builds share a cargo target directory (`$TMPDIR/pulumi-language-rust-target`)
 so the dependency graph compiles once per machine, not once per test.

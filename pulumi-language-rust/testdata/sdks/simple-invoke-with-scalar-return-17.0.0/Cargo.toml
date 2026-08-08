@@ -1,0 +1,9 @@
+[package]
+name = "pulumi_simple_invoke_with_scalar_return"
+version = "17.0.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+
+[workspace]

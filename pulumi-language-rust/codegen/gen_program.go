@@ -138,6 +138,10 @@ type programGenerator struct {
 	builtinVars map[string]bool
 	// scopeVars maps for-expression iteration variables to closure params.
 	scopeVars map[string]string
+	// varNames maps PCL variable names to unique Rust identifiers (PCL is
+	// case-sensitive; snake_case is not injective).
+	varNames map[string]string
+	usedVars map[string]bool
 	// declaredVars records program variables, for closure capture cloning.
 	declaredVars []string
 	// forDepth numbers nested for-expressions for unique closure params.
@@ -150,6 +154,8 @@ func newProgramGenerator(program *pcl.Program) *programGenerator {
 		functionSchemas: map[string]*schema.Function{},
 		builtinVars:     map[string]bool{},
 		scopeVars:       map[string]string{},
+		varNames:        map[string]string{},
+		usedVars:        map[string]bool{},
 	}
 }
 
@@ -216,6 +222,30 @@ func varName(name string) string {
 	return escapeIdent(snakeCase(name))
 }
 
+// declareVar assigns a unique Rust identifier to a PCL variable name.
+// Distinct PCL names that fold to the same snake_case identifier (e.g. mod
+// and Mod) get disambiguated.
+func (g *programGenerator) declareVar(pclName string) string {
+	if existing, ok := g.varNames[pclName]; ok {
+		return existing
+	}
+	candidate := varName(pclName)
+	for g.usedVars[candidate] {
+		candidate += "_"
+	}
+	g.varNames[pclName] = candidate
+	g.usedVars[candidate] = true
+	return candidate
+}
+
+// refVar resolves a PCL variable reference to its Rust identifier.
+func (g *programGenerator) refVar(pclName string) string {
+	if existing, ok := g.varNames[pclName]; ok {
+		return existing
+	}
+	return varName(pclName)
+}
+
 // ---------------------------------------------------------------------------
 // Nodes
 // ---------------------------------------------------------------------------
@@ -254,15 +284,17 @@ func (g *programGenerator) genConfigVariable(w *bytes.Buffer, cfg *pcl.ConfigVar
 	if cfg.Secret {
 		expr = fmt.Sprintf("pulumi::pv::secret(%s)", expr)
 	}
-	g.declaredVars = append(g.declaredVars, varName(cfg.Name()))
-	fmt.Fprintf(w, "let %s = %s;\n", varName(cfg.Name()), expr)
+	name := g.declareVar(cfg.Name())
+	g.declaredVars = append(g.declaredVars, name)
+	fmt.Fprintf(w, "let %s = %s;\n", name, expr)
 }
 
 func (g *programGenerator) genLocalVariable(w *bytes.Buffer, local *pcl.LocalVariable) {
 	value, _ := pcl.RewriteConversions(local.Definition.Value, local.Type())
 	code := g.expr(value)
-	g.declaredVars = append(g.declaredVars, varName(local.Name()))
-	fmt.Fprintf(w, "let %s = %s;\n", varName(local.Name()), code)
+	name := g.declareVar(local.Name())
+	g.declaredVars = append(g.declaredVars, name)
+	fmt.Fprintf(w, "let %s = %s;\n", name, code)
 }
 
 func (g *programGenerator) genOutputVariable(w *bytes.Buffer, output *pcl.OutputVariable) {
@@ -308,7 +340,7 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 	}
 
 	structPath, _ := g.resourcePath(r)
-	name := varName(r.Name())
+	name := g.declareVar(r.Name())
 
 	// Insert conversion intrinsics so e.g. string IDs flowing into number
 	// properties coerce at runtime, mirroring PCL conversion semantics.
@@ -372,7 +404,7 @@ func (g *programGenerator) genDynamicResource(w *bytes.Buffer, r *pcl.Resource) 
 		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
 			rustString(input.Name), g.expr(input.Value)))
 	}
-	name := varName(r.Name())
+	name := g.declareVar(r.Name())
 	g.builtinVars[name] = true
 	g.declaredVars = append(g.declaredVars, name)
 	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: %v, remote: %v, version: %s.to_string(), plugin_download_url: %s.to_string(), inputs: vec![%s], options: %s });\n",
@@ -411,7 +443,7 @@ func (g *programGenerator) genBuiltinResource(w *bytes.Buffer, r *pcl.Resource) 
 		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
 			rustString(input.Name), g.expr(input.Value)))
 	}
-	name := varName(r.Name())
+	name := g.declareVar(r.Name())
 	g.builtinVars[name] = true
 	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: true, remote: false, version: String::new(), plugin_download_url: String::new(), inputs: vec![%s], options: %s });\n",
 		name, rustString(canonical), rustString(r.LogicalName()),
@@ -467,7 +499,7 @@ func (g *programGenerator) genStackReference(w *bytes.Buffer, r *pcl.Resource) {
 		nameExpr = "pulumi::pv::null()"
 	}
 	fmt.Fprintf(w, "let %s = pulumi::StackReference::new(&ctx, %s, %s, %s);\n",
-		varName(r.Name()), rustString(r.LogicalName()), nameExpr, g.resourceOptions(r))
+		g.declareVar(r.Name()), rustString(r.LogicalName()), nameExpr, g.resourceOptions(r))
 }
 
 // typedArgsLiteral renders `Path { field: value, ... }` for a set of schema
@@ -480,9 +512,10 @@ func (g *programGenerator) typedArgsLiteral(
 		values[attr.Name] = attr.Value
 	}
 
+	names := fieldNamesFor(props)
 	var fields []string
 	for _, p := range props {
-		name := fieldName(p.Name)
+		name := names[p.Name]
 		optional := !p.IsRequired()
 		expr, has := values[p.Name]
 		if !has {
@@ -953,7 +986,7 @@ func (g *programGenerator) resourceRefNode(expr model.Expression) (string, *pcl.
 	}
 	if len(scope.Parts) > 0 {
 		if r, ok := scope.Parts[0].(*pcl.Resource); ok {
-			return varName(scope.RootName), r, true
+			return g.refVar(scope.RootName), r, true
 		}
 	}
 	return "", nil, false
@@ -1049,7 +1082,7 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 	rest := expr.Traversal[1:]
 	switch root := expr.Parts[0].(type) {
 	case *pcl.Resource, *pcl.ReadResource:
-		res := varName(expr.RootName)
+		res := g.refVar(expr.RootName)
 		if len(rest) == 0 {
 			// A bare resource reference: surface its URN.
 			return res + ".urn().cast::<pulumi::PropertyValue>()"
@@ -1073,7 +1106,7 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 		_ = root
 		return g.traversalChain(base, rest[1:])
 	case *pcl.ConfigVariable, *pcl.LocalVariable:
-		base := varName(expr.RootName) + ".clone()"
+		base := g.refVar(expr.RootName) + ".clone()"
 		return g.traversalChain(base, rest)
 	case *model.Variable:
 		if mapped, ok := g.scopeVars[expr.RootName]; ok {
@@ -1184,7 +1217,7 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 	case "getOutput":
 		if scope, ok := expr.Args[0].(*model.ScopeTraversalExpression); ok && len(scope.Parts) > 0 {
 			if _, isRes := scope.Parts[0].(*pcl.Resource); isRes {
-				return fmt.Sprintf("%s.get_output(%s)", varName(scope.RootName), arg(1))
+				return fmt.Sprintf("%s.get_output(%s)", g.refVar(scope.RootName), arg(1))
 			}
 		}
 		g.errorf(subject, "getOutput requires a stack reference variable")

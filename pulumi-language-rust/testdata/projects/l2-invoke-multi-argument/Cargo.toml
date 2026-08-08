@@ -1,0 +1,10 @@
+[package]
+name = "l2-invoke-multi-argument"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_multi_argument_invoke = { path = "ROOT/artifacts/pulumi_multi_argument_invoke-44.0.0" }
+
+[workspace]

@@ -1,0 +1,10 @@
+[package]
+name = "l2-resource-primitive-defaults"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_primitive_defaults = { path = "ROOT/artifacts/pulumi_primitive_defaults-8.0.0" }
+
+[workspace]

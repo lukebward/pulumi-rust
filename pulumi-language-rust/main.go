@@ -116,7 +116,7 @@ func newLanguageHost(engineAddress string) pulumirpc.LanguageRuntimeServer {
 // build the host runs, so dependencies compile once per machine, not once
 // per generated project.
 func sharedTargetDir() string {
-	return filepath.Join(os.TempDir(), "pulumi-language-rust-target")
+	return filepath.Join(os.TempDir(), fmt.Sprintf("pulumi-language-rust-target-%d", os.Getuid()))
 }
 
 func cargoCommand(ctx context.Context, dir string, extraEnv []string, args ...string) (*exec.Cmd, error) {
@@ -235,9 +235,8 @@ func constructRunEnv(req *pulumirpc.RunRequest, engineAddress string) ([]string,
 	maybeAppend("PULUMI_ROOT_DIRECTORY", req.GetInfo().GetRootDirectory())
 	maybeAppend("PULUMI_STACK", req.GetStack())
 	maybeAppend("PULUMI_PWD", req.GetPwd())
-	if req.GetDryRun() {
-		env = append(env, "PULUMI_DRY_RUN=true")
-	}
+	// Always set explicitly so an inherited PULUMI_DRY_RUN can't leak in.
+	env = append(env, fmt.Sprintf("PULUMI_DRY_RUN=%v", req.GetDryRun()))
 	maybeAppend("PULUMI_PARALLEL", fmt.Sprint(req.GetParallel()))
 	maybeAppend("PULUMI_CONFIG", string(config))
 	maybeAppend("PULUMI_CONFIG_SECRET_KEYS", string(configSecretKeys))
