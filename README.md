@@ -149,6 +149,14 @@ fn main() {
 }
 ```
 
+## What's not covered
+
+The `policy-*` and `provider-*` conformance families are skipped: both
+require the language to serve a second gRPC service (an analyzer for policy
+packs, a resource provider for component providers) plus two more host RPCs.
+[`docs/roadmap.md`](./docs/roadmap.md) records what each would take, along
+with the one remaining named skip and two known divergences from the Go SDK.
+
 ## License
 
 Apache-2.0
