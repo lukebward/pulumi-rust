@@ -57,21 +57,21 @@ impl OutputData {
 
     /// Re-wrap this data as a single property value, encoding secretness,
     /// unknownness, and dependencies as a first-class output value when
-    /// needed.
+    /// needed. Only a bare unknown collapses; collections with unknown
+    /// elements stay partially known, with element wrappers inline.
     pub fn into_value(self) -> PropertyValue {
-        if self.deps.is_empty() && self.known() {
+        let top_unknown = matches!(self.value, PropertyValue::Computed);
+        if self.deps.is_empty() && !top_unknown {
             if self.secret {
-                PropertyValue::Secret(Box::new(self.value))
-            } else {
-                self.value
+                return PropertyValue::Secret(Box::new(self.value));
             }
-        } else {
-            PropertyValue::Output(OutputValue {
-                value: if self.known() { Some(Box::new(self.value)) } else { None },
-                secret: self.secret,
-                dependencies: self.deps,
-            })
+            return self.value;
         }
+        PropertyValue::Output(OutputValue {
+            value: if top_unknown { None } else { Some(Box::new(self.value)) },
+            secret: self.secret,
+            dependencies: self.deps,
+        })
     }
 }
 
@@ -154,7 +154,9 @@ impl<T> Output<T> {
         let data = self.data.clone();
         Output::from_data_future(async move {
             let d = data.await;
-            if !d.known() {
+            // Only a wholly-unknown container blocks indexing; containers
+            // with unknown elements still navigate.
+            if matches!(d.value, PropertyValue::Computed) {
                 return d;
             }
             let elem = index_value(&d.value, &key);
@@ -311,41 +313,46 @@ impl<T: FromPropertyValue + Send + 'static> Output<T> {
     }
 }
 
-/// Combine several outputs into one output of their property values.
+/// Combine several outputs into one array-valued output. The array itself
+/// stays known even when elements are unknown: element-level unknownness,
+/// secretness, and dependencies are encoded inline on each element, matching
+/// how other Pulumi SDKs support partially-known collections.
 pub fn all(outputs: Vec<Output<PropertyValue>>) -> Output<Vec<PropertyValue>> {
     Output::from_data_future(async move {
         let mut values = Vec::with_capacity(outputs.len());
-        let mut secret = false;
         let mut deps = vec![];
-        let mut known = true;
         for o in outputs {
             let d = o.data().await;
-            secret |= d.secret;
-            known &= d.known();
-            deps.extend(d.deps);
-            values.push(d.value);
+            deps.extend(d.deps.clone());
+            values.push(d.into_value());
         }
-        OutputData {
-            value: if known {
-                PropertyValue::Array(values)
-            } else {
-                PropertyValue::Computed
-            },
-            secret,
-            deps,
-        }
+        OutputData { value: PropertyValue::Array(values), secret: false, deps }
     })
 }
 
 /// Concatenate string outputs (the engine for interpolated strings in
-/// generated programs).
+/// generated programs). Unknown parts make the whole string unknown.
 pub fn concat(parts: Vec<Output<PropertyValue>>) -> Output<String> {
-    all(parts).map(|values| {
+    Output::from_data_future(async move {
         let mut s = String::new();
-        for v in values {
-            s.push_str(&display_value(&v));
+        let mut secret = false;
+        let mut deps = vec![];
+        let mut known = true;
+        for p in parts {
+            let d = p.data().await;
+            secret |= d.secret;
+            if !d.known() {
+                known = false;
+            } else {
+                s.push_str(&display_value(&d.value));
+            }
+            deps.extend(d.deps);
         }
-        s
+        OutputData {
+            value: if known { PropertyValue::String(s) } else { PropertyValue::Computed },
+            secret,
+            deps,
+        }
     })
 }
 

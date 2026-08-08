@@ -169,6 +169,18 @@ fn property_to_json_string(v: &PropertyValue) -> String {
     serde_json::to_string(&property_to_json(v)).unwrap_or_default()
 }
 
+/// Strip transparent secret/output wrappers off a value.
+fn strip_wrappers(v: &PropertyValue) -> PropertyValue {
+    match v {
+        PropertyValue::Secret(inner) => strip_wrappers(inner),
+        PropertyValue::Output(o) => match &o.value {
+            Some(inner) => strip_wrappers(inner),
+            None => PropertyValue::Computed,
+        },
+        other => other.clone(),
+    }
+}
+
 /// Join a list of strings with a separator (PCL `join`).
 pub fn join(sep: Output<PropertyValue>, list: Output<PropertyValue>) -> Output<PropertyValue> {
     array(vec![sep, list])
@@ -180,8 +192,8 @@ pub fn join(sep: Output<PropertyValue>, list: Output<PropertyValue>) -> Output<P
             let parts: Vec<String> = match &vals[1] {
                 PropertyValue::Array(a) => a
                     .iter()
-                    .map(|v| match v {
-                        PropertyValue::String(s) => s.clone(),
+                    .map(|v| match strip_wrappers(v) {
+                        PropertyValue::String(s) => s,
                         other => format!("{other:?}"),
                     })
                     .collect(),

@@ -282,6 +282,17 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 	structPath, _ := g.resourcePath(r)
 	name := varName(r.Name())
 
+	// Insert conversion intrinsics so e.g. string IDs flowing into number
+	// properties coerce at runtime, mirroring PCL conversion semantics.
+	for _, input := range r.Inputs {
+		if destType, tdiags := r.InputType.Traverse(hcl.TraverseAttr{Name: input.Name}); !tdiags.HasErrors() {
+			if mt, ok := destType.(model.Type); ok {
+				converted, _ := pcl.RewriteConversions(input.Value, mt)
+				input.Value = converted
+			}
+		}
+	}
+
 	// Build the args struct literal from the schema's input properties.
 	var args string
 	if r.Schema != nil {
@@ -851,7 +862,18 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 	}
 	switch expr.Name {
 	case pcl.IntrinsicConvert:
-		return g.expr(expr.Args[0])
+		inner := g.expr(expr.Args[0])
+		switch conversionKind(expr.Type()) {
+		case "number":
+			return fmt.Sprintf("pulumi::ops::to_number(%s)", inner)
+		case "int":
+			return fmt.Sprintf("pulumi::ops::to_int(%s)", inner)
+		case "bool":
+			return fmt.Sprintf("pulumi::ops::to_bool(%s)", inner)
+		case "string":
+			return fmt.Sprintf("pulumi::ops::to_string(%s)", inner)
+		}
+		return inner
 	case pcl.Invoke:
 		return g.invokeExpr(expr)
 	case "secret":
@@ -1096,6 +1118,49 @@ func (g *programGenerator) plainPropertyValue(expr model.Expression) (string, bo
 // ---------------------------------------------------------------------------
 // Literals and formatting helpers
 // ---------------------------------------------------------------------------
+
+// conversionKind classifies a model type as a runtime conversion target.
+func conversionKind(t model.Type) string {
+	t = model.ResolveOutputs(t)
+	if u, ok := t.(*model.UnionType); ok {
+		// Pick the strongest primitive arm for coercion purposes.
+		hasNumber, hasInt, hasBool, hasString := false, false, false, false
+		for _, e := range u.ElementTypes {
+			switch model.ResolveOutputs(e) {
+			case model.NumberType:
+				hasNumber = true
+			case model.IntType:
+				hasInt = true
+			case model.BoolType:
+				hasBool = true
+			case model.StringType:
+				hasString = true
+			}
+		}
+		switch {
+		case hasNumber:
+			return "number"
+		case hasInt:
+			return "int"
+		case hasBool:
+			return "bool"
+		case hasString:
+			return "string"
+		}
+		return ""
+	}
+	switch t {
+	case model.NumberType:
+		return "number"
+	case model.IntType:
+		return "int"
+	case model.BoolType:
+		return "bool"
+	case model.StringType:
+		return "string"
+	}
+	return ""
+}
 
 // literalString extracts a static string from literal/template expressions.
 func literalString(expr model.Expression) (string, bool) {

@@ -18,7 +18,14 @@ fn combine2(
         if !da.known() || !db.known() {
             return OutputData { value: PropertyValue::Computed, secret, deps };
         }
-        OutputData { value: f(da.value, db.value), secret, deps }
+        // Lift any wrappers the combination produced (e.g. indexing into an
+        // array with secret elements) into the flags.
+        let inner = OutputData::from_value(f(da.value, db.value));
+        OutputData {
+            value: inner.value,
+            secret: secret || inner.secret,
+            deps: deps.into_iter().chain(inner.deps).collect(),
+        }
     })
 }
 
@@ -117,15 +124,102 @@ pub fn cond(
     })
 }
 
-/// Index with a dynamic key.
+fn convert1(
+    a: Output<PropertyValue>,
+    f: impl Fn(PropertyValue) -> PropertyValue + Send + Sync + 'static,
+) -> Output<PropertyValue> {
+    Output::from_data_future(async move {
+        let d = a.data().await;
+        if !d.known() {
+            return d;
+        }
+        let inner = OutputData::from_value(f(d.value));
+        OutputData {
+            value: inner.value,
+            secret: d.secret || inner.secret,
+            deps: d.deps.into_iter().chain(inner.deps).collect(),
+        }
+    })
+}
+
+/// Coerce a value to a number (PCL conversion semantics).
+pub fn to_number(a: Output<PropertyValue>) -> Output<PropertyValue> {
+    convert1(a, |v| match v {
+        PropertyValue::Number(n) => PropertyValue::Number(n),
+        PropertyValue::String(s) => match s.parse::<f64>() {
+            Ok(n) => PropertyValue::Number(n),
+            Err(_) => PropertyValue::String(s),
+        },
+        PropertyValue::Bool(b) => PropertyValue::Number(if b { 1.0 } else { 0.0 }),
+        other => other,
+    })
+}
+
+/// Coerce a value to an integer.
+pub fn to_int(a: Output<PropertyValue>) -> Output<PropertyValue> {
+    convert1(a, |v| match v {
+        PropertyValue::Number(n) => PropertyValue::Number(n.trunc()),
+        PropertyValue::String(s) => match s.parse::<f64>() {
+            Ok(n) => PropertyValue::Number(n.trunc()),
+            Err(_) => PropertyValue::String(s),
+        },
+        other => other,
+    })
+}
+
+/// Coerce a value to a bool.
+pub fn to_bool(a: Output<PropertyValue>) -> Output<PropertyValue> {
+    convert1(a, |v| match v {
+        PropertyValue::Bool(b) => PropertyValue::Bool(b),
+        PropertyValue::String(s) => match s.as_str() {
+            "true" => PropertyValue::Bool(true),
+            "false" => PropertyValue::Bool(false),
+            _ => PropertyValue::String(s),
+        },
+        other => other,
+    })
+}
+
+/// Coerce a value to a string.
+pub fn to_string(a: Output<PropertyValue>) -> Output<PropertyValue> {
+    convert1(a, |v| match v {
+        PropertyValue::String(s) => PropertyValue::String(s),
+        PropertyValue::Number(n) => {
+            if n.fract() == 0.0 && n.abs() < 1e15 {
+                PropertyValue::String(format!("{}", n as i64))
+            } else {
+                PropertyValue::String(n.to_string())
+            }
+        }
+        PropertyValue::Bool(b) => PropertyValue::String(b.to_string()),
+        other => other,
+    })
+}
+
+/// Index with a dynamic key. A container with unknown elements can still be
+/// indexed; only a wholly-unknown container (or key) is opaque.
 pub fn index(target: Output<PropertyValue>, key: Output<PropertyValue>) -> Output<PropertyValue> {
-    combine2(target, key, |t, k| {
-        let idx = match &k {
+    Output::from_data_future(async move {
+        let dt = target.data().await;
+        let dk = key.data().await;
+        let secret = dt.secret || dk.secret;
+        let deps: Vec<String> = dt.deps.iter().chain(dk.deps.iter()).cloned().collect();
+        if matches!(dt.value, PropertyValue::Computed) || !dk.known() {
+            return OutputData { value: PropertyValue::Computed, secret, deps };
+        }
+        let idx = match &dk.value {
             PropertyValue::Number(n) => crate::output::PropIndex::Index(*n as usize),
             PropertyValue::String(s) => crate::output::PropIndex::Key(s.clone()),
-            _ => return PropertyValue::Null,
+            _ => {
+                return OutputData { value: PropertyValue::Null, secret, deps };
+            }
         };
-        index_plain(&t, &idx)
+        let inner = OutputData::from_value(index_plain(&dt.value, &idx));
+        OutputData {
+            value: inner.value,
+            secret: secret || inner.secret,
+            deps: deps.into_iter().chain(inner.deps).collect(),
+        }
     })
 }
 
@@ -135,6 +229,14 @@ fn index_plain(v: &PropertyValue, key: &crate::output::PropIndex) -> PropertyVal
         (PropertyValue::Secret(inner), _) => {
             PropertyValue::Secret(Box::new(index_plain(inner, key)))
         }
+        (PropertyValue::Output(o), _) => match &o.value {
+            Some(inner) => {
+                let mut out = o.clone();
+                out.value = Some(Box::new(index_plain(inner, key)));
+                PropertyValue::Output(out)
+            }
+            None => v.clone(),
+        },
         (PropertyValue::Object(m), PropIndex::Key(k)) => {
             m.get(k).cloned().unwrap_or(PropertyValue::Null)
         }
