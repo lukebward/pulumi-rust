@@ -60,7 +60,11 @@ impl OutputData {
     /// needed. Only a bare unknown collapses; collections with unknown
     /// elements stay partially known, with element wrappers inline.
     pub fn into_value(self) -> PropertyValue {
-        let top_unknown = matches!(self.value, PropertyValue::Computed);
+        // A failed value is unknown, like a computed one: the output value
+        // must carry no value at all, or the engine reads the unknown
+        // sentinel as an ordinary string.
+        let top_unknown =
+            matches!(self.value, PropertyValue::Computed | PropertyValue::Failed(_));
         if self.deps.is_empty() && !top_unknown {
             if self.secret {
                 return PropertyValue::Secret(Box::new(self.value));

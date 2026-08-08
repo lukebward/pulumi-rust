@@ -8,8 +8,8 @@ test suite](https://github.com/pulumi/pulumi/tree/master/pkg/testing/pulumi-test
 > Status: experimental. Built as an exploration of what a conformance-tested
 > Rust language implementation looks like. Not an official Pulumi project.
 
-**Conformance status** (pulumi/pulumi v3.256.0 suite, 180 tests): **164
-pass**, 2 skipped for named reasons, and the `policy-*`/`provider-*`
+**Conformance status** (pulumi/pulumi v3.256.0 suite, 180 tests): **165
+pass**, 1 skipped for a named reason, and the `policy-*`/`provider-*`
 families (14) are skipped wholesale — those require the language to author
 policy packs and component providers, each a separate gRPC server the SDK
 does not yet serve.
@@ -21,9 +21,10 @@ hydration, lifecycle hooks, package parameterization and non-UTF8 byte
 strings; and `l3` for/splat programs, the `range` option and local
 (in-language) components.
 
-The two named skips are `l3-deferred-outputs` (mutually dependent
-components that also use `range`; every in-tree Pulumi language skips it)
-and `l2-namespaced-provider`.
+The one named skip is `l3-deferred-outputs`: mutually dependent components
+that also use the `range` option. The SDK has the deferred-output
+primitive needed to break the cycle, but components do not support `range`
+yet. Every in-tree Pulumi language skips this test too.
 
 ## What's here
 
