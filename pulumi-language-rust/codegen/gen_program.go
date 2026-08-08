@@ -1647,6 +1647,14 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 			return fmt.Sprintf("pulumi::pv::urn_type(%s.urn().cast::<pulumi::PropertyValue>())", res)
 		}
 		return fmt.Sprintf("pulumi::pv::urn_type(%s)", arg(0))
+	case "try":
+		var alts []string
+		for i := range expr.Args {
+			alts = append(alts, arg(i))
+		}
+		return fmt.Sprintf("pulumi::ops::try_(vec![%s])", strings.Join(alts, ", "))
+	case "can":
+		return fmt.Sprintf("pulumi::ops::can(%s)", arg(0))
 	case "singleOrNone":
 		return fmt.Sprintf("pulumi::pv::single_or_none(%s)", arg(0))
 	case "lookup":

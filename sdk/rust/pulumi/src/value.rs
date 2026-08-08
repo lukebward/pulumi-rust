@@ -129,6 +129,10 @@ pub enum PropertyValue {
     Computed,
     Output(OutputValue),
     ResourceReference(ResourceReference),
+    /// An internal sentinel for a lookup that found nothing, as distinct
+    /// from a property explicitly set to null. Only `try` and `can` observe
+    /// it; everywhere else, including the wire, it behaves as null.
+    Missing,
 }
 
 /// The payload of a first-class output value on the wire.
@@ -266,7 +270,7 @@ impl PropertyValue {
     /// engine negotiates).
     pub fn to_proto(&self) -> Value {
         match self {
-            PropertyValue::Null => Value { kind: Some(Kind::NullValue(0)) },
+            PropertyValue::Null | PropertyValue::Missing => Value { kind: Some(Kind::NullValue(0)) },
             PropertyValue::Bool(b) => Value { kind: Some(Kind::BoolValue(*b)) },
             PropertyValue::Number(n) => Value { kind: Some(Kind::NumberValue(*n)) },
             PropertyValue::String(s) => string_value(s.clone()),

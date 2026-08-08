@@ -347,3 +347,44 @@ fn index_plain(v: &PropertyValue, key: &crate::output::PropIndex) -> PropertyVal
         _ => PropertyValue::Null,
     }
 }
+
+/// True when a value is the missing-lookup sentinel, looking through the
+/// transparent secret and output wrappers a lookup may have added.
+fn is_missing(v: &PropertyValue) -> bool {
+    match v {
+        PropertyValue::Missing => true,
+        PropertyValue::Secret(inner) => is_missing(inner),
+        PropertyValue::Output(o) => o.value.as_deref().is_some_and(is_missing),
+        _ => false,
+    }
+}
+
+/// The `try` builtin: the first alternative that evaluates without a failed
+/// lookup. Secretness and dependencies come from the alternative chosen.
+pub fn try_(alts: Vec<Output<PropertyValue>>) -> Output<PropertyValue> {
+    Output::from_data_future(async move {
+        let mut last = OutputData::from_value(PropertyValue::Null);
+        for alt in alts {
+            let data = alt.data().await;
+            if !is_missing(&data.value) {
+                return data;
+            }
+            last = data;
+        }
+        // Every alternative failed; surface null rather than the sentinel.
+        OutputData { value: PropertyValue::Null, secret: last.secret, deps: last.deps }
+    })
+}
+
+/// The `can` builtin: whether an expression evaluated without a failed
+/// lookup.
+pub fn can(v: Output<PropertyValue>) -> Output<PropertyValue> {
+    Output::from_data_future(async move {
+        let data = v.data().await;
+        OutputData {
+            value: PropertyValue::Bool(!is_missing(&data.value)),
+            secret: data.secret,
+            deps: data.deps,
+        }
+    })
+}

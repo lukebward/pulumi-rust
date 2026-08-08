@@ -41,8 +41,6 @@ var expectedFailures = map[string]string{
 
 	// try/can/recover builtins need error-tracking through expression
 	// evaluation, which the dynamic evaluator does not model yet.
-	"l1-builtin-can": "the can() builtin is not implemented",
-	"l1-builtin-try": "the try() builtin is not implemented",
 	"l2-failed-create-recover-continue-on-error": "the recover() builtin is not implemented",
 
 	// Resource methods (call) are not implemented in codegen or the SDK.

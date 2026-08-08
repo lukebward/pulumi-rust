@@ -213,10 +213,10 @@ fn index_value(v: &PropertyValue, key: &PropIndex) -> PropertyValue {
     }
     match (v, key) {
         (PropertyValue::Object(m), PropIndex::Key(k)) => {
-            m.get(k).cloned().unwrap_or(PropertyValue::Null)
+            m.get(k).cloned().unwrap_or(PropertyValue::Missing)
         }
         (PropertyValue::Array(a), PropIndex::Index(i)) => {
-            a.get(*i).cloned().unwrap_or(PropertyValue::Null)
+            a.get(*i).cloned().unwrap_or(PropertyValue::Missing)
         }
         (PropertyValue::Array(a), PropIndex::Key(k)) => {
             // PCL allows numeric string keys on arrays.
