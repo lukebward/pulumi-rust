@@ -584,7 +584,19 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
             }
             match &data.value {
                 PropertyValue::Null => None,
-                _ => Some(encode_value(data, inner.features).to_proto()),
+                // The trigger is never marshaled as a first-class output
+                // value: the engine records it in state and compares it by
+                // equality, so dependencies travel only in `dependencies`.
+                _ => {
+                    let v = if !data.known() {
+                        PropertyValue::Computed
+                    } else if data.secret && inner.features.secrets {
+                        PropertyValue::Secret(Box::new(data.value.clone()))
+                    } else {
+                        data.value.clone()
+                    };
+                    Some(v.to_proto())
+                }
             }
         }
         None => None,
