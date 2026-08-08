@@ -982,6 +982,31 @@ async fn await_urn(r: &Resource) -> String {
     }
 }
 
+/// An outcome for a resource that was never registered because something it
+/// depends on failed.
+fn propagated(msg: String) -> RegisterOutcome {
+    RegisterOutcome {
+        urn: String::new(),
+        id: None,
+        outputs: PropertyMap::new(),
+        error: None,
+        failed: Some(msg),
+        unknown: true,
+    }
+}
+
+/// The failure message carried by a value whose resource failed.
+fn failure_of(v: &PropertyValue) -> Option<String> {
+    match v {
+        PropertyValue::Failed(msg) => Some(msg.to_string()),
+        PropertyValue::Secret(inner) => failure_of(inner),
+        PropertyValue::Output(o) => o.value.as_deref().and_then(failure_of),
+        PropertyValue::Array(items) => items.iter().find_map(failure_of),
+        PropertyValue::Object(m) => m.values().find_map(failure_of),
+        _ => None,
+    }
+}
+
 async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> RegisterOutcome {
     let fail = |msg: String| RegisterOutcome {
         urn: String::new(),
@@ -1021,6 +1046,12 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
 
     let mut dependencies = BTreeSet::new();
     for dep in &req.options.depends_on {
+        // Depending on a resource that failed to register means this one
+        // cannot be created either; propagate rather than racing the engine
+        // to register something it will skip.
+        if let Some(msg) = &dep.state.clone().await.failed {
+            return propagated(msg.clone());
+        }
         dependencies.insert(await_urn(dep).await);
     }
 
@@ -1078,6 +1109,7 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
     // Await and marshal inputs.
     let mut object = BTreeMap::new();
     let mut property_dependencies = HashMap::new();
+    let mut failed_input: Option<String> = None;
     for (key, out) in req.inputs {
         // A deferred input would deadlock: the component supplying it is
         // waiting on this registration. Leave it out entirely.
@@ -1094,7 +1126,16 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
                 urns: data.deps.clone(),
             },
         );
+        if let Some(msg) = failure_of(&data.value) {
+            failed_input = Some(msg);
+        }
         object.insert(key, encode_value(data, inner.features));
+    }
+    // An input carrying a failed resource's value means this resource can
+    // never be created; `recover` intercepts the failure before it gets
+    // here when the program handles it.
+    if let Some(msg) = failed_input {
+        return propagated(msg);
     }
 
     let request = pulumirpc::RegisterResourceRequest {
