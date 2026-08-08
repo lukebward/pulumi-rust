@@ -1,0 +1,10 @@
+[package]
+name = "provider-builtin-info-component"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_builtin_info_component = { path = "ROOT/artifacts/pulumi_builtin_info_component-37.0.0" }
+
+[workspace]

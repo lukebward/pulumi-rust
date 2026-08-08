@@ -13,11 +13,15 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use tonic::{Request, Response, Status};
 
-use crate::context::{Context, ResourceOptions, RunSettings};
+use crate::context::{
+    Alias, AliasParent, AliasSpec, Context, CustomTimeouts, ResourceOptions, RunSettings,
+};
 use crate::error::{Error, Result};
+use crate::hooks::{ResourceHook, ResourceHookBinding};
+use crate::output::Output;
 use crate::pulumirpc;
 use crate::pulumirpc::resource_provider_server::{ResourceProvider, ResourceProviderServer};
-use crate::value::{marshal_properties, unmarshal_properties, PropertyMap};
+use crate::value::{marshal_properties, unmarshal_properties, PropertyMap, PropertyValue};
 
 /// What a component's constructor receives.
 pub struct ConstructArgs {
@@ -132,7 +136,16 @@ impl ResourceProvider for Service {
         &self,
         _request: Request<pulumirpc::ProviderHandshakeRequest>,
     ) -> std::result::Result<Response<pulumirpc::ProviderHandshakeResponse>, Status> {
-        Ok(Response::new(pulumirpc::ProviderHandshakeResponse::default()))
+        // Handshake is where capabilities are negotiated; the engine records
+        // these answers and never revisits them, so they must match what
+        // `configure` reports. In particular a provider that does not claim
+        // secrets support here is refused Construct outright.
+        Ok(Response::new(pulumirpc::ProviderHandshakeResponse {
+            accept_secrets: true,
+            accept_resources: true,
+            accept_outputs: true,
+            ..Default::default()
+        }))
     }
 
     async fn parameterize(
@@ -240,6 +253,108 @@ impl ResourceProvider for Service {
     }
 }
 
+/// Rebuild the resource options the engine sent alongside a `Construct` call.
+///
+/// A remote component is registered twice: once by the program, which is where
+/// the user's options are written down, and once by this provider against the
+/// engine's monitor, which is the registration the engine actually records.
+/// The engine forwards the program's options here so that the second
+/// registration can carry them; anything not copied across is silently lost,
+/// which is how an alias or an ignoreChanges on a remote component disappears.
+fn construct_options(ctx: &Context, request: &pulumirpc::ConstructRequest) -> ResourceOptions {
+    let mut options = ResourceOptions {
+        protect: request.protect,
+        additional_secret_outputs: request.additional_secret_outputs.clone(),
+        ignore_changes: request.ignore_changes.clone(),
+        delete_before_replace: request.delete_before_replace,
+        retain_on_delete: request.retain_on_delete,
+        replace_on_changes: request.replace_on_changes.clone(),
+        ..Default::default()
+    };
+
+    if !request.parent.is_empty() {
+        options.parent = Some(ctx.resource_from_urn(&request.parent));
+    }
+    for (pkg, reference) in &request.providers {
+        options.providers.push((pkg.clone(), ctx.provider_from_reference(reference)));
+    }
+    for urn in &request.dependencies {
+        options.depends_on.push(ctx.resource_from_urn(urn));
+    }
+    for urn in &request.replace_with {
+        options.replace_with.push(ctx.resource_from_urn(urn));
+    }
+    if !request.deleted_with.is_empty() {
+        options.deleted_with = Some(ctx.resource_from_urn(&request.deleted_with));
+    }
+
+    for alias in &request.aliases {
+        use pulumirpc::alias::{spec, Alias as ProtoAlias};
+        match &alias.alias {
+            Some(ProtoAlias::Urn(urn)) => options.aliases.push(Alias::Urn(urn.clone())),
+            Some(ProtoAlias::Spec(s)) => {
+                // Empty strings mean "unset", i.e. inherit the resource's
+                // current value, which is what `None` means to AliasSpec.
+                let some = |v: &str| (!v.is_empty()).then(|| v.to_string());
+                options.aliases.push(Alias::Spec(AliasSpec {
+                    name: some(&s.name),
+                    type_: some(&s.r#type),
+                    stack: some(&s.stack),
+                    project: some(&s.project),
+                    parent: match &s.parent {
+                        Some(spec::Parent::ParentUrn(urn)) => {
+                            Some(AliasParent::Urn(ctx.resource_from_urn(urn)))
+                        }
+                        // `noParent: false` carries no information.
+                        Some(spec::Parent::NoParent(true)) => Some(AliasParent::None),
+                        _ => None,
+                    },
+                }));
+            }
+            None => {}
+        }
+    }
+
+    if let Some(t) = &request.custom_timeouts {
+        let timeout = |v: &str| {
+            (!v.is_empty()).then(|| Output::from_value(PropertyValue::String(v.to_string())))
+        };
+        options.custom_timeouts = Some(CustomTimeouts {
+            create: timeout(&t.create),
+            update: timeout(&t.update),
+            delete: timeout(&t.delete),
+            read: timeout(&t.read),
+        });
+    }
+
+    if let Some(value) = &request.replacement_trigger {
+        let value = PropertyValue::from_proto(value);
+        // A null trigger means the program explicitly left it unset.
+        if !matches!(value, PropertyValue::Null) {
+            options.replacement_trigger = Some(Output::from_value(value));
+        }
+    }
+
+    if let Some(binding) = &request.resource_hooks {
+        // The hooks themselves live in the program that registered them; the
+        // engine only needs their names to bind them again here.
+        let hooks = |names: &[String]| -> Vec<ResourceHook> {
+            names.iter().map(|name| ResourceHook { name: name.clone() }).collect()
+        };
+        options.hooks = ResourceHookBinding {
+            before_create: hooks(&binding.before_create),
+            after_create: hooks(&binding.after_create),
+            before_update: hooks(&binding.before_update),
+            after_update: hooks(&binding.after_update),
+            before_delete: hooks(&binding.before_delete),
+            after_delete: hooks(&binding.after_delete),
+            on_error: hooks(&binding.on_error),
+        };
+    }
+
+    options
+}
+
 async fn construct(
     opts: Arc<ComponentProviderOptions>,
     request: pulumirpc::ConstructRequest,
@@ -265,15 +380,7 @@ async fn construct(
         None => PropertyMap::new(),
     };
 
-    // The engine tells us the parent and the providers the component and its
-    // children should use.
-    let mut options = ResourceOptions::default();
-    if !request.parent.is_empty() {
-        options.parent = Some(ctx.resource_from_urn(&request.parent));
-    }
-    for (pkg, reference) in &request.providers {
-        options.providers.push((pkg.clone(), ctx.provider_from_reference(reference)));
-    }
+    let options = construct_options(&ctx, &request);
 
     let result = (opts.construct)(ConstructArgs {
         ctx: ctx.clone(),

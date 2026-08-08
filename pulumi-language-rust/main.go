@@ -131,6 +131,9 @@ func cargoCommand(ctx context.Context, dir string, extraEnv []string, args ...st
 		// Debug info dominates build-artifact size; conformance runs build
 		// hundreds of crates, so keep artifacts lean.
 		"CARGO_PROFILE_DEV_DEBUG=false",
+		// Incremental artifacts add gigabytes across a full suite run and
+		// buy nothing: each generated project is built once.
+		"CARGO_INCREMENTAL=0",
 	)
 	cmd.Env = append(cmd.Env, extraEnv...)
 	return cmd, nil

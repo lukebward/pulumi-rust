@@ -1,0 +1,11 @@
+[package]
+name = "provider-resource-component"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_conformance_component = { path = "ROOT/artifacts/pulumi_conformance_component-22.0.0" }
+pulumi_simple = { path = "ROOT/artifacts/pulumi_simple-2.0.0" }
+
+[workspace]
