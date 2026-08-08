@@ -143,6 +143,14 @@ type programGenerator struct {
 	// case-sensitive; snake_case is not injective).
 	varNames map[string]string
 	usedVars map[string]bool
+	// rangedVars records resources declared with a range option. A boolean
+	// range yields an Option, everything else a map keyed by iteration key.
+	rangedVars map[string]bool
+	boolRanged map[string]bool
+	// rangeKeyVar is the Rust expression yielding the current iteration key
+	// as a plain String, used when indexing a ranged resource.
+	rangeKeyVar string
+	hasRangeKey bool
 	// declaredVars records program variables, for closure capture cloning.
 	declaredVars []string
 	// forDepth numbers nested for-expressions for unique closure params.
@@ -157,6 +165,8 @@ func newProgramGenerator(program *pcl.Program) *programGenerator {
 		scopeVars:       map[string]string{},
 		varNames:        map[string]string{},
 		usedVars:        map[string]bool{},
+		rangedVars:      map[string]bool{},
+		boolRanged:      map[string]bool{},
 	}
 }
 
@@ -325,9 +335,123 @@ func (g *programGenerator) resourcePath(r *pcl.Resource) (structPath, pkgName st
 	return crate + "::" + modIdent(module) + "::" + pascalCase(member), pkgName
 }
 
+// genRangedResource emits a resource declared with a range option: the range
+// expression is expanded at runtime and one resource registered per
+// iteration. A boolean range binds an Option; every other range binds a map
+// keyed by the iteration key so the program can index instances.
+func (g *programGenerator) genRangedResource(w *bytes.Buffer, r *pcl.Resource) {
+	subject := r.Definition.Syntax.DefRange()
+	if r.Schema == nil {
+		g.errorf(subject, "resource %q has no schema", r.Name())
+		return
+	}
+	token, _ := r.GetToken()
+	if token == "pulumi:pulumi:StackReference" || isBuiltinResourceToken(token) {
+		g.errorf(subject, "range is not supported on %s", token)
+		return
+	}
+
+	isBool := false
+	if t := r.Options.Range.Type(); t != nil {
+		isBool = model.InputType(model.BoolType).ConversionFrom(t) == model.SafeConversion &&
+			model.InputType(model.NumberType).ConversionFrom(t) != model.SafeConversion
+	}
+	rangeExpr := g.expr(r.Options.Range)
+
+	name := g.declareVar(r.Name())
+	g.declaredVars = append(g.declaredVars, name)
+	g.rangedVars[name] = true
+	g.boolRanged[name] = isBool
+
+	structPath, _ := g.resourcePath(r)
+	for _, input := range r.Inputs {
+		if destType, tdiags := r.InputType.Traverse(hcl.TraverseAttr{Name: input.Name}); !tdiags.HasErrors() {
+			if mt, ok := destType.(model.Type); ok {
+				converted, _ := pcl.RewriteConversions(input.Value, mt)
+				input.Value = converted
+			}
+		}
+	}
+
+	// Bind the iteration scope so `range.key` and `range.value` resolve
+	// inside the body.
+	saved, hadSaved := g.scopeVars["range"]
+	g.scopeVars["range"] = "__range_scope"
+	savedKey, hadKey := g.rangeKeyVar, g.hasRangeKey
+	g.rangeKeyVar, g.hasRangeKey = "__range.key_string()", true
+
+	mark := len(g.diagnostics)
+	args := g.typedArgsLiteral(structPath+"Args", r.Schema.InputProperties, r.Inputs, subject)
+	dynamic := len(g.diagnostics) > mark
+	if dynamic {
+		g.diagnostics = g.diagnostics[:mark]
+	}
+	options := g.resourceOptions(r)
+
+	if isBool {
+		fmt.Fprintf(w, "let %s = {\n", name)
+		fmt.Fprintf(w, "let mut __instance = None;\n")
+	} else {
+		fmt.Fprintf(w, "let %s = {\n", name)
+		fmt.Fprintf(w, "let mut __instances = std::collections::BTreeMap::new();\n")
+	}
+	fmt.Fprintf(w, "for __range in pulumi::range_entries(%s).await {\n", rangeExpr)
+	fmt.Fprintf(w, "let __range_scope = pulumi::pv::object(vec![(\"key\".to_string(), pulumi::Output::from_value(__range.key.clone())), (\"value\".to_string(), pulumi::Output::from_value(__range.value.clone()))]);\n")
+
+	var construct string
+	if dynamic {
+		construct = g.rangedDynamicConstruct(r, options)
+	} else {
+		construct = fmt.Sprintf("%s::new(&ctx, &__range.name(%s), %s, %s)",
+			structPath, rustString(r.LogicalName()), args, options)
+	}
+	if isBool {
+		fmt.Fprintf(w, "__instance = Some(%s);\n", construct)
+		fmt.Fprintf(w, "}\n__instance\n};\n")
+	} else {
+		fmt.Fprintf(w, "__instances.insert(__range.key_string(), %s);\n", construct)
+		fmt.Fprintf(w, "}\n__instances\n};\n")
+	}
+
+	g.rangeKeyVar, g.hasRangeKey = savedKey, hadKey
+	if hadSaved {
+		g.scopeVars["range"] = saved
+	} else {
+		delete(g.scopeVars, "range")
+	}
+}
+
+// rangedDynamicConstruct renders a dynamic registration for one iteration of
+// a ranged resource whose inputs don't fit the typed args shape.
+func (g *programGenerator) rangedDynamicConstruct(r *pcl.Resource, options string) string {
+	token, _ := r.GetToken()
+	canonical := strings.Join(canonicalTokenParts(token), ":")
+	version, pluginDownloadURL := "", ""
+	if ref := r.Schema.PackageReference; ref != nil {
+		if v := ref.Version(); v != nil {
+			version = v.String()
+		}
+		if def, err := ref.Definition(); err == nil && def != nil {
+			pluginDownloadURL = def.PluginDownloadURL
+		}
+	}
+	custom, remote := true, false
+	if r.Schema.IsComponent {
+		custom, remote = false, true
+	}
+	var inputs []string
+	for _, input := range r.Inputs {
+		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
+			rustString(input.Name), g.expr(input.Value)))
+	}
+	return fmt.Sprintf("ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: __range.name(%s), custom: %v, remote: %v, version: %s.to_string(), plugin_download_url: %s.to_string(), inputs: vec![%s], options: %s })",
+		rustString(canonical), rustString(r.LogicalName()), custom, remote,
+		rustString(version), rustString(pluginDownloadURL), strings.Join(inputs, ", "), options)
+}
+
 func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 	if r.Options != nil && r.Options.Range != nil {
-		g.errorf(r.Definition.Syntax.DefRange(), "resource range options are not yet supported by the Rust program generator")
+		g.genRangedResource(w, r)
 		return
 	}
 
@@ -1086,6 +1210,87 @@ func isPlainPathIdent(s string) bool {
 }
 
 // resourceRef resolves an expression referring to a resource variable.
+// plainKey renders an index expression as a plain Rust String, used to look
+// up an instance of a ranged resource. Only literal keys and the enclosing
+// iteration key can be resolved without awaiting.
+func (g *programGenerator) plainKey(expr model.Expression) (string, bool) {
+	expr = unwrapConvert(expr)
+	if lit, ok := expr.(*model.LiteralValueExpression); ok {
+		switch lit.Value.Type() {
+		case cty.String:
+			return rustString(lit.Value.AsString()) + ".to_string()", true
+		case cty.Number:
+			f, _ := lit.Value.AsBigFloat().Float64()
+			return rustString(formatKeyNumber(f)) + ".to_string()", true
+		}
+	}
+	if scope, ok := expr.(*model.ScopeTraversalExpression); ok && scope.RootName == "range" && g.hasRangeKey {
+		if len(scope.Traversal) == 2 {
+			if attr, ok := scope.Traversal[1].(hcl.TraverseAttr); ok && attr.Name == "key" {
+				return g.rangeKeyVar, true
+			}
+		}
+	}
+	return "", false
+}
+
+// formatKeyNumber renders a numeric index the way RangeEntry::key_string
+// does, so generated lookups match generated keys.
+func formatKeyNumber(f float64) string {
+	if f == math.Trunc(f) && math.Abs(f) < 1e15 {
+		return strconv.FormatInt(int64(f), 10)
+	}
+	return strconv.FormatFloat(f, 'g', -1, 64)
+}
+
+// resourceAttr renders an attribute access chain on a resource expression.
+func (g *programGenerator) resourceAttr(res string, rest hcl.Traversal) string {
+	attr, ok := rest[0].(hcl.TraverseAttr)
+	if !ok {
+		return res + ".urn().cast::<pulumi::PropertyValue>()"
+	}
+	var base string
+	switch attr.Name {
+	case "urn":
+		base = res + ".urn().cast::<pulumi::PropertyValue>()"
+	case "id":
+		base = res + ".id().cast::<pulumi::PropertyValue>()"
+	default:
+		base = fmt.Sprintf("%s.%s().cast::<pulumi::PropertyValue>()", res, fieldName(attr.Name))
+	}
+	return g.traversalChain(base, rest[1:])
+}
+
+// rangedInstanceKey renders access to an instance selected by a static
+// traversal index.
+func (g *programGenerator) rangedInstanceKey(name string, key cty.Value, subject hcl.Range) string {
+	var k string
+	switch key.Type() {
+	case cty.String:
+		k = key.AsString()
+	case cty.Number:
+		f, _ := key.AsBigFloat().Float64()
+		k = formatKeyNumber(f)
+	default:
+		g.errorf(subject, "unsupported index into ranged resource %q", name)
+		return name
+	}
+	return fmt.Sprintf("%s.get(%s).expect(\"missing instance of %s\")", name, rustString(k), name)
+}
+
+// rangedInstance renders access to a single instance of a ranged resource.
+func (g *programGenerator) rangedInstance(name string, key model.Expression, subject hcl.Range) string {
+	if g.boolRanged[name] {
+		return fmt.Sprintf("%s.as_ref().expect(\"%s was not created\")", name, name)
+	}
+	k, ok := g.plainKey(key)
+	if !ok {
+		g.errorf(subject, "unsupported index into ranged resource %q", name)
+		return name
+	}
+	return fmt.Sprintf("%s.get(&%s).expect(\"missing instance of %s\")", name, k, name)
+}
+
 func (g *programGenerator) resourceRef(expr model.Expression) (string, bool) {
 	name, _, ok := g.resourceRefNode(expr)
 	return name, ok
@@ -1136,6 +1341,15 @@ func (g *programGenerator) expr(expr model.Expression) string {
 	case *model.ScopeTraversalExpression:
 		return g.scopeTraversalExpr(expr)
 	case *model.RelativeTraversalExpression:
+		if idx, ok := unwrapConvert(expr.Source).(*model.IndexExpression); ok {
+			if scope, ok := unwrapConvert(idx.Collection).(*model.ScopeTraversalExpression); ok {
+				name := g.refVar(scope.RootName)
+				if g.rangedVars[name] && len(scope.Traversal) == 1 && len(expr.Traversal) > 0 {
+					inst := g.rangedInstance(name, idx.Key, expr.SyntaxNode().Range())
+					return g.resourceAttr(inst, expr.Traversal)
+				}
+			}
+		}
 		return g.traversalChain(g.expr(expr.Source), expr.Traversal)
 	case *model.FunctionCallExpression:
 		return g.functionCallExpr(expr)
@@ -1147,6 +1361,12 @@ func (g *programGenerator) expr(expr model.Expression) string {
 		return fmt.Sprintf("pulumi::ops::cond(%s, %s, %s)",
 			g.expr(expr.Condition), g.expr(expr.TrueResult), g.expr(expr.FalseResult))
 	case *model.IndexExpression:
+		if scope, ok := unwrapConvert(expr.Collection).(*model.ScopeTraversalExpression); ok {
+			if name := g.refVar(scope.RootName); g.rangedVars[name] && len(scope.Traversal) == 1 {
+				inst := g.rangedInstance(name, expr.Key, expr.SyntaxNode().Range())
+				return inst + ".urn().cast::<pulumi::PropertyValue>()"
+			}
+		}
 		return fmt.Sprintf("pulumi::ops::index(%s, %s)", g.expr(expr.Collection), g.expr(expr.Key))
 	case *model.ForExpression:
 		return g.forExpr(expr)
@@ -1197,6 +1417,25 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 	switch root := expr.Parts[0].(type) {
 	case *pcl.Resource, *pcl.ReadResource:
 		res := g.refVar(expr.RootName)
+		// A ranged resource is a collection; select the instance first. A
+		// boolean range has a single instance and needs no index.
+		if g.rangedVars[res] {
+			if g.boolRanged[res] {
+				res = g.rangedInstance(res, nil, expr.SyntaxNode().Range())
+			} else {
+				if len(rest) == 0 {
+					g.errorf(expr.SyntaxNode().Range(), "ranged resource %q needs an index", expr.RootName)
+					return "pulumi::pv::null()"
+				}
+				idx, ok := rest[0].(hcl.TraverseIndex)
+				if !ok {
+					g.errorf(expr.SyntaxNode().Range(), "ranged resource %q needs an index", expr.RootName)
+					return "pulumi::pv::null()"
+				}
+				res = g.rangedInstanceKey(res, idx.Key, expr.SyntaxNode().Range())
+				rest = rest[1:]
+			}
+		}
 		if len(rest) == 0 {
 			// A bare resource reference: surface its URN.
 			return res + ".urn().cast::<pulumi::PropertyValue>()"
@@ -1212,7 +1451,7 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 			base = res + ".urn().cast::<pulumi::PropertyValue>()"
 		case attr.Name == "id":
 			base = res + ".id().cast::<pulumi::PropertyValue>()"
-		case g.builtinVars[res]:
+		case g.builtinVars[g.refVar(expr.RootName)]:
 			base = fmt.Sprintf("%s.output(%s)", res, rustString(attr.Name))
 		default:
 			base = fmt.Sprintf("%s.%s().cast::<pulumi::PropertyValue>()", res, fieldName(attr.Name))

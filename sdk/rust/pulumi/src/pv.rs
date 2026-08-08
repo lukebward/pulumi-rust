@@ -419,3 +419,62 @@ pub fn entries(v: Output<PropertyValue>) -> Output<PropertyValue> {
     })
     .cast()
 }
+
+/// One iteration of a resource `range` option.
+#[derive(Clone, Debug)]
+pub struct RangeEntry {
+    /// The iteration key: the index for counts and lists, the map key for
+    /// maps, and null for a boolean range.
+    pub key: PropertyValue,
+    /// The iteration value.
+    pub value: PropertyValue,
+}
+
+impl RangeEntry {
+    /// The key rendered for use in resource names and lookups.
+    pub fn key_string(&self) -> String {
+        match &self.key {
+            PropertyValue::String(s) => s.clone(),
+            PropertyValue::Number(n) if n.fract() == 0.0 && n.abs() < 1e15 => {
+                format!("{}", *n as i64)
+            }
+            PropertyValue::Number(n) => n.to_string(),
+            PropertyValue::Null => String::new(),
+            other => format!("{other:?}"),
+        }
+    }
+
+    /// The resource name for this iteration: the declared name suffixed with
+    /// the iteration key, except for boolean ranges which produce at most one
+    /// resource and keep the bare name.
+    pub fn name(&self, base: &str) -> String {
+        match &self.key {
+            PropertyValue::Null => base.to_string(),
+            _ => format!("{}-{}", base, self.key_string()),
+        }
+    }
+}
+
+/// Expand a `range` option into the iterations it describes: a bool creates
+/// zero or one resource, a count creates that many indexed from zero, a list
+/// iterates by index, and a map iterates by key.
+pub async fn range_entries(r: Output<PropertyValue>) -> Vec<RangeEntry> {
+    let entry = |key: PropertyValue, value: PropertyValue| RangeEntry { key, value };
+    match strip_wrappers(&r.data().await.value) {
+        PropertyValue::Bool(true) => vec![entry(PropertyValue::Null, PropertyValue::Bool(true))],
+        PropertyValue::Number(n) if n > 0.0 => (0..n as i64)
+            .map(|i| entry(PropertyValue::Number(i as f64), PropertyValue::Number(i as f64)))
+            .collect(),
+        PropertyValue::Array(items) => items
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| entry(PropertyValue::Number(i as f64), v))
+            .collect(),
+        PropertyValue::Object(m) => {
+            m.into_iter().map(|(k, v)| entry(PropertyValue::String(k), v)).collect()
+        }
+        // A false bool, a zero/negative count, or an unknown range (during a
+        // preview) all create nothing.
+        _ => vec![],
+    }
+}

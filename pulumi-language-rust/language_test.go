@@ -91,14 +91,6 @@ var expectedFailures = map[string]string{
 	"l3-resource-keyword-overlap":        "local components are not implemented",
 	"l3-rewrite-conversions":             "local components are not implemented",
 
-	// The range resource option (resource comprehensions) is not implemented.
-	"l3-range":                           "the range resource option is not implemented",
-	"l3-range-bool-ref":                  "the range resource option is not implemented",
-	"l3-range-list-ref":                  "the range resource option is not implemented",
-	"l3-range-map-ref":                   "the range resource option is not implemented",
-	"l3-range-parent-scope":              "the range resource option is not implemented",
-	"l3-range-invoke-output-traversal":   "the range resource option is not implemented",
-	"l3-range-resource-output-traversal": "the range resource option is not implemented",
 }
 
 func runTestingHost(t *testing.T) (string, testingrpc.LanguageTestClient) {

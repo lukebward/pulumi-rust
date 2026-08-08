@@ -1,0 +1,10 @@
+[package]
+name = "l3-range"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_nestedobject = { path = "ROOT/artifacts/pulumi_nestedobject-1.42.0" }
+
+[workspace]

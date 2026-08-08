@@ -23,6 +23,7 @@ pub use context::{
 pub use convert::{FromPropertyValue, IntoPropertyValue};
 pub use error::{Error, Result};
 pub use output::{Output, OutputData};
+pub use pv::{range_entries, RangeEntry};
 pub use runtime::run;
 pub use stack_reference::StackReference;
 pub use value::{Archive, Asset, AssetOrArchive, PropertyMap, PropertyValue};
