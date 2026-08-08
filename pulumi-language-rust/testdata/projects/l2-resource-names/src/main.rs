@@ -8,7 +8,7 @@ fn main() {
         let res3 = pulumi_names::ResList::new(&ctx, "res3", pulumi_names::ResListArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
         let res4 = pulumi_names::ResResource::new(&ctx, "res4", pulumi_names::ResResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
         let res5 = pulumi_names::r#mod::Res::new(&ctx, "res5", pulumi_names::r#mod::ResArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let res6 = pulumi_names::r#mod::Res::new(&ctx, "res6", pulumi_names::r#mod::ResArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let res6 = pulumi_names::mod_nested::Res::new(&ctx, "res6", pulumi_names::mod_nested::ResArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

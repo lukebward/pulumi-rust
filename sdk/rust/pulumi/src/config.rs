@@ -88,6 +88,35 @@ impl Config {
         }
     }
 
+    fn typed_opt(
+        &self,
+        key: &str,
+        parse: fn(&str) -> PropertyValue,
+    ) -> Option<Output<PropertyValue>> {
+        self.typed_value(key, parse).map(Output::from_value)
+    }
+
+    /// Optional typed getters: `Some` when the key is set.
+    pub fn get_string_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
+        self.typed_opt(key, parse_string)
+    }
+
+    pub fn get_number_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
+        self.typed_opt(key, parse_number)
+    }
+
+    pub fn get_int_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
+        self.typed_opt(key, parse_number)
+    }
+
+    pub fn get_bool_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
+        self.typed_opt(key, parse_bool)
+    }
+
+    pub fn get_object_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
+        self.typed_opt(key, parse_object)
+    }
+
     fn typed_or(
         &self,
         key: &str,

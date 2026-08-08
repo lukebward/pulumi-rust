@@ -219,12 +219,16 @@ func (g *programGenerator) genConfigVariable(w *bytes.Buffer, cfg *pcl.ConfigVar
 
 	var expr string
 	if cfg.DefaultValue != nil {
-		def, ok := g.plainPropertyValue(cfg.DefaultValue)
-		if !ok {
-			g.errorf(cfg.DefaultValue.SyntaxNode().Range(), "unsupported config default value")
-			def = "pulumi::PropertyValue::Null"
+		if def, ok := g.plainPropertyValue(cfg.DefaultValue); ok {
+			expr = fmt.Sprintf("ctx.config().get_%s_or(%q, %s)", kind, key, def)
+		} else {
+			// Dynamic defaults (e.g. computed from an invoke) evaluate
+			// lazily, only when the key is unset.
+			converted, _ := pcl.RewriteConversions(cfg.DefaultValue, cfg.Type())
+			expr = fmt.Sprintf(
+				"match ctx.config().get_%s_opt(%q) { Some(v) => v, None => %s }",
+				kind, key, g.expr(converted))
 		}
-		expr = fmt.Sprintf("ctx.config().get_%s_or(%q, %s)", kind, key, def)
 	} else if cfg.Nullable {
 		expr = fmt.Sprintf("ctx.config().get_%s_or(%q, pulumi::PropertyValue::Null)", kind, key)
 	} else {
@@ -265,9 +269,6 @@ func (g *programGenerator) resourcePath(r *pcl.Resource) (structPath, pkgName st
 	}
 
 	crate := crateName(pkgName)
-	if idx := strings.Index(module, "/"); idx >= 0 {
-		module = module[:idx]
-	}
 	if module == "index" || module == "" {
 		return crate + "::" + pascalCase(member), pkgName
 	}
@@ -632,6 +633,13 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 			setField("version", rustString(s)+".to_string()")
 		}
 	}
+	if opts.PluginDownloadURL != nil {
+		if s, ok := literalString(opts.PluginDownloadURL); ok {
+			setField("plugin_download_url", rustString(s)+".to_string()")
+		} else {
+			g.errorf(subject, "unsupported pluginDownloadURL expression")
+		}
+	}
 	if opts.ImportID != nil {
 		if s, ok := literalString(opts.ImportID); ok {
 			setField("import_id", rustString(s)+".to_string()")
@@ -697,7 +705,7 @@ func (g *programGenerator) stringList(expr model.Expression) (string, bool) {
 
 // resourceRef resolves an expression referring to a resource variable.
 func (g *programGenerator) resourceRef(expr model.Expression) (string, bool) {
-	scope, ok := expr.(*model.ScopeTraversalExpression)
+	scope, ok := unwrapConvert(expr).(*model.ScopeTraversalExpression)
 	if !ok {
 		return "", false
 	}
@@ -1029,9 +1037,6 @@ func (g *programGenerator) invokeExpr(expr *model.FunctionCallExpression) string
 	}
 
 	pkgName, module, member := parts[0], parts[1], parts[2]
-	if idx := strings.Index(module, "/"); idx >= 0 {
-		module = module[:idx]
-	}
 	crate := crateName(pkgName)
 	fnPath := crate + "::" + functionName(member)
 	argsPath := crate + "::" + pascalCase(member) + "Args"
@@ -1105,14 +1110,18 @@ func (g *programGenerator) invokeOptions(expr model.Expression, subject hcl.Rang
 				fields = append(fields, fmt.Sprintf("plugin_download_url: %s.to_string()", rustString(s)))
 			}
 		case "dependsOn":
-			if tuple, ok := item.Value.(*model.TupleConsExpression); ok {
+			if tuple, ok := unwrapConvert(item.Value).(*model.TupleConsExpression); ok {
 				var elems []string
 				for _, e := range tuple.Expressions {
 					if res, ok := g.resourceRef(e); ok {
 						elems = append(elems, fmt.Sprintf("%s.pulumi_resource().clone()", res))
+					} else {
+						g.errorf(subject, "unsupported invoke dependsOn element")
 					}
 				}
 				fields = append(fields, "depends_on: vec!["+strings.Join(elems, ", ")+"]")
+			} else {
+				g.errorf(subject, "unsupported invoke dependsOn expression")
 			}
 		default:
 			g.errorf(subject, "unsupported invoke option %q", key)

@@ -460,7 +460,11 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         property_dependencies,
         delete_before_replace: req.options.delete_before_replace.unwrap_or(false),
         delete_before_replace_defined: req.options.delete_before_replace.is_some(),
-        version: req.version.clone(),
+        version: if !req.options.version.is_empty() {
+            req.options.version.clone()
+        } else {
+            req.version.clone()
+        },
         ignore_changes: req.options.ignore_changes.clone(),
         accept_secrets: true,
         additional_secret_outputs: req.options.additional_secret_outputs.clone(),
@@ -470,7 +474,11 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         remote: req.remote,
         accept_resources: true,
         replace_on_changes: req.options.replace_on_changes.clone(),
-        plugin_download_url: req.plugin_download_url.clone(),
+        plugin_download_url: if !req.options.plugin_download_url.is_empty() {
+            req.options.plugin_download_url.clone()
+        } else {
+            req.plugin_download_url.clone()
+        },
         retain_on_delete: req.options.retain_on_delete,
         deleted_with,
         alias_specs: true,
@@ -522,6 +530,15 @@ async fn do_invoke(
         arg_map.insert(key, data.value);
     }
 
+    // Await explicit dependencies before invoking; their URNs become
+    // dependencies of the result.
+    let mut depends_on = vec![];
+    for dep in &opts.depends_on {
+        let urn = await_urn(dep).await;
+        depends_on.push(urn.clone());
+        deps.push(urn);
+    }
+
     if !known || (inner.settings.dry_run && !deps.is_empty()) {
         // Can't invoke with unknown arguments; and during previews an invoke
         // depending on not-yet-created resources must be skipped entirely.
@@ -535,11 +552,6 @@ async fn do_invoke(
         },
         None => String::new(),
     };
-
-    let mut depends_on = vec![];
-    for dep in &opts.depends_on {
-        depends_on.push(await_urn(dep).await);
-    }
 
     let request = pulumirpc::ResourceInvokeRequest {
         tok: tok.clone(),

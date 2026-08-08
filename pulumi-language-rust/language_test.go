@@ -37,7 +37,11 @@ import (
 // expectedFailures maps conformance test names to the reason they are
 // currently skipped. Entries here are honest debt: each one is a feature the
 // Rust language implementation does not support yet.
-var expectedFailures = map[string]string{}
+var expectedFailures = map[string]string{
+	// Sending non-UTF8 byte strings requires accepts_byte_string support in
+	// the SDK. Running the test without it panics the byte-sink provider.
+	"l2-raw-string-bytes": "accepts_byte_string is not implemented",
+}
 
 func runTestingHost(t *testing.T) (string, testingrpc.LanguageTestClient) {
 	// We can't just go run the pulumi-test-language package because of

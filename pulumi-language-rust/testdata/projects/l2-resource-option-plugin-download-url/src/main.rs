@@ -4,9 +4,9 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let with_default_url = pulumi_simple::Resource::new(&ctx, "withDefaultURL", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let with_explicit_default_url = pulumi_simple::Resource::new(&ctx, "withExplicitDefaultURL", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let with_custom_url1 = pulumi_simple::Resource::new(&ctx, "withCustomURL1", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let with_custom_url2 = pulumi_simple::Resource::new(&ctx, "withCustomURL2", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(false)).cast() }, pulumi::ResourceOptions::default());
+        let with_explicit_default_url = pulumi_simple::Resource::new(&ctx, "withExplicitDefaultURL", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { plugin_download_url: "https://github.com/pulumi/pulumi-simple/releases/v${VERSION}".to_string(), ..Default::default() });
+        let with_custom_url1 = pulumi_simple::Resource::new(&ctx, "withCustomURL1", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { plugin_download_url: "https://custom.pulumi.test/provider1".to_string(), ..Default::default() });
+        let with_custom_url2 = pulumi_simple::Resource::new(&ctx, "withCustomURL2", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(false)).cast() }, pulumi::ResourceOptions { plugin_download_url: "https://custom.pulumi.test/provider2".to_string(), ..Default::default() });
         Ok(())
     });
 }
