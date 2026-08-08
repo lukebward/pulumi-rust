@@ -713,6 +713,61 @@ func (g *programGenerator) plainLiteral(expr model.Expression, t schema.Type, su
 	return "Default::default()"
 }
 
+// alias renders one element of the aliases option: either a literal URN
+// string or an object literal naming the parts that differed.
+func (g *programGenerator) alias(subject hcl.Range, e model.Expression) string {
+	if s, ok := literalString(e); ok {
+		return fmt.Sprintf("pulumi::Alias::Urn(%s.to_string())", rustString(s))
+	}
+	object, ok := unwrapConvert(e).(*model.ObjectConsExpression)
+	if !ok {
+		g.errorf(subject, "unsupported alias expression")
+		return "pulumi::Alias::Spec(pulumi::AliasSpec::default())"
+	}
+	var parts []string
+	for _, item := range object.Items {
+		key, ok := keyString(item.Key)
+		if !ok {
+			g.errorf(subject, "unsupported alias key")
+			continue
+		}
+		switch key {
+		case "name", "type", "stack", "project":
+			s, ok := literalString(item.Value)
+			if !ok {
+				g.errorf(subject, "unsupported alias %s", key)
+				continue
+			}
+			field := key
+			if key == "type" {
+				field = "type_"
+			}
+			parts = append(parts, fmt.Sprintf("%s: Some(%s.to_string())", field, rustString(s)))
+		case "parent":
+			res, ok := g.resourceRef(item.Value)
+			if !ok {
+				g.errorf(subject, "unsupported alias parent")
+				continue
+			}
+			parts = append(parts, fmt.Sprintf(
+				"parent: Some(pulumi::AliasParent::Urn(%s.pulumi_resource().clone()))", res))
+		case "noParent":
+			b, ok := literalBool(item.Value)
+			if !ok {
+				g.errorf(subject, "unsupported alias noParent")
+				continue
+			}
+			if b {
+				parts = append(parts, "parent: Some(pulumi::AliasParent::None)")
+			}
+		default:
+			g.errorf(subject, "unsupported alias key %q", key)
+		}
+	}
+	return fmt.Sprintf("pulumi::Alias::Spec(pulumi::AliasSpec { %s, ..Default::default() })",
+		strings.Join(parts, ", "))
+}
+
 // resourceOptions renders the pulumi::ResourceOptions literal for a resource.
 func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 	opts := r.Options
@@ -843,6 +898,61 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 		}
 	}
 
+	if opts.HideDiffs != nil {
+		if elems, ok := g.stringList(opts.HideDiffs); ok {
+			setField("hide_diffs", elems)
+		} else {
+			g.errorf(subject, "unsupported hideDiffs expression")
+		}
+	}
+	if opts.ReplaceWith != nil {
+		if tuple, ok := unwrapConvert(opts.ReplaceWith).(*model.TupleConsExpression); ok {
+			var elems []string
+			for _, e := range tuple.Expressions {
+				if res, ok := g.resourceRef(e); ok {
+					elems = append(elems, fmt.Sprintf("%s.pulumi_resource().clone()", res))
+				} else {
+					g.errorf(subject, "unsupported replaceWith element")
+				}
+			}
+			setField("replace_with", "vec!["+strings.Join(elems, ", ")+"]")
+		} else {
+			g.errorf(subject, "unsupported replaceWith expression")
+		}
+	}
+	if opts.ReplacementTrigger != nil {
+		setField("replacement_trigger", fmt.Sprintf("Some(%s)", g.expr(opts.ReplacementTrigger)))
+	}
+	if opts.EnvVarMappings != nil {
+		if object, ok := unwrapConvert(opts.EnvVarMappings).(*model.ObjectConsExpression); ok {
+			var elems []string
+			for _, item := range object.Items {
+				key, keyOK := keyString(item.Key)
+				val, valOK := literalString(item.Value)
+				if !keyOK || !valOK {
+					g.errorf(subject, "unsupported envVarMappings entry")
+					continue
+				}
+				elems = append(elems, fmt.Sprintf("(%s.to_string(), %s.to_string())",
+					rustString(key), rustString(val)))
+			}
+			setField("env_var_mappings", "vec!["+strings.Join(elems, ", ")+"]")
+		} else {
+			g.errorf(subject, "unsupported envVarMappings expression")
+		}
+	}
+	if opts.Aliases != nil {
+		if tuple, ok := unwrapConvert(opts.Aliases).(*model.TupleConsExpression); ok {
+			var elems []string
+			for _, e := range tuple.Expressions {
+				elems = append(elems, g.alias(subject, e))
+			}
+			setField("aliases", "vec!["+strings.Join(elems, ", ")+"]")
+		} else {
+			g.errorf(subject, "unsupported aliases expression")
+		}
+	}
+
 	if opts.Providers != nil {
 		var elems []string
 		appendProvider := func(key string, e model.Expression) {
@@ -882,11 +992,6 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 		name string
 		expr model.Expression
 	}{
-		{"aliases", opts.Aliases},
-		{"hideDiffs", opts.HideDiffs},
-		{"replaceWith", opts.ReplaceWith},
-		{"replacementTrigger", opts.ReplacementTrigger},
-		{"envVarMappings", opts.EnvVarMappings},
 		{"hooks", opts.Hooks},
 	}
 	for _, u := range unsupported {

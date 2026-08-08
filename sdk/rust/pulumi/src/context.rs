@@ -90,6 +90,76 @@ pub struct ResourceOptions {
     pub import_id: String,
     pub replace_on_changes: Vec<String>,
     pub custom_timeouts: Option<CustomTimeouts>,
+    /// Previous identities for this resource, so the engine treats an
+    /// existing resource as this one instead of replacing it.
+    pub aliases: Vec<Alias>,
+    /// Properties whose diffs the engine hides from the user.
+    pub hide_diffs: Vec<String>,
+    /// Resources whose replacement forces this resource to be replaced.
+    pub replace_with: Vec<Resource>,
+    /// A value the engine diffs against its last recorded value; a change
+    /// triggers replacement.
+    pub replacement_trigger: Option<Output<PropertyValue>>,
+    /// Environment-variable remappings for provider resources
+    /// (new key -> old key).
+    pub env_var_mappings: Vec<(String, String)>,
+}
+
+/// A previous identity of a resource.
+#[derive(Clone, Debug)]
+pub enum Alias {
+    /// A fully-specified previous URN.
+    Urn(String),
+    /// A partial specification; unset parts default to the resource's
+    /// current values.
+    Spec(AliasSpec),
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct AliasSpec {
+    pub name: Option<String>,
+    pub type_: Option<String>,
+    pub stack: Option<String>,
+    pub project: Option<String>,
+    pub parent: Option<AliasParent>,
+}
+
+#[derive(Clone, Debug)]
+pub enum AliasParent {
+    /// The resource previously had this parent.
+    Urn(Resource),
+    /// The resource previously had no parent.
+    None,
+}
+
+impl Alias {
+    async fn to_proto(&self) -> pulumirpc::Alias {
+        use pulumirpc::alias::{spec, Spec};
+        let alias = match self {
+            Alias::Urn(urn) => pulumirpc::alias::Alias::Urn(urn.clone()),
+            Alias::Spec(s) => {
+                let parent = match &s.parent {
+                    Some(AliasParent::Urn(r)) => {
+                        let urn = match r.urn().data().await.value {
+                            PropertyValue::String(s) => s,
+                            _ => String::new(),
+                        };
+                        Some(spec::Parent::ParentUrn(urn))
+                    }
+                    Some(AliasParent::None) => Some(spec::Parent::NoParent(true)),
+                    None => None,
+                };
+                pulumirpc::alias::Alias::Spec(Spec {
+                    name: s.name.clone().unwrap_or_default(),
+                    r#type: s.type_.clone().unwrap_or_default(),
+                    stack: s.stack.clone().unwrap_or_default(),
+                    project: s.project.clone().unwrap_or_default(),
+                    parent,
+                })
+            }
+        };
+        pulumirpc::Alias { alias: Some(alias) }
+    }
 }
 
 #[derive(Default, Clone)]
@@ -491,6 +561,35 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         dependencies.insert(await_urn(dep).await);
     }
 
+    let mut replace_with = Vec::new();
+    for r in &req.options.replace_with {
+        let urn = await_urn(r).await;
+        if !urn.is_empty() {
+            replace_with.push(urn);
+        }
+    }
+
+    let mut aliases = Vec::new();
+    for a in &req.options.aliases {
+        aliases.push(a.to_proto().await);
+    }
+
+    // The trigger's own dependencies join the resource's, matching the Go
+    // SDK; the value keeps unknowns and secrets so the engine can diff it.
+    let replacement_trigger = match &req.options.replacement_trigger {
+        Some(o) => {
+            let data = o.data().await;
+            for d in &data.deps {
+                dependencies.insert(d.clone());
+            }
+            match &data.value {
+                PropertyValue::Null => None,
+                _ => Some(encode_value(data, inner.features).to_proto()),
+            }
+        }
+        None => None,
+    };
+
     let custom_timeouts = match &req.options.custom_timeouts {
         Some(t) => Some(pulumirpc::register_resource_request::CustomTimeouts {
             create: timeout_str(&t.create).await,
@@ -554,6 +653,11 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         deleted_with,
         alias_specs: true,
         supports_result_reporting: true,
+        aliases,
+        hide_diffs: req.options.hide_diffs.clone(),
+        replace_with,
+        replacement_trigger,
+        env_var_mappings: req.options.env_var_mappings.iter().cloned().collect(),
         ..Default::default()
     };
 

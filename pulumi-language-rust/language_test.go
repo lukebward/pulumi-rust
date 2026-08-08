@@ -80,12 +80,6 @@ var expectedFailures = map[string]string{
 	"l2-resource-hook-on-error":      "resource hooks are not implemented",
 	"l2-resource-option-hooks":       "resource hooks are not implemented",
 
-	// Resource options not yet wired through the SDK.
-	"l2-resource-option-alias":               "the aliases resource option is not implemented",
-	"l2-resource-option-hide-diffs":          "the hideDiffs resource option is not implemented",
-	"l2-resource-option-replace-with":        "the replaceWith resource option is not implemented",
-	"l2-resource-option-replacement-trigger": "the replacementTrigger resource option is not implemented",
-	"l2-resource-option-env-var-mappings":    "the envVarMappings resource option is not implemented",
 
 	// Local (in-language) components are not implemented in programgen.
 	"l3-component-simple":                "local components are not implemented",
