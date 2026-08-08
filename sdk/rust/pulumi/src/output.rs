@@ -149,6 +149,27 @@ impl<T> Output<T> {
     /// Index into an object (by key) or array (by position), producing the
     /// element as a dynamic output. Unknowns, secretness, and dependencies
     /// propagate.
+    /// Index, reporting an absent key as the missing sentinel rather than
+    /// null. Generated code uses this only inside `try`/`can`, so ordinary
+    /// lookups keep null semantics.
+    pub fn index_checked(&self, key: impl Into<PropIndex>) -> Output<PropertyValue> {
+        let key = key.into();
+        let data = self.data.clone();
+        Output::from_data_future(async move {
+            let d = data.await;
+            if matches!(d.value, PropertyValue::Computed) {
+                return d;
+            }
+            let elem = index_value_checked(&d.value, &key);
+            let inner = OutputData::from_value(elem);
+            OutputData {
+                value: inner.value,
+                secret: d.secret || inner.secret,
+                deps: d.deps.into_iter().chain(inner.deps).collect(),
+            }
+        })
+    }
+
     pub fn index(&self, key: impl Into<PropIndex>) -> Output<PropertyValue> {
         let key = key.into();
         let data = self.data.clone();
@@ -195,6 +216,37 @@ impl From<usize> for PropIndex {
     }
 }
 
+/// Like [`index_value`] but reports an absent key as
+/// [`PropertyValue::Missing`].
+fn index_value_checked(v: &PropertyValue, key: &PropIndex) -> PropertyValue {
+    match v {
+        PropertyValue::Secret(inner) => {
+            return PropertyValue::Secret(Box::new(index_value_checked(inner, key)))
+        }
+        PropertyValue::Output(o) => {
+            if let Some(inner) = &o.value {
+                let mut out = o.clone();
+                out.value = Some(Box::new(index_value_checked(inner, key)));
+                return PropertyValue::Output(out);
+            }
+            return v.clone();
+        }
+        _ => {}
+    }
+    let present = match (v, key) {
+        (PropertyValue::Object(m), PropIndex::Key(k)) => m.contains_key(k),
+        (PropertyValue::Array(a), PropIndex::Index(i)) => *i < a.len(),
+        (PropertyValue::Array(a), PropIndex::Key(k)) => {
+            k.parse::<usize>().map(|i| i < a.len()).unwrap_or(false)
+        }
+        _ => false,
+    };
+    if !present {
+        return PropertyValue::Missing;
+    }
+    index_value(v, key)
+}
+
 fn index_value(v: &PropertyValue, key: &PropIndex) -> PropertyValue {
     // Look through transparent wrappers so indexing works on secrets too.
     match v {
@@ -213,10 +265,10 @@ fn index_value(v: &PropertyValue, key: &PropIndex) -> PropertyValue {
     }
     match (v, key) {
         (PropertyValue::Object(m), PropIndex::Key(k)) => {
-            m.get(k).cloned().unwrap_or(PropertyValue::Missing)
+            m.get(k).cloned().unwrap_or(PropertyValue::Null)
         }
         (PropertyValue::Array(a), PropIndex::Index(i)) => {
-            a.get(*i).cloned().unwrap_or(PropertyValue::Missing)
+            a.get(*i).cloned().unwrap_or(PropertyValue::Null)
         }
         (PropertyValue::Array(a), PropIndex::Key(k)) => {
             // PCL allows numeric string keys on arrays.

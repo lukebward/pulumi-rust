@@ -151,6 +151,10 @@ type programGenerator struct {
 	// as a plain String, used when indexing a ranged resource.
 	rangeKeyVar string
 	hasRangeKey bool
+	// fallible is set while generating the arguments of try/can, where a
+	// lookup that finds nothing must be distinguishable from an explicit
+	// null. Everywhere else absent lookups stay null.
+	fallible bool
 	// declaredVars records program variables, for closure capture cloning.
 	declaredVars []string
 	// forDepth numbers nested for-expressions for unique closure params.
@@ -1367,7 +1371,11 @@ func (g *programGenerator) expr(expr model.Expression) string {
 				return inst + ".urn().cast::<pulumi::PropertyValue>()"
 			}
 		}
-		return fmt.Sprintf("pulumi::ops::index(%s, %s)", g.expr(expr.Collection), g.expr(expr.Key))
+		fn2 := "index"
+		if g.fallible {
+			fn2 = "index_checked"
+		}
+		return fmt.Sprintf("pulumi::ops::%s(%s, %s)", fn2, g.expr(expr.Collection), g.expr(expr.Key))
 	case *model.ForExpression:
 		return g.forExpr(expr)
 	case *model.SplatExpression:
@@ -1478,18 +1486,22 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 }
 
 func (g *programGenerator) traversalChain(base string, traversal hcl.Traversal) string {
+	index := "index"
+	if g.fallible {
+		index = "index_checked"
+	}
 	out := base
 	for _, part := range traversal {
 		switch part := part.(type) {
 		case hcl.TraverseAttr:
-			out = fmt.Sprintf("%s.index(%s)", out, rustString(part.Name))
+			out = fmt.Sprintf("%s.%s(%s)", out, index, rustString(part.Name))
 		case hcl.TraverseIndex:
 			switch part.Key.Type() {
 			case cty.Number:
 				i, _ := part.Key.AsBigFloat().Int64()
-				out = fmt.Sprintf("%s.index(%dusize)", out, i)
+				out = fmt.Sprintf("%s.%s(%dusize)", out, index, i)
 			case cty.String:
-				out = fmt.Sprintf("%s.index(%s)", out, rustString(part.Key.AsString()))
+				out = fmt.Sprintf("%s.%s(%s)", out, index, rustString(part.Key.AsString()))
 			}
 		}
 	}
@@ -1648,13 +1660,20 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 		}
 		return fmt.Sprintf("pulumi::pv::urn_type(%s)", arg(0))
 	case "try":
+		saved := g.fallible
+		g.fallible = true
 		var alts []string
 		for i := range expr.Args {
-			alts = append(alts, arg(i))
+			alts = append(alts, g.expr(expr.Args[i]))
 		}
+		g.fallible = saved
 		return fmt.Sprintf("pulumi::ops::try_(vec![%s])", strings.Join(alts, ", "))
 	case "can":
-		return fmt.Sprintf("pulumi::ops::can(%s)", arg(0))
+		saved := g.fallible
+		g.fallible = true
+		a := g.expr(expr.Args[0])
+		g.fallible = saved
+		return fmt.Sprintf("pulumi::ops::can(%s)", a)
 	case "singleOrNone":
 		return fmt.Sprintf("pulumi::pv::single_or_none(%s)", arg(0))
 	case "lookup":

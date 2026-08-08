@@ -4,19 +4,19 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let a_map = ctx.config().require_object("aMap")?;
-        ctx.export("plainTrySuccess", pulumi::ops::can(a_map.clone().index("a")));
-        ctx.export("plainTryFailure", pulumi::ops::can(a_map.clone().index("b")));
+        ctx.export("plainTrySuccess", pulumi::ops::can(a_map.clone().index_checked("a")));
+        ctx.export("plainTryFailure", pulumi::ops::can(a_map.clone().index_checked("b")));
         let a_secret_map = pulumi::pv::secret(a_map.clone());
-        ctx.export("outputTrySuccess", pulumi::ops::can(a_secret_map.clone().index("a")));
-        ctx.export("outputTryFailure", pulumi::ops::can(a_secret_map.clone().index("b")));
+        ctx.export("outputTrySuccess", pulumi::ops::can(a_secret_map.clone().index_checked("a")));
+        ctx.export("outputTryFailure", pulumi::ops::can(a_secret_map.clone().index_checked("b")));
         let an_object = ctx.config().require_object("anObject")?;
-        ctx.export("dynamicTrySuccess", pulumi::ops::can(an_object.clone().index("a")));
-        ctx.export("dynamicTryFailure", pulumi::ops::can(an_object.clone().index("b")));
+        ctx.export("dynamicTrySuccess", pulumi::ops::can(an_object.clone().index_checked("a")));
+        ctx.export("dynamicTryFailure", pulumi::ops::can(an_object.clone().index_checked("b")));
         let a_secret_object = pulumi::pv::secret(an_object.clone());
-        ctx.export("outputDynamicTrySuccess", pulumi::ops::can(a_secret_object.clone().index("a")));
-        ctx.export("outputDynamicTryFailure", pulumi::ops::can(a_secret_object.clone().index("b")));
-        ctx.export("plainTryNull", pulumi::ops::can(an_object.clone().index("opt")));
-        ctx.export("outputTryNull", pulumi::ops::can(a_secret_object.clone().index("opt")));
+        ctx.export("outputDynamicTrySuccess", pulumi::ops::can(a_secret_object.clone().index_checked("a")));
+        ctx.export("outputDynamicTryFailure", pulumi::ops::can(a_secret_object.clone().index_checked("b")));
+        ctx.export("plainTryNull", pulumi::ops::can(an_object.clone().index_checked("opt")));
+        ctx.export("outputTryNull", pulumi::ops::can(a_secret_object.clone().index_checked("opt")));
         Ok(())
     });
 }

@@ -348,6 +348,34 @@ fn index_plain(v: &PropertyValue, key: &crate::output::PropIndex) -> PropertyVal
     }
 }
 
+/// Index into a collection, reporting an absent key as the missing
+/// sentinel. Generated code uses this only inside `try`/`can`.
+pub fn index_checked(
+    target: Output<PropertyValue>,
+    key: Output<PropertyValue>,
+) -> Output<PropertyValue> {
+    Output::from_data_future(async move {
+        let dt = target.data().await;
+        let dk = key.data().await;
+        let secret = dt.secret || dk.secret;
+        let deps: Vec<String> = dt.deps.iter().chain(dk.deps.iter()).cloned().collect();
+        if matches!(dt.value, PropertyValue::Computed) || !dk.known() {
+            return OutputData { value: PropertyValue::Computed, secret, deps };
+        }
+        let idx = match &dk.value {
+            PropertyValue::Number(n) => crate::output::PropIndex::Index(*n as usize),
+            PropertyValue::String(s) => crate::output::PropIndex::Key(s.clone()),
+            _ => return OutputData { value: PropertyValue::Missing, secret, deps },
+        };
+        let inner = Output::<PropertyValue>::from_value(dt.value).index_checked(idx).data().await;
+        OutputData {
+            value: inner.value,
+            secret: secret || inner.secret,
+            deps: deps.into_iter().chain(inner.deps).collect(),
+        }
+    })
+}
+
 /// True when a value is the missing-lookup sentinel, looking through the
 /// transparent secret and output wrappers a lookup may have added.
 fn is_missing(v: &PropertyValue) -> bool {

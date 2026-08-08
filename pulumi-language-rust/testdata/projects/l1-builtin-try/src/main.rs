@@ -4,19 +4,19 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let a_map = ctx.config().require_object("aMap")?;
-        ctx.export("plainTrySuccess", pulumi::ops::try_(vec![a_map.clone().index("a"), pulumi::pv::string("fallback")]));
-        ctx.export("plainTryFailure", pulumi::ops::try_(vec![a_map.clone().index("b"), pulumi::pv::string("fallback")]));
+        ctx.export("plainTrySuccess", pulumi::ops::try_(vec![a_map.clone().index_checked("a"), pulumi::pv::string("fallback")]));
+        ctx.export("plainTryFailure", pulumi::ops::try_(vec![a_map.clone().index_checked("b"), pulumi::pv::string("fallback")]));
         let a_secret_map = pulumi::pv::secret(a_map.clone());
-        ctx.export("outputTrySuccess", pulumi::ops::try_(vec![a_secret_map.clone().index("a"), pulumi::pv::string("fallback")]));
-        ctx.export("outputTryFailure", pulumi::ops::try_(vec![a_secret_map.clone().index("b"), pulumi::pv::string("fallback")]));
+        ctx.export("outputTrySuccess", pulumi::ops::try_(vec![a_secret_map.clone().index_checked("a"), pulumi::pv::string("fallback")]));
+        ctx.export("outputTryFailure", pulumi::ops::try_(vec![a_secret_map.clone().index_checked("b"), pulumi::pv::string("fallback")]));
         let an_object = ctx.config().require_object("anObject")?;
-        ctx.export("dynamicTrySuccess", pulumi::ops::try_(vec![an_object.clone().index("a"), pulumi::pv::string("fallback")]));
-        ctx.export("dynamicTryFailure", pulumi::ops::try_(vec![an_object.clone().index("b"), pulumi::pv::string("fallback")]));
+        ctx.export("dynamicTrySuccess", pulumi::ops::try_(vec![an_object.clone().index_checked("a"), pulumi::pv::string("fallback")]));
+        ctx.export("dynamicTryFailure", pulumi::ops::try_(vec![an_object.clone().index_checked("b"), pulumi::pv::string("fallback")]));
         let a_secret_object = pulumi::pv::secret(an_object.clone());
-        ctx.export("outputDynamicTrySuccess", pulumi::ops::try_(vec![a_secret_object.clone().index("a"), pulumi::pv::string("fallback")]));
-        ctx.export("outputDynamicTryFailure", pulumi::ops::try_(vec![a_secret_object.clone().index("b"), pulumi::pv::string("fallback")]));
-        ctx.export("plainTryNull", pulumi::pv::array(vec![pulumi::ops::try_(vec![an_object.clone().index("opt"), pulumi::pv::string("fallback")])]));
-        ctx.export("outputTryNull", pulumi::pv::array(vec![pulumi::ops::try_(vec![a_secret_object.clone().index("opt"), pulumi::pv::string("fallback")])]));
+        ctx.export("outputDynamicTrySuccess", pulumi::ops::try_(vec![a_secret_object.clone().index_checked("a"), pulumi::pv::string("fallback")]));
+        ctx.export("outputDynamicTryFailure", pulumi::ops::try_(vec![a_secret_object.clone().index_checked("b"), pulumi::pv::string("fallback")]));
+        ctx.export("plainTryNull", pulumi::pv::array(vec![pulumi::ops::try_(vec![an_object.clone().index_checked("opt"), pulumi::pv::string("fallback")])]));
+        ctx.export("outputTryNull", pulumi::pv::array(vec![pulumi::ops::try_(vec![a_secret_object.clone().index_checked("opt"), pulumi::pv::string("fallback")])]));
         Ok(())
     });
 }
