@@ -4,13 +4,13 @@
 #[derive(Clone, Debug)]
 pub struct ResourceArgs {
     pub data: crate::types::DataArgs,
-    pub data_list: Option<Vec<crate::types::InnerDataArgs>>,
+    pub data_list: Option<std::vec::Vec<crate::types::InnerDataArgs>>,
     pub non_plain_data: Option<crate::types::DataArgs>,
 }
 
 impl ResourceArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.data;
             inputs.push(("data".to_string(), v.into_output()));
@@ -52,11 +52,11 @@ impl Resource {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
@@ -64,7 +64,7 @@ impl Resource {
         self.resource.output("data").cast()
     }
 
-    pub fn data_list(&self) -> pulumi::Output<Option<Vec<crate::types::InnerData>>> {
+    pub fn data_list(&self) -> pulumi::Output<Option<std::vec::Vec<crate::types::InnerData>>> {
         self.resource.output("dataList").cast()
     }
 
@@ -78,8 +78,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -111,11 +111,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
@@ -123,29 +123,29 @@ impl Provider {
 pub mod types {
     #[derive(Clone, Debug)]
     pub struct DataArgs {
-        pub bool_array: Vec<bool>,
+        pub bool_array: std::vec::Vec<bool>,
         pub boolean: bool,
         pub float: f64,
         pub inner_data: crate::types::InnerDataArgs,
         pub integer: i32,
-        pub string: String,
-        pub string_map: std::collections::BTreeMap<String, String>,
+        pub string: std::string::String,
+        pub string_map: std::collections::BTreeMap<std::string::String, std::string::String>,
     }
 
     impl DataArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.bool_array;
-                inputs.push(("boolArray".to_string(), pulumi::Output::known(v)));
+                inputs.push(("boolArray".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.boolean;
-                inputs.push(("boolean".to_string(), pulumi::Output::known(v)));
+                inputs.push(("boolean".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.float;
-                inputs.push(("float".to_string(), pulumi::Output::known(v)));
+                inputs.push(("float".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.inner_data;
@@ -153,15 +153,15 @@ pub mod types {
             }
             {
                 let v = self.integer;
-                inputs.push(("integer".to_string(), pulumi::Output::known(v)));
+                inputs.push(("integer".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.string;
-                inputs.push(("string".to_string(), pulumi::Output::known(v)));
+                inputs.push(("string".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.string_map;
-                inputs.push(("stringMap".to_string(), pulumi::Output::known(v)));
+                inputs.push(("stringMap".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             inputs
         }
@@ -173,40 +173,40 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct InnerDataArgs {
-        pub bool_array: Vec<bool>,
+        pub bool_array: std::vec::Vec<bool>,
         pub boolean: bool,
         pub float: f64,
         pub integer: i32,
-        pub string: String,
-        pub string_map: std::collections::BTreeMap<String, String>,
+        pub string: std::string::String,
+        pub string_map: std::collections::BTreeMap<std::string::String, std::string::String>,
     }
 
     impl InnerDataArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.bool_array;
-                inputs.push(("boolArray".to_string(), pulumi::Output::known(v)));
+                inputs.push(("boolArray".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.boolean;
-                inputs.push(("boolean".to_string(), pulumi::Output::known(v)));
+                inputs.push(("boolean".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.float;
-                inputs.push(("float".to_string(), pulumi::Output::known(v)));
+                inputs.push(("float".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.integer;
-                inputs.push(("integer".to_string(), pulumi::Output::known(v)));
+                inputs.push(("integer".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.string;
-                inputs.push(("string".to_string(), pulumi::Output::known(v)));
+                inputs.push(("string".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             {
                 let v = self.string_map;
-                inputs.push(("stringMap".to_string(), pulumi::Output::known(v)));
+                inputs.push(("stringMap".to_string(), pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(v))));
             }
             inputs
         }
@@ -218,13 +218,13 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct Data {
-        pub bool_array: Vec<bool>,
+        pub bool_array: std::vec::Vec<bool>,
         pub boolean: bool,
         pub float: f64,
         pub inner_data: crate::types::InnerData,
         pub integer: i32,
-        pub string: String,
-        pub string_map: std::collections::BTreeMap<String, String>,
+        pub string: std::string::String,
+        pub string_map: std::collections::BTreeMap<std::string::String, std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for Data {
@@ -244,12 +244,12 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct InnerData {
-        pub bool_array: Vec<bool>,
+        pub bool_array: std::vec::Vec<bool>,
         pub boolean: bool,
         pub float: f64,
         pub integer: i32,
-        pub string: String,
-        pub string_map: std::collections::BTreeMap<String, String>,
+        pub string: std::string::String,
+        pub string_map: std::collections::BTreeMap<std::string::String, std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for InnerData {

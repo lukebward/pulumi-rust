@@ -204,9 +204,9 @@ func (g *pkgGenerator) plainType(t schema.Type, qualify string) string {
 	case *schema.InputType:
 		return g.plainType(t.ElementType, qualify)
 	case *schema.ArrayType:
-		return "Vec<" + g.plainType(t.ElementType, qualify) + ">"
+		return "std::vec::Vec<" + g.plainType(t.ElementType, qualify) + ">"
 	case *schema.MapType:
-		return "std::collections::BTreeMap<String, " + g.plainType(t.ElementType, qualify) + ">"
+		return "std::collections::BTreeMap<std::string::String, " + g.plainType(t.ElementType, qualify) + ">"
 	case *schema.ObjectType:
 		o := t
 		if o.IsInputShape() {
@@ -219,7 +219,7 @@ func (g *pkgGenerator) plainType(t schema.Type, qualify string) string {
 		if t.UnderlyingType != nil {
 			return g.plainType(t.UnderlyingType, qualify)
 		}
-		return "String"
+		return "std::string::String"
 	}
 	switch t {
 	case schema.BoolType:
@@ -229,7 +229,7 @@ func (g *pkgGenerator) plainType(t schema.Type, qualify string) string {
 	case schema.NumberType:
 		return "f64"
 	case schema.StringType:
-		return "String"
+		return "std::string::String"
 	case schema.AssetType:
 		return "pulumi::AssetOrArchive"
 	case schema.ArchiveType:
@@ -246,6 +246,7 @@ type inputField struct {
 	wireName string
 	typ      string // Rust type of the field (without Option wrapper)
 	optional bool
+	secret   bool
 	conv     string // template converting expression %s to Output<PropertyValue>
 }
 
@@ -254,6 +255,7 @@ func (g *pkgGenerator) inputFieldFor(p *schema.Property, qualify string) inputFi
 	f := inputField{
 		rustName: fieldName(p.Name),
 		wireName: p.Name,
+		secret:   p.Secret,
 	}
 	t := p.Type
 	if opt, ok := t.(*schema.OptionalType); ok {
@@ -277,7 +279,7 @@ func (g *pkgGenerator) inputFieldFor(p *schema.Property, qualify string) inputFi
 	case *schema.ArrayType:
 		if containsObject(tt.ElementType) {
 			if obj, ok := unwrapToObject(tt.ElementType); ok {
-				f.typ = "Vec<" + qualify + g.typeNameForToken(obj.Token) + "Args>"
+				f.typ = "std::vec::Vec<" + qualify + g.typeNameForToken(obj.Token) + "Args>"
 				f.conv = "pulumi::output::all(%s.into_iter().map(|e| e.into_output()).collect()).cast()"
 				return f
 			}
@@ -289,7 +291,7 @@ func (g *pkgGenerator) inputFieldFor(p *schema.Property, qualify string) inputFi
 	case *schema.MapType:
 		if containsObject(tt.ElementType) {
 			if obj, ok := unwrapToObject(tt.ElementType); ok {
-				f.typ = "std::collections::BTreeMap<String, " + qualify + g.typeNameForToken(obj.Token) + "Args>"
+				f.typ = "std::collections::BTreeMap<std::string::String, " + qualify + g.typeNameForToken(obj.Token) + "Args>"
 				f.conv = "pulumi::output::object(%s.into_iter().map(|(k, e)| (k, e.into_output())).collect())"
 				return f
 			}
@@ -302,7 +304,7 @@ func (g *pkgGenerator) inputFieldFor(p *schema.Property, qualify string) inputFi
 	inner := g.plainType(t, qualify)
 	if plain {
 		f.typ = inner
-		f.conv = "pulumi::Output::known(%s)"
+		f.conv = "pulumi::Output::from_value(pulumi::IntoPropertyValue::into_property_value(%s))"
 	} else {
 		f.typ = "pulumi::Output<" + inner + ">"
 		f.conv = "%s.cast()"
@@ -327,8 +329,10 @@ func unwrapToObject(t schema.Type) (*schema.ObjectType, bool) {
 }
 
 // writeArgsStruct emits an args struct plus its conversion into inputs.
+// wrapSecrets marks schema-secret properties as secrets on the wire; this
+// applies to resource/function inputs but not nested object types.
 func (g *pkgGenerator) writeArgsStruct(
-	w *bytes.Buffer, name string, props []*schema.Property, qualify string,
+	w *bytes.Buffer, name string, props []*schema.Property, qualify string, wrapSecrets bool,
 ) {
 	fields := make([]inputField, len(props))
 	allOptional := true
@@ -355,10 +359,14 @@ func (g *pkgGenerator) writeArgsStruct(
 	fmt.Fprintf(w, "}\n\n")
 
 	fmt.Fprintf(w, "impl %s {\n", name)
-	fmt.Fprintf(w, "    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {\n")
-	fmt.Fprintf(w, "        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();\n")
+	fmt.Fprintf(w, "    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {\n")
+	fmt.Fprintf(w, "        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();\n")
 	for _, f := range fields {
 		conv := fmt.Sprintf(f.conv, "v")
+		if f.secret && wrapSecrets {
+			// Schema-secret properties always marshal as secrets.
+			conv = "pulumi::pv::secret(" + conv + ")"
+		}
 		if f.optional {
 			fmt.Fprintf(w, "        if let Some(v) = self.%s {\n", f.rustName)
 			fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, conv)
@@ -422,7 +430,7 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 	name := g.resourceStructName(r)
 	argsName := name + "Args"
 
-	g.writeArgsStruct(w, argsName, r.InputProperties, qualify)
+	g.writeArgsStruct(w, argsName, r.InputProperties, qualify, true)
 
 	fmt.Fprintf(w, "pub struct %s {\n", name)
 	fmt.Fprintf(w, "    resource: pulumi::Resource,\n")
@@ -431,8 +439,21 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 	custom := !r.IsComponent
 	remote := r.IsComponent
 
+	var secretOutputs []string
+	for _, p := range r.Properties {
+		if p.Secret {
+			secretOutputs = append(secretOutputs, p.Name)
+		}
+	}
+
 	fmt.Fprintf(w, "impl %s {\n", name)
 	fmt.Fprintf(w, "    pub fn new(ctx: &pulumi::Context, name: &str, args: %s, options: pulumi::ResourceOptions) -> %s {\n", argsName, name)
+	if len(secretOutputs) > 0 {
+		fmt.Fprintf(w, "        let mut options = options;\n")
+		for _, p := range secretOutputs {
+			fmt.Fprintf(w, "        options.additional_secret_outputs.push(%q.to_string());\n", p)
+		}
+	}
 	fmt.Fprintf(w, "        let resource = ctx.register_resource(pulumi::RegisterRequest {\n")
 	fmt.Fprintf(w, "            type_: %q.to_string(),\n", g.resourceTypeToken(r))
 	fmt.Fprintf(w, "            name: name.to_string(),\n")
@@ -448,21 +469,26 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 	fmt.Fprintf(w, "    pub fn pulumi_resource(&self) -> &pulumi::Resource {\n")
 	fmt.Fprintf(w, "        &self.resource\n")
 	fmt.Fprintf(w, "    }\n\n")
-	fmt.Fprintf(w, "    pub fn urn(&self) -> pulumi::Output<String> {\n")
+	fmt.Fprintf(w, "    pub fn urn(&self) -> pulumi::Output<std::string::String> {\n")
 	fmt.Fprintf(w, "        self.resource.urn()\n")
 	fmt.Fprintf(w, "    }\n")
 	if custom {
-		fmt.Fprintf(w, "\n    pub fn id(&self) -> pulumi::Output<String> {\n")
+		fmt.Fprintf(w, "\n    pub fn id(&self) -> pulumi::Output<std::string::String> {\n")
 		fmt.Fprintf(w, "        self.resource.id()\n")
 		fmt.Fprintf(w, "    }\n")
 	}
 
-	// Output property accessors.
+	// Output property accessors. Schema-secret properties are always
+	// surfaced as secrets, even while the value is unknown.
 	for _, p := range r.Properties {
 		accessor := fieldName(p.Name)
 		typ := g.plainType(p.Type, qualify)
 		fmt.Fprintf(w, "\n    pub fn %s(&self) -> pulumi::Output<%s> {\n", accessor, typ)
-		fmt.Fprintf(w, "        self.resource.output(%q).cast()\n", p.Name)
+		if p.Secret {
+			fmt.Fprintf(w, "        self.resource.output(%q).as_secret().cast()\n", p.Name)
+		} else {
+			fmt.Fprintf(w, "        self.resource.output(%q).cast()\n", p.Name)
+		}
 		fmt.Fprintf(w, "    }\n")
 	}
 	fmt.Fprintf(w, "}\n\n")
@@ -477,7 +503,7 @@ func (g *pkgGenerator) writeFunction(w *bytes.Buffer, f *schema.Function, qualif
 	if f.Inputs != nil {
 		props = f.Inputs.Properties
 	}
-	g.writeArgsStruct(w, argsName, props, qualify)
+	g.writeArgsStruct(w, argsName, props, qualify, true)
 
 	resultType := "pulumi::PropertyValue"
 	if f.Outputs != nil {
@@ -599,7 +625,7 @@ func (g *pkgGenerator) genLib(tool string) []byte {
 		qualify := "crate::types::"
 		for _, token := range inputNames {
 			t := g.inputTokens[token]
-			g.writeArgsStruct(&body, g.typeNameForToken(token)+"Args", t.Properties, qualify)
+			g.writeArgsStruct(&body, g.typeNameForToken(token)+"Args", t.Properties, qualify, false)
 		}
 		for _, token := range outputNames {
 			t := g.outputTokens[token]

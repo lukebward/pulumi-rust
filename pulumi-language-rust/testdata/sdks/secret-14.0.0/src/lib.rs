@@ -6,8 +6,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -39,53 +39,53 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct ResourceArgs {
-    pub private: pulumi::Output<String>,
-    pub private_array: pulumi::Output<Vec<String>>,
+    pub private: pulumi::Output<std::string::String>,
+    pub private_array: pulumi::Output<std::vec::Vec<std::string::String>>,
     pub private_data: crate::types::DataArgs,
-    pub private_data_array: Vec<crate::types::DataArgs>,
-    pub private_data_map: std::collections::BTreeMap<String, crate::types::DataArgs>,
-    pub private_map: pulumi::Output<std::collections::BTreeMap<String, String>>,
-    pub public: pulumi::Output<String>,
+    pub private_data_array: std::vec::Vec<crate::types::DataArgs>,
+    pub private_data_map: std::collections::BTreeMap<std::string::String, crate::types::DataArgs>,
+    pub private_map: pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>,
+    pub public: pulumi::Output<std::string::String>,
     pub public_data: crate::types::DataArgs,
 }
 
 impl ResourceArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.private;
-            inputs.push(("private".to_string(), v.cast()));
+            inputs.push(("private".to_string(), pulumi::pv::secret(v.cast())));
         }
         {
             let v = self.private_array;
-            inputs.push(("privateArray".to_string(), v.cast()));
+            inputs.push(("privateArray".to_string(), pulumi::pv::secret(v.cast())));
         }
         {
             let v = self.private_data;
-            inputs.push(("privateData".to_string(), v.into_output()));
+            inputs.push(("privateData".to_string(), pulumi::pv::secret(v.into_output())));
         }
         {
             let v = self.private_data_array;
-            inputs.push(("privateDataArray".to_string(), pulumi::output::all(v.into_iter().map(|e| e.into_output()).collect()).cast()));
+            inputs.push(("privateDataArray".to_string(), pulumi::pv::secret(pulumi::output::all(v.into_iter().map(|e| e.into_output()).collect()).cast())));
         }
         {
             let v = self.private_data_map;
-            inputs.push(("privateDataMap".to_string(), pulumi::output::object(v.into_iter().map(|(k, e)| (k, e.into_output())).collect())));
+            inputs.push(("privateDataMap".to_string(), pulumi::pv::secret(pulumi::output::object(v.into_iter().map(|(k, e)| (k, e.into_output())).collect()))));
         }
         {
             let v = self.private_map;
-            inputs.push(("privateMap".to_string(), v.cast()));
+            inputs.push(("privateMap".to_string(), pulumi::pv::secret(v.cast())));
         }
         {
             let v = self.public;
@@ -109,6 +109,13 @@ pub struct Resource {
 
 impl Resource {
     pub fn new(ctx: &pulumi::Context, name: &str, args: ResourceArgs, options: pulumi::ResourceOptions) -> Resource {
+        let mut options = options;
+        options.additional_secret_outputs.push("private".to_string());
+        options.additional_secret_outputs.push("privateArray".to_string());
+        options.additional_secret_outputs.push("privateData".to_string());
+        options.additional_secret_outputs.push("privateDataArray".to_string());
+        options.additional_secret_outputs.push("privateDataMap".to_string());
+        options.additional_secret_outputs.push("privateMap".to_string());
         let resource = ctx.register_resource(pulumi::RegisterRequest {
             type_: "secret:index:Resource".to_string(),
             name: name.to_string(),
@@ -126,19 +133,19 @@ impl Resource {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn private(&self) -> pulumi::Output<String> {
+    pub fn private(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("private").cast()
     }
 
-    pub fn private_array(&self) -> pulumi::Output<Vec<String>> {
+    pub fn private_array(&self) -> pulumi::Output<std::vec::Vec<std::string::String>> {
         self.resource.output("privateArray").cast()
     }
 
@@ -146,19 +153,19 @@ impl Resource {
         self.resource.output("privateData").cast()
     }
 
-    pub fn private_data_array(&self) -> pulumi::Output<Vec<crate::types::Data>> {
+    pub fn private_data_array(&self) -> pulumi::Output<std::vec::Vec<crate::types::Data>> {
         self.resource.output("privateDataArray").cast()
     }
 
-    pub fn private_data_map(&self) -> pulumi::Output<std::collections::BTreeMap<String, crate::types::Data>> {
+    pub fn private_data_map(&self) -> pulumi::Output<std::collections::BTreeMap<std::string::String, crate::types::Data>> {
         self.resource.output("privateDataMap").cast()
     }
 
-    pub fn private_map(&self) -> pulumi::Output<std::collections::BTreeMap<String, String>> {
+    pub fn private_map(&self) -> pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>> {
         self.resource.output("privateMap").cast()
     }
 
-    pub fn public(&self) -> pulumi::Output<String> {
+    pub fn public(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("public").cast()
     }
 
@@ -170,13 +177,13 @@ impl Resource {
 pub mod types {
     #[derive(Clone, Debug)]
     pub struct DataArgs {
-        pub private: pulumi::Output<String>,
-        pub public: pulumi::Output<String>,
+        pub private: pulumi::Output<std::string::String>,
+        pub public: pulumi::Output<std::string::String>,
     }
 
     impl DataArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.private;
                 inputs.push(("private".to_string(), v.cast()));
@@ -195,8 +202,8 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct Data {
-        pub private: String,
-        pub public: String,
+        pub private: std::string::String,
+        pub public: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for Data {

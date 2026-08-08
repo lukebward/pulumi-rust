@@ -4,16 +4,16 @@
 #[derive(Clone, Debug)]
 pub struct ResourceArgs {
     pub boolean: pulumi::Output<bool>,
-    pub boolean_map: pulumi::Output<std::collections::BTreeMap<String, bool>>,
+    pub boolean_map: pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>,
     pub float: pulumi::Output<f64>,
     pub integer: pulumi::Output<i32>,
-    pub number_array: pulumi::Output<Vec<f64>>,
-    pub string: pulumi::Output<String>,
+    pub number_array: pulumi::Output<std::vec::Vec<f64>>,
+    pub string: pulumi::Output<std::string::String>,
 }
 
 impl ResourceArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.boolean;
             inputs.push(("boolean".to_string(), v.cast()));
@@ -69,11 +69,11 @@ impl Resource {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
@@ -81,7 +81,7 @@ impl Resource {
         self.resource.output("boolean").cast()
     }
 
-    pub fn boolean_map(&self) -> pulumi::Output<std::collections::BTreeMap<String, bool>> {
+    pub fn boolean_map(&self) -> pulumi::Output<std::collections::BTreeMap<std::string::String, bool>> {
         self.resource.output("booleanMap").cast()
     }
 
@@ -93,11 +93,11 @@ impl Resource {
         self.resource.output("integer").cast()
     }
 
-    pub fn number_array(&self) -> pulumi::Output<Vec<f64>> {
+    pub fn number_array(&self) -> pulumi::Output<std::vec::Vec<f64>> {
         self.resource.output("numberArray").cast()
     }
 
-    pub fn string(&self) -> pulumi::Output<String> {
+    pub fn string(&self) -> pulumi::Output<std::string::String> {
         self.resource.output("string").cast()
     }
 }
@@ -107,8 +107,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -140,11 +140,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
@@ -152,16 +152,16 @@ impl Provider {
 #[derive(Clone, Debug)]
 pub struct InvokeArgs {
     pub boolean: pulumi::Output<bool>,
-    pub boolean_map: pulumi::Output<std::collections::BTreeMap<String, bool>>,
+    pub boolean_map: pulumi::Output<std::collections::BTreeMap<std::string::String, bool>>,
     pub float: pulumi::Output<f64>,
     pub integer: pulumi::Output<i32>,
-    pub number_array: pulumi::Output<Vec<f64>>,
-    pub string: pulumi::Output<String>,
+    pub number_array: pulumi::Output<std::vec::Vec<f64>>,
+    pub string: pulumi::Output<std::string::String>,
 }
 
 impl InvokeArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         {
             let v = self.boolean;
             inputs.push(("boolean".to_string(), v.cast()));
@@ -206,11 +206,11 @@ pub mod types {
     #[derive(Clone, Debug)]
     pub struct InvokeResult {
         pub boolean: bool,
-        pub boolean_map: std::collections::BTreeMap<String, bool>,
+        pub boolean_map: std::collections::BTreeMap<std::string::String, bool>,
         pub float: f64,
         pub integer: i32,
-        pub number_array: Vec<f64>,
-        pub string: String,
+        pub number_array: std::vec::Vec<f64>,
+        pub string: std::string::String,
     }
 
     impl pulumi::FromPropertyValue for InvokeResult {

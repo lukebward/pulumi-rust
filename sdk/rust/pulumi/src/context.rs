@@ -62,6 +62,9 @@ pub struct RegisterOutcome {
     pub id: Option<String>,
     pub outputs: PropertyMap,
     pub error: Option<String>,
+    /// True when the engine skipped or elided the operation (e.g. targeted
+    /// updates); outputs resolve as unknown.
+    pub unknown: bool,
 }
 
 /// Resource options supported by the SDK.
@@ -86,11 +89,22 @@ pub struct ResourceOptions {
     pub custom_timeouts: Option<CustomTimeouts>,
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone)]
 pub struct CustomTimeouts {
-    pub create: String,
-    pub update: String,
-    pub delete: String,
+    pub create: Option<Output<PropertyValue>>,
+    pub update: Option<Output<PropertyValue>>,
+    pub delete: Option<Output<PropertyValue>>,
+    pub read: Option<Output<PropertyValue>>,
+}
+
+async fn timeout_str(v: &Option<Output<PropertyValue>>) -> String {
+    match v {
+        Some(o) => match o.data().await.value {
+            PropertyValue::String(s) => s,
+            _ => String::new(),
+        },
+        None => String::new(),
+    }
 }
 
 /// A request to register a resource, produced by generated SDK code.
@@ -140,7 +154,7 @@ impl Resource {
         Output::from_data_future(async move {
             let o = state.await;
             let value = match &o.id {
-                Some(id) if !id.is_empty() => PropertyValue::String(id.clone()),
+                Some(id) if !id.is_empty() && !o.unknown => PropertyValue::String(id.clone()),
                 _ => PropertyValue::Computed,
             };
             OutputData { value, secret: false, deps: vec![o.urn.clone()] }
@@ -155,9 +169,13 @@ impl Resource {
         Output::from_data_future(async move {
             let o = state.await;
             let mut data = match o.outputs.get(&name) {
-                Some(v) => OutputData::from_value(v.clone()),
-                None => OutputData {
-                    value: if dry_run { PropertyValue::Computed } else { PropertyValue::Null },
+                Some(v) if !o.unknown => OutputData::from_value(v.clone()),
+                _ => OutputData {
+                    value: if dry_run || o.unknown {
+                        PropertyValue::Computed
+                    } else {
+                        PropertyValue::Null
+                    },
                     secret: false,
                     deps: vec![],
                 },
@@ -289,17 +307,16 @@ impl Context {
             std::mem::take(&mut *exports)
         };
         // Stack outputs are encoded without first-class output values,
-        // mirroring the Go SDK's RegisterResourceOutputs marshaling.
+        // mirroring the Go SDK's RegisterResourceOutputs marshaling. Secret
+        // flags survive even when the value is unknown.
         let mut outputs = BTreeMap::new();
         for (name, out) in exports {
             let data = out.data().await;
-            let value = if !data.known() {
-                PropertyValue::Computed
-            } else if data.secret && self.inner.features.secrets {
-                PropertyValue::Secret(Box::new(data.value))
-            } else {
-                data.value
-            };
+            let mut value =
+                if !data.known() { PropertyValue::Computed } else { data.value };
+            if data.secret && self.inner.features.secrets {
+                value = PropertyValue::Secret(Box::new(value));
+            }
             outputs.insert(name, value);
         }
 
@@ -368,6 +385,7 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         id: None,
         outputs: PropertyMap::new(),
         error: Some(msg),
+        unknown: false,
     };
 
     // Resolve options that reference other resources first. Resources with
@@ -398,6 +416,16 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
     for dep in &req.options.depends_on {
         dependencies.insert(await_urn(dep).await);
     }
+
+    let custom_timeouts = match &req.options.custom_timeouts {
+        Some(t) => Some(pulumirpc::register_resource_request::CustomTimeouts {
+            create: timeout_str(&t.create).await,
+            update: timeout_str(&t.update).await,
+            delete: timeout_str(&t.delete).await,
+            read: timeout_str(&t.read).await,
+        }),
+        None => None,
+    };
 
     // Await and marshal inputs.
     let mut object = BTreeMap::new();
@@ -434,14 +462,7 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         accept_secrets: true,
         additional_secret_outputs: req.options.additional_secret_outputs.clone(),
         import_id: req.options.import_id.clone(),
-        custom_timeouts: req.options.custom_timeouts.as_ref().map(|t| {
-            pulumirpc::register_resource_request::CustomTimeouts {
-                create: t.create.clone(),
-                update: t.update.clone(),
-                delete: t.delete.clone(),
-                read: String::new(),
-            }
-        }),
+        custom_timeouts: custom_timeouts,
         supports_partial_values: true,
         remote: req.remote,
         accept_resources: true,
@@ -476,6 +497,7 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         id: if req.custom { Some(response.id) } else { None },
         outputs,
         error: None,
+        unknown: response.unknown,
     }
 }
 

@@ -363,6 +363,18 @@ func (g *programGenerator) typedArgsLiteral(
 	return fmt.Sprintf("%s { %s }", argsPath, strings.Join(fields, ", "))
 }
 
+// unwrapConvert strips conversion intrinsics off an expression, exposing the
+// literal underneath for shape matching.
+func unwrapConvert(expr model.Expression) model.Expression {
+	for {
+		if call, ok := expr.(*model.FunctionCallExpression); ok && call.Name == pcl.IntrinsicConvert {
+			expr = call.Args[0]
+			continue
+		}
+		return expr
+	}
+}
+
 // typedInput renders an expression for a typed args field.
 func (g *programGenerator) typedInput(
 	expr model.Expression, p *schema.Property, subject hcl.Range,
@@ -375,13 +387,15 @@ func (g *programGenerator) typedInput(
 		t = in.ElementType
 	}
 
-	// Object-typed inputs become typed args-struct literals.
+	// Object-typed inputs become typed args-struct literals. Conversion
+	// intrinsics are transparent for shape matching.
+	shape := unwrapConvert(expr)
 	if obj, ok := t.(*schema.ObjectType); ok {
-		return g.typedObjectLiteral(expr, obj, subject)
+		return g.typedObjectLiteral(shape, obj, subject)
 	}
 	if arr, ok := t.(*schema.ArrayType); ok && containsObject(arr.ElementType) {
 		if obj, ok := unwrapToObject(arr.ElementType); ok {
-			if tuple, ok := expr.(*model.TupleConsExpression); ok {
+			if tuple, ok := shape.(*model.TupleConsExpression); ok {
 				var elems []string
 				for _, e := range tuple.Expressions {
 					elems = append(elems, g.typedObjectLiteral(e, obj, subject))
@@ -394,7 +408,7 @@ func (g *programGenerator) typedInput(
 	}
 	if mp, ok := t.(*schema.MapType); ok && containsObject(mp.ElementType) {
 		if obj, ok := unwrapToObject(mp.ElementType); ok {
-			if object, ok := expr.(*model.ObjectConsExpression); ok {
+			if object, ok := shape.(*model.ObjectConsExpression); ok {
 				var elems []string
 				for _, item := range object.Items {
 					key, ok := literalString(item.Key)
@@ -427,7 +441,7 @@ func (g *programGenerator) typedObjectLiteral(
 	if obj.IsInputShape() {
 		obj = obj.PlainShape
 	}
-	object, ok := expr.(*model.ObjectConsExpression)
+	object, ok := unwrapConvert(expr).(*model.ObjectConsExpression)
 	if !ok {
 		g.errorf(subject, "expected an object literal for type %q", obj.Token)
 		return "Default::default()"
@@ -470,6 +484,7 @@ func packageOfObject(obj *schema.ObjectType) *schema.Package {
 // plainLiteral renders a plain (non-output) Rust value for a literal
 // expression of the given schema type.
 func (g *programGenerator) plainLiteral(expr model.Expression, t schema.Type, subject hcl.Range) string {
+	expr = unwrapConvert(expr)
 	switch t := t.(type) {
 	case *schema.OptionalType:
 		return g.plainLiteral(expr, t.ElementType, subject)
@@ -622,17 +637,20 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 		}
 	}
 	if opts.CustomTimeouts != nil {
-		if object, ok := opts.CustomTimeouts.(*model.ObjectConsExpression); ok {
+		if object, ok := unwrapConvert(opts.CustomTimeouts).(*model.ObjectConsExpression); ok {
 			var parts []string
 			for _, item := range object.Items {
-				key, ok1 := literalString(item.Key)
-				val, ok2 := literalString(item.Value)
-				if ok1 && ok2 {
-					parts = append(parts, fmt.Sprintf("%s: %s.to_string()", escapeIdent(key), rustString(val)))
+				key, ok := literalString(item.Key)
+				if !ok {
+					g.errorf(subject, "unsupported customTimeouts key")
+					continue
 				}
+				parts = append(parts, fmt.Sprintf("%s: Some(%s)", escapeIdent(key), g.expr(item.Value)))
 			}
 			setField("custom_timeouts", fmt.Sprintf(
 				"Some(pulumi::CustomTimeouts { %s, ..Default::default() })", strings.Join(parts, ", ")))
+		} else {
+			g.errorf(subject, "unsupported customTimeouts expression")
 		}
 	}
 
@@ -661,7 +679,7 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 }
 
 func (g *programGenerator) stringList(expr model.Expression) (string, bool) {
-	tuple, ok := expr.(*model.TupleConsExpression)
+	tuple, ok := unwrapConvert(expr).(*model.TupleConsExpression)
 	if !ok {
 		return "", false
 	}
@@ -1214,6 +1232,7 @@ func conversionKind(t model.Type) string {
 
 // literalString extracts a static string from literal/template expressions.
 func literalString(expr model.Expression) (string, bool) {
+	expr = unwrapConvert(expr)
 	switch expr := expr.(type) {
 	case *model.LiteralValueExpression:
 		if expr.Value.Type() == cty.String {
