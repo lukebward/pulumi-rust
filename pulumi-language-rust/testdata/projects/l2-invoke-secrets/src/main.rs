@@ -5,8 +5,8 @@ fn main() {
     pulumi::run(|ctx| async move {
         let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
         ctx.export("nonSecret", pulumi_simple_invoke::secret_invoke(&ctx, pulumi_simple_invoke::SecretInvokeArgs { secret_response: pulumi::pv::bool(false).cast(), value: pulumi::pv::string("hello").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("response"));
-        ctx.export("firstSecret", pulumi_simple_invoke::secret_invoke(&ctx, pulumi_simple_invoke::SecretInvokeArgs { secret_response: res.value().cast::<pulumi::PropertyValue>().cast(), value: pulumi::pv::string("hello").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("response"));
-        ctx.export("secondSecret", pulumi_simple_invoke::secret_invoke(&ctx, pulumi_simple_invoke::SecretInvokeArgs { secret_response: pulumi::pv::bool(false).cast(), value: pulumi::pv::secret(pulumi::pv::string("goodbye")).cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("response"));
+        ctx.export("firstSecret", pulumi_simple_invoke::secret_invoke(&ctx, pulumi_simple_invoke::SecretInvokeArgs { secret_response: pulumi::ops::to_bool(res.value().cast::<pulumi::PropertyValue>()).cast(), value: pulumi::ops::to_string(pulumi::pv::string("hello")).cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("response"));
+        ctx.export("secondSecret", pulumi_simple_invoke::secret_invoke(&ctx, pulumi_simple_invoke::SecretInvokeArgs { secret_response: pulumi::ops::to_bool(pulumi::pv::bool(false)).cast(), value: pulumi::ops::to_string(pulumi::pv::secret(pulumi::pv::string("goodbye"))).cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("response"));
         Ok(())
     });
 }

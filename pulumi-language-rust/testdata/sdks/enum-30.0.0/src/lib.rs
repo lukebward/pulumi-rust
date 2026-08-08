@@ -3,17 +3,17 @@
 
 #[derive(Clone, Debug, Default)]
 pub struct DeluxeArgs {
-    pub array_of_enum: Option<pulumi::Output<Vec<String>>>,
+    pub array_of_enum: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
     pub holder: Option<crate::types::HolderArgs>,
-    pub map_of_enum: Option<pulumi::Output<std::collections::BTreeMap<String, i32>>>,
+    pub map_of_enum: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, i32>>>,
     pub number_enum: Option<pulumi::Output<f64>>,
     pub union_enum: Option<pulumi::Output<pulumi::PropertyValue>>,
-    pub wordy_enum: Option<pulumi::Output<String>>,
+    pub wordy_enum: Option<pulumi::Output<std::string::String>>,
 }
 
 impl DeluxeArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         if let Some(v) = self.array_of_enum {
             inputs.push(("arrayOfEnum".to_string(), v.cast()));
         }
@@ -63,15 +63,15 @@ impl Deluxe {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn array_of_enum(&self) -> pulumi::Output<Option<Vec<String>>> {
+    pub fn array_of_enum(&self) -> pulumi::Output<Option<std::vec::Vec<std::string::String>>> {
         self.resource.output("arrayOfEnum").cast()
     }
 
@@ -79,7 +79,7 @@ impl Deluxe {
         self.resource.output("holder").cast()
     }
 
-    pub fn map_of_enum(&self) -> pulumi::Output<Option<std::collections::BTreeMap<String, i32>>> {
+    pub fn map_of_enum(&self) -> pulumi::Output<Option<std::collections::BTreeMap<std::string::String, i32>>> {
         self.resource.output("mapOfEnum").cast()
     }
 
@@ -91,7 +91,7 @@ impl Deluxe {
         self.resource.output("unionEnum").cast()
     }
 
-    pub fn wordy_enum(&self) -> pulumi::Output<Option<String>> {
+    pub fn wordy_enum(&self) -> pulumi::Output<Option<std::string::String>> {
         self.resource.output("wordyEnum").cast()
     }
 }
@@ -99,12 +99,12 @@ impl Deluxe {
 #[derive(Clone, Debug, Default)]
 pub struct ResArgs {
     pub int_enum: Option<pulumi::Output<i32>>,
-    pub string_enum: Option<pulumi::Output<String>>,
+    pub string_enum: Option<pulumi::Output<std::string::String>>,
 }
 
 impl ResArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         if let Some(v) = self.int_enum {
             inputs.push(("intEnum".to_string(), v.cast()));
         }
@@ -142,11 +142,11 @@ impl Res {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
@@ -154,7 +154,7 @@ impl Res {
         self.resource.output("intEnum").cast()
     }
 
-    pub fn string_enum(&self) -> pulumi::Output<Option<String>> {
+    pub fn string_enum(&self) -> pulumi::Output<Option<std::string::String>> {
         self.resource.output("stringEnum").cast()
     }
 }
@@ -164,8 +164,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -197,11 +197,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
@@ -210,12 +210,12 @@ pub mod r#mod {
     #[derive(Clone, Debug, Default)]
     pub struct ResArgs {
         pub int_enum: Option<pulumi::Output<i32>>,
-        pub string_enum: Option<pulumi::Output<String>>,
+        pub string_enum: Option<pulumi::Output<std::string::String>>,
     }
 
     impl ResArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.int_enum {
                 inputs.push(("intEnum".to_string(), v.cast()));
             }
@@ -253,11 +253,11 @@ pub mod r#mod {
             &self.resource
         }
 
-        pub fn urn(&self) -> pulumi::Output<String> {
+        pub fn urn(&self) -> pulumi::Output<std::string::String> {
             self.resource.urn()
         }
 
-        pub fn id(&self) -> pulumi::Output<String> {
+        pub fn id(&self) -> pulumi::Output<std::string::String> {
             self.resource.id()
         }
 
@@ -265,7 +265,7 @@ pub mod r#mod {
             self.resource.output("intEnum").cast()
         }
 
-        pub fn string_enum(&self) -> pulumi::Output<Option<String>> {
+        pub fn string_enum(&self) -> pulumi::Output<Option<std::string::String>> {
             self.resource.output("stringEnum").cast()
         }
     }
@@ -275,12 +275,12 @@ pub mod mod_nested {
     #[derive(Clone, Debug, Default)]
     pub struct ResArgs {
         pub int_enum: Option<pulumi::Output<i32>>,
-        pub string_enum: Option<pulumi::Output<String>>,
+        pub string_enum: Option<pulumi::Output<std::string::String>>,
     }
 
     impl ResArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.int_enum {
                 inputs.push(("intEnum".to_string(), v.cast()));
             }
@@ -318,11 +318,11 @@ pub mod mod_nested {
             &self.resource
         }
 
-        pub fn urn(&self) -> pulumi::Output<String> {
+        pub fn urn(&self) -> pulumi::Output<std::string::String> {
             self.resource.urn()
         }
 
-        pub fn id(&self) -> pulumi::Output<String> {
+        pub fn id(&self) -> pulumi::Output<std::string::String> {
             self.resource.id()
         }
 
@@ -330,7 +330,7 @@ pub mod mod_nested {
             self.resource.output("intEnum").cast()
         }
 
-        pub fn string_enum(&self) -> pulumi::Output<Option<String>> {
+        pub fn string_enum(&self) -> pulumi::Output<Option<std::string::String>> {
             self.resource.output("stringEnum").cast()
         }
     }
@@ -339,13 +339,13 @@ pub mod mod_nested {
 pub mod types {
     #[derive(Clone, Debug, Default)]
     pub struct HolderArgs {
-        pub color: Option<pulumi::Output<String>>,
+        pub color: Option<pulumi::Output<std::string::String>>,
         pub size: Option<pulumi::Output<i32>>,
     }
 
     impl HolderArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             if let Some(v) = self.color {
                 inputs.push(("color".to_string(), v.cast()));
             }
@@ -362,7 +362,7 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct Holder {
-        pub color: Option<String>,
+        pub color: Option<std::string::String>,
         pub size: Option<i32>,
     }
 

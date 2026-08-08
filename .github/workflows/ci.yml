@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sdk:
+    name: Rust SDK tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdk/rust/pulumi
+      - run: cargo test
+        working-directory: sdk/rust/pulumi
+
+  conformance:
+    name: Conformance (smoke subset)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdk/rust/pulumi
+      - name: Run a representative conformance subset
+        run: |
+          go test -run 'TestLanguage/(l1-empty|l1-output-string|l2-resource-simple|l2-invoke-simple|l2-primitive-ref)$' -timeout 30m -v .
+        working-directory: pulumi-language-rust
+
+  conformance-full:
+    name: Conformance (full suite)
+    runs-on: ubuntu-latest
+    # The full suite builds a few hundred cargo projects; keep it off PRs.
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdk/rust/pulumi
+      - run: go test -run TestLanguage -timeout 150m -v .
+        working-directory: pulumi-language-rust

@@ -3,13 +3,13 @@
 
 #[derive(Clone, Debug, Default)]
 pub struct ExampleArgs {
-    pub array_of_union_of: Option<pulumi::Output<Vec<pulumi::PropertyValue>>>,
+    pub array_of_union_of: Option<pulumi::Output<std::vec::Vec<pulumi::PropertyValue>>>,
     pub union_of: Option<pulumi::Output<pulumi::PropertyValue>>,
 }
 
 impl ExampleArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         if let Some(v) = self.array_of_union_of {
             inputs.push(("arrayOfUnionOf".to_string(), v.cast()));
         }
@@ -47,15 +47,15 @@ impl Example {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 
-    pub fn array_of_union_of(&self) -> pulumi::Output<Option<Vec<pulumi::PropertyValue>>> {
+    pub fn array_of_union_of(&self) -> pulumi::Output<Option<std::vec::Vec<pulumi::PropertyValue>>> {
         self.resource.output("arrayOfUnionOf").cast()
     }
 
@@ -69,8 +69,8 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
-    pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-        let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+    pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+        let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
         inputs
     }
 
@@ -102,11 +102,11 @@ impl Provider {
         &self.resource
     }
 
-    pub fn urn(&self) -> pulumi::Output<String> {
+    pub fn urn(&self) -> pulumi::Output<std::string::String> {
         self.resource.urn()
     }
 
-    pub fn id(&self) -> pulumi::Output<String> {
+    pub fn id(&self) -> pulumi::Output<std::string::String> {
         self.resource.id()
     }
 }
@@ -114,13 +114,13 @@ impl Provider {
 pub mod types {
     #[derive(Clone, Debug)]
     pub struct VariantOneArgs {
-        pub discriminant_kind: pulumi::Output<String>,
-        pub field1: Option<pulumi::Output<String>>,
+        pub discriminant_kind: pulumi::Output<std::string::String>,
+        pub field1: Option<pulumi::Output<std::string::String>>,
     }
 
     impl VariantOneArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.discriminant_kind;
                 inputs.push(("discriminantKind".to_string(), v.cast()));
@@ -138,13 +138,13 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct VariantTwoArgs {
-        pub discriminant_kind: pulumi::Output<String>,
-        pub field2: Option<pulumi::Output<String>>,
+        pub discriminant_kind: pulumi::Output<std::string::String>,
+        pub field2: Option<pulumi::Output<std::string::String>>,
     }
 
     impl VariantTwoArgs {
-        pub fn into_inputs(self) -> Vec<(String, pulumi::Output<pulumi::PropertyValue>)> {
-            let mut inputs: Vec<(String, pulumi::Output<pulumi::PropertyValue>)> = Vec::new();
+        pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
+            let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
             {
                 let v = self.discriminant_kind;
                 inputs.push(("discriminantKind".to_string(), v.cast()));
@@ -162,8 +162,8 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct VariantOne {
-        pub discriminant_kind: String,
-        pub field1: Option<String>,
+        pub discriminant_kind: std::string::String,
+        pub field1: Option<std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for VariantOne {
@@ -178,8 +178,8 @@ pub mod types {
 
     #[derive(Clone, Debug)]
     pub struct VariantTwo {
-        pub discriminant_kind: String,
-        pub field2: Option<String>,
+        pub discriminant_kind: std::string::String,
+        pub field2: Option<std::string::String>,
     }
 
     impl pulumi::FromPropertyValue for VariantTwo {
