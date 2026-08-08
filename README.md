@@ -8,23 +8,16 @@ test suite](https://github.com/pulumi/pulumi/tree/master/pkg/testing/pulumi-test
 > Status: experimental. Built as an exploration of what a conformance-tested
 > Rust language implementation looks like. Not an official Pulumi project.
 
-**Conformance status** (pulumi/pulumi v3.256.0 suite, 180 tests): **165
-pass**, 1 skipped for a named reason, and the `policy-*`/`provider-*`
-families (14) are skipped wholesale — those require the language to author
-policy packs and component providers, each a separate gRPC server the SDK
-does not yet serve.
+**Conformance status** (pulumi/pulumi v3.256.0 suite): **all 180 tests
+pass**, with no skips.
 
-Everything else passes: the full `l1-*` output/config/builtin set
-including `try`/`can`; `l2` resources, invokes, resource methods (`call`),
-every resource option, secrets, assets, reads, resource-reference
-hydration, lifecycle hooks, package parameterization and non-UTF8 byte
-strings; and `l3` for/splat programs, the `range` option and local
-(in-language) components.
-
-The one named skip is `l3-deferred-outputs`: mutually dependent components
-that also use the `range` option. The SDK has the deferred-output
-primitive needed to break the cycle, but components do not support `range`
-yet. Every in-tree Pulumi language skips this test too.
+That covers the full `l1-*` output/config/builtin set including `try`/`can`
+and `recover`; `l2` resources, invokes, resource methods (`call`), every
+resource option, secrets, assets, reads, resource-reference hydration,
+lifecycle hooks, package parameterization and non-UTF8 byte strings; `l3`
+for/splat programs, the `range` option, local components and deferred
+outputs; and the `policy-*` and `provider-*` families, which require the
+language to author policy packs and component providers.
 
 ## What's here
 
@@ -36,6 +29,10 @@ yet. Every in-tree Pulumi language skips this test too.
 | Program codegen | `pulumi-language-rust/codegen/gen_program.go` | `GenerateProject` / `GenerateProgram`: PCL → Rust program with typed resource construction and dynamic expression evaluation |
 | Conformance entry | `pulumi-language-rust/language_test.go` | Runs the official `pulumi-test-language` suite against this implementation |
 | Snapshots | `pulumi-language-rust/testdata` | Committed golden outputs of generated SDKs and projects, validated byte-for-byte by the harness |
+| Policy SDK | `sdk/rust/pulumi/src/policy.rs` | Authoring and serving policy packs: an `Analyzer` server plus resource validation, remediation and configuration |
+| Provider host | `sdk/rust/pulumi/src/provider.rs` | Serving a component provider: `GetSchema` and `Construct` |
+| Policy packs | `pulumi-language-rust/testdata/policies` | Nine Rust policy packs exercised by the `policy-*` tests |
+| Providers | `pulumi-language-rust/testdata/providers` | Rust component providers exercised by the `provider-*` tests |
 | Examples | `examples/` | Runnable programs: configuration and outputs, component resources, and consuming a generated provider SDK |
 | Template | `templates/rust` | Starting point for a new Rust Pulumi project |
 
@@ -72,9 +69,13 @@ go test -run 'TestLanguage/l2-resource-simple$' -v .
 PULUMI_ACCEPT=1 go test -run TestLanguage -timeout 120m .
 ```
 
-Tests the implementation does not support yet are listed with reasons in
-`expectedFailures` in `language_test.go` — the same mechanism
-pulumi-dotnet and pulumi-java use while onboarding conformance.
+`expectedFailures` in `language_test.go` is the mechanism for skipping a
+test with a reason while onboarding conformance, as pulumi-dotnet and
+pulumi-java do. It is currently empty.
+
+The `policy-*` and `provider-*` tests build the policy packs under
+`testdata/policies` and the component providers under `testdata/providers`,
+each of which is a real Rust crate the engine launches as a plugin.
 
 Builds share a cargo target directory
 (`$TMPDIR/pulumi-language-rust-target-$UID`)
@@ -123,10 +124,11 @@ properties.
 - **Exit-code contract**: programs log unhandled errors to the engine and
   exit 32 ("already reported"), like the .NET and Go SDKs; the host maps
   that to a `bail` response.
-- **The SDK also serves gRPC.** Resource hooks run inside the program, so
-  the SDK starts an in-process `Callbacks` server and hands the engine its
-  address. That machinery is what a policy-pack or component-provider host
-  would build on next.
+- **The SDK serves gRPC three ways.** Resource hooks run inside the
+  program, so the SDK starts an in-process `Callbacks` server; a policy pack
+  serves `Analyzer`; and a component provider serves `ResourceProvider`. The
+  language host grows `Link` and `RunPlugin` to build and launch the latter
+  two as plugins.
 
 ## Writing a program
 
@@ -149,13 +151,10 @@ fn main() {
 }
 ```
 
-## What's not covered
+## Known divergences
 
-The `policy-*` and `provider-*` conformance families are skipped: both
-require the language to serve a second gRPC service (an analyzer for policy
-packs, a resource provider for component providers) plus two more host RPCs.
-[`docs/roadmap.md`](./docs/roadmap.md) records what each would take, along
-with the one remaining named skip and two known divergences from the Go SDK.
+Two behaviors differ from the Go SDK, neither covered by a conformance
+test; both are recorded in [`docs/roadmap.md`](./docs/roadmap.md).
 
 ## License
 
