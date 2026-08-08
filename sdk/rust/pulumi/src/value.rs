@@ -466,16 +466,24 @@ impl PropertyValue {
                 let decoded = get_string("value")
                     .and_then(|b| base64::engine::general_purpose::STANDARD.decode(b).ok())
                     .unwrap_or_default();
-                match String::from_utf8(decoded) {
-                    Ok(s) => PropertyValue::String(s),
-                    Err(e) => PropertyValue::ByteString(e.into_bytes()),
-                }
+                PropertyValue::from_bytes(decoded)
             }
             _ => {
                 let fields =
                     s.fields.iter().map(|(k, v)| (k.clone(), PropertyValue::from_proto(v))).collect();
                 PropertyValue::Object(fields)
             }
+        }
+    }
+}
+
+impl PropertyValue {
+    /// Build a string-ish value from raw bytes, preferring the ordinary
+    /// `String` form so `String` and `ByteString` never hold the same text.
+    pub fn from_bytes(bytes: Vec<u8>) -> PropertyValue {
+        match String::from_utf8(bytes) {
+            Ok(s) => PropertyValue::String(s),
+            Err(e) => PropertyValue::ByteString(e.into_bytes()),
         }
     }
 }

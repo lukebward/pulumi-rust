@@ -192,6 +192,10 @@ pub fn to_json(v: Output<PropertyValue>) -> Output<PropertyValue> {
 fn property_to_json(v: &PropertyValue) -> serde_json::Value {
     match v {
         PropertyValue::Null | PropertyValue::Computed => serde_json::Value::Null,
+        // JSON strings are UTF-8 only, so this narrows like Go's encoder.
+        PropertyValue::ByteString(b) => {
+            serde_json::Value::String(String::from_utf8_lossy(b).into_owned())
+        }
         PropertyValue::Bool(b) => serde_json::Value::Bool(*b),
         PropertyValue::Number(n) => serde_json::Number::from_f64(*n)
             .map(serde_json::Value::Number)
@@ -257,6 +261,7 @@ pub fn length(v: Output<PropertyValue>) -> Output<PropertyValue> {
         use unicode_segmentation::UnicodeSegmentation;
         let n = match &p {
             PropertyValue::String(s) => s.graphemes(true).count(),
+            PropertyValue::ByteString(b) => b.len(),
             PropertyValue::Array(a) => a.len(),
             PropertyValue::Object(m) => m.len(),
             _ => 0,

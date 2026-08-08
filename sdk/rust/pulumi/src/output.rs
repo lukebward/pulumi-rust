@@ -370,6 +370,9 @@ fn display_value(v: &PropertyValue) -> String {
             }
         }
         PropertyValue::String(s) => s.clone(),
+        // Interpolating a non-UTF8 value is inherently lossy, but a debug
+        // dump of the raw bytes would be worse.
+        PropertyValue::ByteString(b) => String::from_utf8_lossy(b).into_owned(),
         other => format!("{other:?}"),
     }
 }

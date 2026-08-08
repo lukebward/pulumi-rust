@@ -100,6 +100,9 @@ impl FromPropertyValue for String {
     fn from_property_value(v: PropertyValue) -> Result<Self> {
         match unwrap(v)? {
             PropertyValue::String(s) => Ok(s),
+            PropertyValue::ByteString(_) => Err(Error::new(
+                "cannot convert a string containing non-UTF8 bytes to a Rust String",
+            )),
             other => Err(mismatch("string", &other)),
         }
     }

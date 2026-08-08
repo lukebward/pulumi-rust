@@ -184,6 +184,8 @@ pub fn to_bool(a: Output<PropertyValue>) -> Output<PropertyValue> {
 pub fn to_string(a: Output<PropertyValue>) -> Output<PropertyValue> {
     convert1(a, |v| match v {
         PropertyValue::String(s) => PropertyValue::String(s),
+        // Byte strings pass through untouched; coercing would corrupt them.
+        PropertyValue::ByteString(b) => PropertyValue::ByteString(b),
         PropertyValue::Number(n) => {
             if n.fract() == 0.0 && n.abs() < 1e15 {
                 PropertyValue::String(format!("{}", n as i64))
