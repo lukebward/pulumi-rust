@@ -42,6 +42,7 @@ impl Resource {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         Resource { resource }
     }
@@ -59,7 +60,7 @@ impl Resource {
     }
 
     pub fn resource_ref(&self) -> pulumi::Output<Option<pulumi::PropertyValue>> {
-        self.resource.output("resourceRef").cast()
+        self.resource.output("resourceRef").hydrated().cast()
     }
 
     pub fn value(&self) -> pulumi::Output<bool> {
@@ -99,6 +100,7 @@ impl Provider {
             inputs: args.into_inputs(),
             options,
             package: None,
+            deferred_inputs: vec![],
         });
         Provider { resource }
     }

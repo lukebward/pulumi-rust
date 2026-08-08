@@ -44,10 +44,6 @@ var expectedFailures = map[string]string{
 	// language skips this test.
 	"l3-deferred-outputs": "deferred outputs through ranged components are not implemented",
 
-	// The engine ends up with one fewer default provider than the test
-	// expects for a namespaced package; the namespace's effect on provider
-	// identity is not modelled yet.
-	"l2-namespaced-provider": "package namespaces are not implemented",
 }
 
 func runTestingHost(t *testing.T) (string, testingrpc.LanguageTestClient) {

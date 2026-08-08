@@ -195,6 +195,9 @@ type programGenerator struct {
 	// componentOutputs collects the component's output blocks, published
 	// with RegisterResourceOutputs instead of exported from the stack.
 	componentOutputs []string
+	// componentOutputOrder holds those outputs' logical names in the same
+	// order, so struct fields line up with their __out_N bindings.
+	componentOutputOrder []string
 	// componentArgs maps a component config name to its args field.
 	componentArgs map[string]bool
 	// deferredResolvers holds the resolvers a component instantiation must
@@ -490,9 +493,19 @@ func (g *programGenerator) genOutputVariable(w *bytes.Buffer, output *pcl.Output
 		fmt.Fprintf(w, "let __out_%d = %s;\n", i, g.expr(output.Value))
 		g.componentOutputs = append(g.componentOutputs,
 			fmt.Sprintf("(%s.to_string(), __out_%d.clone())", rustString(output.LogicalName()), i))
+		g.componentOutputOrder = append(g.componentOutputOrder, output.LogicalName())
 		return
 	}
 	fmt.Fprintf(w, "ctx.export(%s, %s);\n", rustString(output.LogicalName()), g.expr(output.Value))
+}
+
+// rangeBaseName renders the base name a ranged resource's instances are
+// suffixed from, prefixed by the component instance when inside one.
+func (g *programGenerator) rangeBaseName(logicalName string) string {
+	if g.isComponent {
+		return fmt.Sprintf("&format!(\"{}-%s\", name)", logicalName)
+	}
+	return rustString(logicalName)
 }
 
 // resourceName renders the name a resource registers under. Inside a
@@ -604,7 +617,7 @@ func (g *programGenerator) genRangedResource(w *bytes.Buffer, r *pcl.Resource) {
 		construct = g.rangedDynamicConstruct(r, options)
 	} else {
 		construct = fmt.Sprintf("%s::new(&ctx, &__range.name(%s), %s, %s)",
-			structPath, rustString(r.LogicalName()), args, options)
+			structPath, g.rangeBaseName(r.LogicalName()), args, options)
 	}
 	if isBool {
 		fmt.Fprintf(w, "__instance = Some(%s);\n", construct)
@@ -646,7 +659,7 @@ func (g *programGenerator) rangedDynamicConstruct(r *pcl.Resource, options strin
 			rustString(input.Name), g.expr(input.Value)))
 	}
 	return fmt.Sprintf("ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: __range.name(%s), custom: %v, remote: %v, version: %s.to_string(), plugin_download_url: %s.to_string(), inputs: vec![%s], options: %s, package: None, deferred_inputs: vec![] })",
-		rustString(canonical), rustString(r.LogicalName()), custom, remote,
+		rustString(canonical), g.rangeBaseName(r.LogicalName()), custom, remote,
 		rustString(version), rustString(pluginDownloadURL), strings.Join(inputs, ", "), options)
 }
 
@@ -1048,16 +1061,11 @@ func componentToken(c *pcl.Component) string {
 	return "components:index:" + componentTypeName(c)
 }
 
-// componentOutputNames lists the component's output blocks in declaration
-// order.
+// componentOutputNames lists the component's outputs in the order they were
+// generated, which is the order the __out_N bindings were numbered in. It is
+// not declaration order: nodes are emitted topologically.
 func (g *programGenerator) componentOutputNames() []string {
-	var names []string
-	for _, n := range g.component.Program.Nodes {
-		if o, ok := n.(*pcl.OutputVariable); ok {
-			names = append(names, o.LogicalName())
-		}
-	}
-	return names
+	return g.componentOutputOrder
 }
 
 // genComponent instantiates a local component from the enclosing program.
@@ -1093,7 +1101,7 @@ func (g *programGenerator) genComponent(w *bytes.Buffer, c *pcl.Component) {
 		args = fmt.Sprintf("%sArgs { %s, ..Default::default() }", path, strings.Join(fields, ", "))
 	}
 	fmt.Fprintf(w, "let %s = %s::new(&ctx, %s, %s, %s).await?;\n",
-		name, path, g.resourceName(c.Name()), args, g.componentOptions(c, subject))
+		name, path, g.resourceName(c.LogicalName()), args, g.componentOptions(c, subject))
 	g.componentVars[name] = c
 }
 
@@ -2369,6 +2377,7 @@ func (g *programGenerator) invokeOptions(expr model.Expression, subject hcl.Rang
 		return "pulumi::InvokeOptions::default()"
 	}
 	var fields []string
+	hasParent := false
 	for _, item := range object.Items {
 		key, ok := keyString(item.Key)
 		if !ok {
@@ -2383,6 +2392,7 @@ func (g *programGenerator) invokeOptions(expr model.Expression, subject hcl.Rang
 			}
 		case "parent":
 			if res, ok := g.resourceRef(item.Value); ok {
+				hasParent = true
 				fields = append(fields, fmt.Sprintf("parent: Some(%s.pulumi_resource().clone())", res))
 			}
 		case "version":
@@ -2414,7 +2424,7 @@ func (g *programGenerator) invokeOptions(expr model.Expression, subject hcl.Rang
 	if len(fields) == 0 {
 		return g.defaultInvokeOptions()
 	}
-	if g.isComponent {
+	if g.isComponent && !hasParent {
 		fields = append(fields, "parent: Some(__component.clone())")
 	}
 	return fmt.Sprintf("pulumi::InvokeOptions { %s, ..Default::default() }", strings.Join(fields, ", "))
