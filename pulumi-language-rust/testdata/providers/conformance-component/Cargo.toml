@@ -1,0 +1,22 @@
+[package]
+name = "conformance_component"
+version = "22.0.0"
+edition = "2021"
+
+# The vendored `simple` SDK is a member of this workspace, not a workspace of
+# its own, so that both crates resolve `pulumi` through the single
+# `[workspace.dependencies]` entry below. They must end up with the *same*
+# copy of the core SDK: a `pulumi::Context` from one copy is a different type
+# from a `pulumi::Context` from another, and passing one to the other's
+# generated code would not compile. The language host's Link RPC rewrites only
+# this manifest, so this is the only place the core SDK path may appear.
+[workspace]
+members = ["sdks/simple"]
+
+[workspace.dependencies]
+pulumi = { path = "../../../../sdk/rust/pulumi" }
+
+[dependencies]
+pulumi = { workspace = true }
+pulumi_simple = { path = "sdks/simple" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

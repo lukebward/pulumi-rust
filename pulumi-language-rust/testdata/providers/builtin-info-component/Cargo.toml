@@ -1,0 +1,11 @@
+[package]
+name = "builtin_info_component"
+version = "37.0.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../../../sdk/rust/pulumi" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+# Standalone crate: never adopt an enclosing workspace.
+[workspace]

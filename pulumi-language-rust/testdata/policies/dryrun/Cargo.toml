@@ -1,0 +1,10 @@
+[package]
+name = "dryrun-policy-pack"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../../../sdk/rust/pulumi" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[workspace]
