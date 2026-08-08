@@ -176,18 +176,40 @@ pub struct PolicyPack {
 }
 
 impl PolicyPack {
+    /// Build a policy pack, rejecting the same names the other SDKs do.
     pub fn new(
         name: impl Into<String>,
         version: impl Into<String>,
         enforcement_level: EnforcementLevel,
         policies: Vec<Policy>,
-    ) -> PolicyPack {
-        PolicyPack {
-            name: name.into(),
-            version: version.into(),
-            enforcement_level,
-            policies,
+    ) -> Result<PolicyPack> {
+        let name = name.into();
+        if name.is_empty()
+            || name.len() > 100
+            || !name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        {
+            return Err(Error::new(format!("invalid policy pack name {name:?}")));
         }
+        for policy in &policies {
+            if policy.name == "all" {
+                return Err(Error::new(
+                    "invalid policy name \"all\". \"all\" is a reserved name".to_string(),
+                ));
+            }
+            if let Some(schema) = &policy.config_schema {
+                if schema.properties.contains_key("enforcementLevel")
+                    || schema.required.iter().any(|r| r == "enforcementLevel")
+                {
+                    return Err(Error::new(format!(
+                        "policy {}: enforcementLevel cannot appear in a config schema",
+                        policy.name
+                    )));
+                }
+            }
+        }
+        Ok(PolicyPack { name, version: version.into(), enforcement_level, policies })
     }
 }
 
@@ -199,8 +221,27 @@ struct State {
 }
 
 struct Service {
-    pack: PolicyPack,
+    source: PackSource,
     state: Mutex<State>,
+}
+
+impl Service {
+    /// The pack, built from the stack configuration when the pack is
+    /// produced by a factory.
+    fn pack(&self) -> PolicyPack {
+        match &self.source {
+            PackSource::Fixed(p) => p.clone(),
+            PackSource::Factory(f) => {
+                let stack = self.state.lock().unwrap().stack.clone();
+                f(stack).unwrap_or_else(|_| PolicyPack {
+                    name: String::new(),
+                    version: String::new(),
+                    enforcement_level: EnforcementLevel::Advisory,
+                    policies: vec![],
+                })
+            }
+        }
+    }
 }
 
 impl Service {
@@ -209,12 +250,12 @@ impl Service {
         match state.config.get(name) {
             Some((level, props)) => (*level, props.clone()),
             None => (
-                self.pack
+                self.pack()
                     .policies
                     .iter()
                     .find(|p| p.name == name)
                     .map(|p| p.enforcement_level)
-                    .unwrap_or(self.pack.enforcement_level),
+                    .unwrap_or(self.pack().enforcement_level),
                 PropertyMap::new(),
             ),
         }
@@ -229,7 +270,8 @@ impl Service {
         resource: AnalyzerResource,
     ) -> std::result::Result<Vec<pulumirpc::AnalyzeDiagnostic>, Status> {
         let mut diagnostics = vec![];
-        for policy in &self.pack.policies {
+        let pack = self.pack();
+        for policy in &pack.policies {
             let Some(validate) = &policy.validate else {
                 continue;
             };
@@ -247,10 +289,17 @@ impl Service {
             .await
             .map_err(|e| Status::internal(format!("{e}")))?;
             for (message, urn) in manager.take() {
+                // The engine shows `message` verbatim and never reads
+                // `description`, so the description leads the message.
+                let message = if message.is_empty() {
+                    policy.description.clone()
+                } else {
+                    format!("{}\n{}", policy.description, message)
+                };
                 diagnostics.push(pulumirpc::AnalyzeDiagnostic {
                     policy_name: policy.name.clone(),
-                    policy_pack_name: self.pack.name.clone(),
-                    policy_pack_version: self.pack.version.clone(),
+                    policy_pack_name: pack.name.clone(),
+                    policy_pack_version: pack.version.clone(),
                     description: policy.description.clone(),
                     message,
                     enforcement_level: level.to_proto(),
@@ -295,19 +344,12 @@ impl Analyzer for Service {
 
     async fn analyze_stack(
         &self,
-        request: Request<pulumirpc::AnalyzeStackRequest>,
+        _request: Request<pulumirpc::AnalyzeStackRequest>,
     ) -> std::result::Result<Response<pulumirpc::AnalyzeResponse>, Status> {
-        let r = request.into_inner();
-        let mut diagnostics = vec![];
-        for res in r.resources {
-            let resource =
-                resource_from_proto(res.r#type, res.name, res.urn, res.properties.as_ref());
-            diagnostics.extend(self.analyze_resource(resource).await?);
-        }
-        Ok(Response::new(pulumirpc::AnalyzeResponse {
-            diagnostics,
-            not_applicable: vec![],
-        }))
+        // Resource policies have already run per resource; reporting them
+        // again here would duplicate every violation. Stack-level policies
+        // are a separate policy kind this SDK does not model yet.
+        Ok(Response::new(pulumirpc::AnalyzeResponse::default()))
     }
 
     async fn remediate(
@@ -318,7 +360,8 @@ impl Analyzer for Service {
         let resource =
             resource_from_proto(r.r#type, r.name, r.urn, r.properties.as_ref());
         let mut remediations = vec![];
-        for policy in &self.pack.policies {
+        let pack = self.pack();
+        for policy in &pack.policies {
             let Some(remediate) = &policy.remediate else {
                 continue;
             };
@@ -336,8 +379,8 @@ impl Analyzer for Service {
             if let Some(props) = result {
                 remediations.push(pulumirpc::Remediation {
                     policy_name: policy.name.clone(),
-                    policy_pack_name: self.pack.name.clone(),
-                    policy_pack_version: self.pack.version.clone(),
+                    policy_pack_name: pack.name.clone(),
+                    policy_pack_version: pack.version.clone(),
                     description: policy.description.clone(),
                     properties: Some(marshal_properties(&props)),
                     diagnostic: String::new(),
@@ -354,8 +397,8 @@ impl Analyzer for Service {
         &self,
         _request: Request<()>,
     ) -> std::result::Result<Response<pulumirpc::AnalyzerInfo>, Status> {
-        let policies = self
-            .pack
+        let pack = self.pack();
+        let policies = pack
             .policies
             .iter()
             .map(|p| pulumirpc::PolicyInfo {
@@ -373,9 +416,9 @@ impl Analyzer for Service {
             })
             .collect();
         Ok(Response::new(pulumirpc::AnalyzerInfo {
-            name: self.pack.name.clone(),
-            display_name: self.pack.name.clone(),
-            version: self.pack.version.clone(),
+            name: pack.name.clone(),
+            display_name: pack.name.clone(),
+            version: pack.version.clone(),
             policies,
             supports_config: true,
             ..Default::default()
@@ -387,7 +430,7 @@ impl Analyzer for Service {
         _request: Request<()>,
     ) -> std::result::Result<Response<pulumirpc::PluginInfo>, Status> {
         Ok(Response::new(pulumirpc::PluginInfo {
-            version: self.pack.version.clone(),
+            version: self.pack().version.clone(),
         }))
     }
 
@@ -435,10 +478,28 @@ impl Analyzer for Service {
     }
 }
 
+/// Serve a policy pack the engine configures first, so the pack can derive
+/// itself from the stack's configuration. The engine issues ConfigureStack
+/// before asking what policies exist.
+pub async fn policy_main_with(
+    factory: impl Fn(StackInfo) -> Result<PolicyPack> + Send + Sync + 'static,
+) -> Result<()> {
+    serve(PackSource::Factory(Arc::new(factory))).await
+}
+
 /// Serve a policy pack until the engine disconnects. The engine reads the
 /// plugin's port from the first line of stdout, so nothing else is printed
 /// there.
 pub async fn policy_main(pack: PolicyPack) -> Result<()> {
+    serve(PackSource::Fixed(pack)).await
+}
+
+enum PackSource {
+    Fixed(PolicyPack),
+    Factory(Arc<dyn Fn(StackInfo) -> Result<PolicyPack> + Send + Sync>),
+}
+
+async fn serve(source: PackSource) -> Result<()> {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .map_err(|e| Error::new(format!("binding analyzer server: {e}")))?;
@@ -451,7 +512,7 @@ pub async fn policy_main(pack: PolicyPack) -> Result<()> {
     use std::io::Write;
     let _ = std::io::stdout().flush();
 
-    let service = Service { pack, state: Mutex::new(State::default()) };
+    let service = Service { source, state: Mutex::new(State::default()) };
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tonic::transport::Server::builder()
         .add_service(AnalyzerServer::new(service))

@@ -28,7 +28,7 @@ pub use convert::{FromPropertyValue, IntoPropertyValue};
 pub use error::{Error, Result};
 pub use output::{deferred_output, DeferredResolver, Output, OutputData};
 pub use hooks::{ResourceHook, ResourceHookBinding};
-pub use policy::{policy_main, ConfigSchema, EnforcementLevel, Policy, PolicyPack, ResourceRemediationArgs, ResourceValidationArgs, ViolationManager};
+pub use policy::{policy_main, policy_main_with, AnalyzerResource, StackInfo, ConfigSchema, EnforcementLevel, Policy, PolicyPack, ResourceRemediationArgs, ResourceValidationArgs, ViolationManager};
 pub use provider::{component_provider_host, ComponentProviderOptions, ConstructArgs, ConstructResult};
 pub use pv::{range_entries, RangeEntry};
 pub use runtime::run;
