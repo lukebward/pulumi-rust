@@ -49,6 +49,9 @@ pub(crate) struct ContextInner {
     /// The callbacks server, started lazily the first time a hook is
     /// registered.
     pub callbacks: tokio::sync::OnceCell<Arc<crate::callbacks::CallbackServer>>,
+    /// Package references handed out by RegisterPackage, memoized so each
+    /// parameterized package registers exactly once.
+    pub package_refs: tokio::sync::Mutex<HashMap<PackageDescriptor, String>>,
     /// In-flight resource registrations the run must drain before finishing.
     pub pending: Mutex<Vec<Shared<BoxFuture<'static, Arc<RegisterOutcome>>>>>,
     /// Stack exports accumulated by [`Context::export`].
@@ -202,6 +205,26 @@ pub struct RegisterRequest {
     pub plugin_download_url: String,
     pub inputs: Vec<(String, Output<PropertyValue>)>,
     pub options: ResourceOptions,
+    /// The parameterized package this resource belongs to, if any. The
+    /// package is registered once per program and its reference travels with
+    /// every registration.
+    pub package: Option<PackageDescriptor>,
+}
+
+/// A parameterized package: a base plugin plus the parameter that turns it
+/// into the package the program uses.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct PackageDescriptor {
+    pub base_name: String,
+    pub base_version: String,
+    pub download_url: String,
+    pub name: String,
+    pub version: String,
+    /// The parameter value, base64 encoded as it appears in the schema.
+    pub base64_parameter: String,
+    /// True for an extension parameterization layered onto the base
+    /// provider, false for a replacement parameterization.
+    pub extension: bool,
 }
 
 /// A live reference to a registered (or registering) resource.
@@ -345,6 +368,8 @@ pub struct InvokeOptions {
     pub version: String,
     pub plugin_download_url: String,
     pub depends_on: Vec<Resource>,
+    /// The parameterized package providing this function, if any.
+    pub package: Option<PackageDescriptor>,
 }
 
 impl Context {
@@ -749,6 +774,42 @@ fn provider_ref_from_value(v: &PropertyValue) -> String {
     }
 }
 
+/// Register a parameterized package, memoizing the reference the engine
+/// hands back so repeated registrations reuse it.
+async fn package_ref(inner: &Arc<ContextInner>, pkg: &PackageDescriptor) -> String {
+    {
+        let refs = inner.package_refs.lock().await;
+        if let Some(r) = refs.get(pkg) {
+            return r.clone();
+        }
+    }
+    use base64::Engine;
+    let value = base64::engine::general_purpose::STANDARD
+        .decode(&pkg.base64_parameter)
+        .unwrap_or_default();
+    let parameterization = pulumirpc::Parameterization {
+        name: pkg.name.clone(),
+        version: pkg.version.clone(),
+        value,
+    };
+    let request = pulumirpc::RegisterPackageRequest {
+        name: pkg.base_name.clone(),
+        version: pkg.base_version.clone(),
+        download_url: pkg.download_url.clone(),
+        parameterization: if pkg.extension { None } else { Some(parameterization.clone()) },
+        extension: if pkg.extension { Some(parameterization) } else { None },
+        ..Default::default()
+    };
+    let mut monitor = inner.monitor.clone();
+    let reference = match monitor.register_package(request).await {
+        Ok(r) => r.into_inner().r#ref,
+        Err(_) => String::new(),
+    };
+    let mut refs = inner.package_refs.lock().await;
+    refs.insert(pkg.clone(), reference.clone());
+    reference
+}
+
 /// The running program's context, so value-level operations that need the
 /// monitor (hydrating a resource reference) can reach it. A program has
 /// exactly one context.
@@ -972,6 +1033,10 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         replace_with,
         replacement_trigger,
         env_var_mappings: req.options.env_var_mappings.iter().cloned().collect(),
+        package_ref: match &req.package {
+            Some(p) => package_ref(&inner, p).await,
+            None => String::new(),
+        },
         hooks: if req.options.hooks.is_empty() {
             None
         } else {
@@ -1251,6 +1316,10 @@ async fn do_invoke(
         accepts_byte_string: true,
         plugin_download_url: opts.plugin_download_url.clone(),
         depends_on: all_depends_on,
+        package_ref: match &opts.package {
+            Some(p) => package_ref(&inner, p).await,
+            None => String::new(),
+        },
         ..Default::default()
     };
 

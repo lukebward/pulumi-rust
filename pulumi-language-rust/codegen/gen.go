@@ -16,6 +16,7 @@ package codegen
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -532,6 +533,7 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 	fmt.Fprintf(w, "            plugin_download_url: %q.to_string(),\n", g.pkg.PluginDownloadURL)
 	fmt.Fprintf(w, "            inputs: args.into_inputs(),\n")
 	fmt.Fprintf(w, "            options,\n")
+	fmt.Fprintf(w, "            package: %s,\n", g.packageDescriptorExpr())
 	fmt.Fprintf(w, "        });\n")
 	fmt.Fprintf(w, "        %s { resource }\n", name)
 	fmt.Fprintf(w, "    }\n\n")
@@ -599,6 +601,11 @@ func (g *pkgGenerator) writeFunction(w *bytes.Buffer, f *schema.Function, qualif
 	fmt.Fprintf(w, "    if options.version.is_empty() {\n")
 	fmt.Fprintf(w, "        options.version = %q.to_string();\n", g.version())
 	fmt.Fprintf(w, "    }\n")
+	if desc := g.packageDescriptorExpr(); desc != "None" {
+		fmt.Fprintf(w, "    if options.package.is_none() {\n")
+		fmt.Fprintf(w, "        options.package = %s;\n", desc)
+		fmt.Fprintf(w, "    }\n")
+	}
 	if g.pkg.PluginDownloadURL != "" {
 		fmt.Fprintf(w, "    if options.plugin_download_url.is_empty() {\n")
 		fmt.Fprintf(w, "        options.plugin_download_url = %q.to_string();\n", g.pkg.PluginDownloadURL)
@@ -610,6 +617,26 @@ func (g *pkgGenerator) writeFunction(w *bytes.Buffer, f *schema.Function, qualif
 		fmt.Fprintf(w, "    ctx.invoke(%q, args.into_inputs(), options).cast()\n", f.Token)
 	}
 	fmt.Fprintf(w, "}\n\n")
+}
+
+// packageDescriptorExpr renders the parameterized package this crate serves,
+// or None for an ordinary package. Registrations carry it so the engine can
+// resolve the base plugin plus its parameter.
+func (g *pkgGenerator) packageDescriptorExpr() string {
+	var baseName, baseVersion string
+	var parameter []byte
+	extension := false
+	if p := g.pkg.Parameterization; p != nil {
+		baseName, baseVersion, parameter = p.BasePlugin.Name, p.BasePlugin.Version.String(), p.Parameter
+	} else if p := g.pkg.ExtensionParameterization; p != nil {
+		baseName, baseVersion, parameter = p.BaseProvider.Name, p.BaseProvider.Version.String(), p.Parameter
+		extension = true
+	} else {
+		return "None"
+	}
+	return fmt.Sprintf("Some(pulumi::PackageDescriptor { base_name: %q.to_string(), base_version: %q.to_string(), download_url: %q.to_string(), name: %q.to_string(), version: %q.to_string(), base64_parameter: %q.to_string(), extension: %v })",
+		baseName, baseVersion, g.pkg.PluginDownloadURL, g.pkg.Name, g.version(),
+		base64.StdEncoding.EncodeToString(parameter), extension)
 }
 
 func (g *pkgGenerator) genLib(tool string) []byte {
@@ -769,18 +796,45 @@ func (g *pkgGenerator) schemaReferencesPackage(name string) bool {
 }
 
 func (g *pkgGenerator) genPulumiPluginJSON() []byte {
-	type pluginJSON struct {
-		Resource bool   `json:"resource"`
-		Name     string `json:"name"`
-		Version  string `json:"version"`
-		Server   string `json:"server,omitempty"`
+	type parameterizationJSON struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+		Value   []byte `json:"value"`
 	}
-	data, err := json.MarshalIndent(pluginJSON{
+	type pluginJSON struct {
+		Resource                  bool                  `json:"resource"`
+		Name                      string                `json:"name"`
+		Version                   string                `json:"version"`
+		Server                    string                `json:"server,omitempty"`
+		Parameterization          *parameterizationJSON `json:"parameterization,omitempty"`
+		ExtensionParameterization *parameterizationJSON `json:"extensionParameterization,omitempty"`
+	}
+	// A parameterized package installs its BASE plugin; the parameter tells
+	// that plugin which package to serve.
+	out := pluginJSON{
 		Resource: true,
 		Name:     g.pkg.Name,
 		Version:  g.version(),
 		Server:   g.pkg.PluginDownloadURL,
-	}, "", "  ")
+	}
+	if p := g.pkg.Parameterization; p != nil {
+		out.Name = p.BasePlugin.Name
+		out.Version = p.BasePlugin.Version.String()
+		out.Parameterization = &parameterizationJSON{
+			Name:    g.pkg.Name,
+			Version: g.version(),
+			Value:   p.Parameter,
+		}
+	} else if p := g.pkg.ExtensionParameterization; p != nil {
+		out.Name = p.BaseProvider.Name
+		out.Version = p.BaseProvider.Version.String()
+		out.ExtensionParameterization = &parameterizationJSON{
+			Name:    g.pkg.Name,
+			Version: g.version(),
+			Value:   p.Parameter,
+		}
+	}
+	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		panic(err)
 	}

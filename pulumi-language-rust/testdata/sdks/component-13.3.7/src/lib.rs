@@ -37,6 +37,7 @@ impl ComponentCallable {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
         });
         ComponentCallable { resource }
     }
@@ -90,6 +91,7 @@ impl ComponentCustomRefInputOutput {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
         });
         ComponentCustomRefInputOutput { resource }
     }
@@ -147,6 +149,7 @@ impl ComponentCustomRefOutput {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
         });
         ComponentCustomRefOutput { resource }
     }
@@ -204,6 +207,7 @@ impl ComponentForeignChild {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
         });
         ComponentForeignChild { resource }
     }
@@ -257,6 +261,7 @@ impl Custom {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
         });
         Custom { resource }
     }
@@ -309,6 +314,7 @@ impl Provider {
             plugin_download_url: "".to_string(),
             inputs: args.into_inputs(),
             options,
+            package: None,
         });
         Provider { resource }
     }

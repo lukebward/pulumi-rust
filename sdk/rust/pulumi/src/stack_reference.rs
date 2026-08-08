@@ -28,6 +28,7 @@ impl StackReference {
             plugin_download_url: String::new(),
             inputs: vec![("name".to_string(), stack_name)],
             options,
+            package: None,
         });
         StackReference { resource }
     }

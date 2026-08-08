@@ -123,6 +123,7 @@ pub async fn connect_context(settings: RunSettings) -> Result<Context> {
         config,
         stack_urn: tokio::sync::OnceCell::new(),
         callbacks: tokio::sync::OnceCell::new(),
+        package_refs: tokio::sync::Mutex::new(HashMap::new()),
         pending: Mutex::new(vec![]),
         exports: Mutex::new(vec![]),
     };

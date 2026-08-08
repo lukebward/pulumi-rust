@@ -19,8 +19,8 @@ pub mod value;
 
 pub use config::Config;
 pub use context::{
-    Alias, AliasParent, AliasSpec, Context, CustomTimeouts, InvokeOptions, RegisterRequest,
-    Resource, ResourceOptions,
+    Alias, AliasParent, AliasSpec, Context, CustomTimeouts, InvokeOptions, PackageDescriptor,
+    RegisterRequest, Resource, ResourceOptions,
 };
 pub use convert::{FromPropertyValue, IntoPropertyValue};
 pub use error::{Error, Result};

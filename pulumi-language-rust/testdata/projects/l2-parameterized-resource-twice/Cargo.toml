@@ -1,0 +1,11 @@
+[package]
+name = "l2-parameterized-resource-twice"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_byepackage = { path = "ROOT/artifacts/pulumi_byepackage-2.0.0" }
+pulumi_hipackage = { path = "ROOT/artifacts/pulumi_hipackage-2.0.0" }
+
+[workspace]

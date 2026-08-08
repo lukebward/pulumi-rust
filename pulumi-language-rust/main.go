@@ -322,11 +322,21 @@ func readPathDependencies(programDir string) ([]pathDependency, error) {
 
 // pulumiPluginJSON mirrors the pulumi-plugin.json metadata emitted into
 // generated SDKs.
+type pulumiParameterizationJSON struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Value   []byte `json:"value"`
+}
+
 type pulumiPluginJSON struct {
 	Resource bool   `json:"resource"`
 	Name     string `json:"name"`
 	Version  string `json:"version"`
 	Server   string `json:"server,omitempty"`
+	// A parameterized package names its BASE plugin above and carries the
+	// parameter that turns it into the package the program uses.
+	Parameterization          *pulumiParameterizationJSON `json:"parameterization,omitempty"`
+	ExtensionParameterization *pulumiParameterizationJSON `json:"extensionParameterization,omitempty"`
 }
 
 func readPluginJSON(dir string) (*pulumiPluginJSON, error) {
@@ -397,7 +407,16 @@ func (host *rustLanguageHost) GetProgramDependencies(
 	var out []*pulumirpc.DependencyInfo
 	for _, dep := range deps {
 		if pj, err := readPluginJSON(dep.path); err == nil {
-			out = append(out, &pulumirpc.DependencyInfo{Name: dep.crateName, Version: pj.Version})
+			// A parameterized package's plugin JSON names the base plugin;
+			// the dependency the program actually uses is the parameterized
+			// package itself.
+			version := pj.Version
+			if p := pj.Parameterization; p != nil {
+				version = p.Version
+			} else if p := pj.ExtensionParameterization; p != nil {
+				version = p.Version
+			}
+			out = append(out, &pulumirpc.DependencyInfo{Name: dep.crateName, Version: version})
 			continue
 		}
 		version, err := readCrateVersion(dep.path)
@@ -422,12 +441,27 @@ func (host *rustLanguageHost) GetRequiredPackages(
 		if err != nil || !pj.Resource {
 			continue
 		}
-		packages = append(packages, &pulumirpc.PackageDependency{
+		dep := &pulumirpc.PackageDependency{
 			Name:    pj.Name,
 			Kind:    "resource",
 			Version: pj.Version,
 			Server:  pj.Server,
-		})
+		}
+		if p := pj.Parameterization; p != nil {
+			dep.Parameterization = &pulumirpc.PackageParameterization{
+				Name:    p.Name,
+				Version: p.Version,
+				Value:   p.Value,
+			}
+		}
+		if p := pj.ExtensionParameterization; p != nil {
+			dep.Extension = &pulumirpc.PackageParameterization{
+				Name:    p.Name,
+				Version: p.Version,
+				Value:   p.Value,
+			}
+		}
+		packages = append(packages, dep)
 	}
 	return &pulumirpc.GetRequiredPackagesResponse{Packages: packages}, nil
 }

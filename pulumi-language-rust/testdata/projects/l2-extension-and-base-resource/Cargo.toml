@@ -1,0 +1,11 @@
+[package]
+name = "l2-extension-and-base-resource"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "ROOT/artifacts/pulumi-0.1.0" }
+pulumi_extbase = { path = "ROOT/artifacts/pulumi_extbase-45.0.0" }
+pulumi_myext = { path = "ROOT/artifacts/pulumi_myext-2.0.0" }
+
+[workspace]

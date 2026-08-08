@@ -38,20 +38,15 @@ import (
 // currently skipped. Entries here are honest debt: each one is a feature the
 // Rust language implementation does not support yet.
 var expectedFailures = map[string]string{
-
-
-
-	// Package parameterization (RegisterPackage + parameterized SDKs) is
-	// not implemented.
-	"l2-parameterized-invoke":             "package parameterization is not implemented",
-	"l2-parameterized-resource":           "package parameterization is not implemented",
-	"l2-parameterized-resource-twice":     "package parameterization is not implemented",
-	"l2-explicit-parameterized-provider":  "package parameterization is not implemented",
-	"l2-extension-parameterized-resource": "package parameterization is not implemented",
-	"l2-extension-and-base-resource":      "package parameterization is not implemented",
-
-	// Package namespaces are not implemented.
+	// The engine ends up with one fewer default provider than the test
+	// expects for a namespaced package; the namespace's effect on provider
+	// identity is not modelled yet.
 	"l2-namespaced-provider": "package namespaces are not implemented",
+
+
+
+
+
 
 
 

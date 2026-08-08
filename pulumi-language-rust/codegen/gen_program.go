@@ -334,6 +334,15 @@ func (g *programGenerator) resourcePath(r *pcl.Resource) (structPath, pkgName st
 		return crateName(pkgName) + "::Provider", pkgName
 	}
 
+	// An extension package publishes its SDK under its own name while its
+	// resource tokens stay in the base provider's namespace, so the crate
+	// comes from the schema rather than the token.
+	if r.Schema != nil {
+		if ref := r.Schema.PackageReference; ref != nil && ref.Name() != "" {
+			pkgName = ref.Name()
+		}
+	}
+
 	crate := crateName(pkgName)
 	if module == "index" || module == "" {
 		return crate + "::" + pascalCase(member), pkgName
@@ -2023,6 +2032,11 @@ func (g *programGenerator) invokeExpr(expr *model.FunctionCallExpression) string
 	}
 
 	pkgName, module, member := parts[0], parts[1], parts[2]
+	// As with resources, an extension package's SDK crate is named after
+	// the package, not the namespace its tokens live in.
+	if ref := fn.PackageReference; ref != nil && ref.Name() != "" {
+		pkgName = ref.Name()
+	}
 	crate := crateName(pkgName)
 	fnPath := crate + "::" + functionName(member)
 	argsPath := crate + "::" + pascalCase(member) + "Args"
