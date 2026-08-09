@@ -8,7 +8,7 @@
 //! against the engine's resource monitor.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use futures::future::BoxFuture;
 use tonic::{Request, Response, Status};
@@ -63,6 +63,8 @@ pub struct ComponentProviderOptions {
 
 struct Service {
     opts: Arc<ComponentProviderOptions>,
+    /// The engine's address, so a component body that fails can report why.
+    engine: Arc<Mutex<String>>,
 }
 
 #[tonic::async_trait]
@@ -124,7 +126,8 @@ impl ResourceProvider for Service {
     ) -> std::result::Result<Response<pulumirpc::ConstructResponse>, Status> {
         let request = request.into_inner();
         let opts = self.opts.clone();
-        construct(opts, request)
+        let engine = self.engine.lock().unwrap().clone();
+        construct(opts, engine, request)
             .await
             .map(Response::new)
             .map_err(|e| Status::internal(format!("{e}")))
@@ -357,6 +360,7 @@ fn construct_options(ctx: &Context, request: &pulumirpc::ConstructRequest) -> Re
 
 async fn construct(
     opts: Arc<ComponentProviderOptions>,
+    engine_addr: String,
     request: pulumirpc::ConstructRequest,
 ) -> Result<pulumirpc::ConstructResponse> {
     let settings = RunSettings {
@@ -369,7 +373,7 @@ async fn construct(
         },
         dry_run: request.dry_run,
         monitor_addr: request.monitor_endpoint.clone(),
-        engine_addr: String::new(),
+        engine_addr,
         config: request.config.clone().into_iter().collect::<HashMap<_, _>>(),
         config_secret_keys: request.config_secret_keys.clone(),
     };
@@ -420,7 +424,10 @@ pub async fn component_provider_host(opts: ComponentProviderOptions) -> Result<(
     use std::io::Write;
     let _ = std::io::stdout().flush();
 
-    let service = Service { opts: Arc::new(opts) };
+    // The engine passes its address as the first argument; the handshake
+    // supplies it too on newer engines.
+    let engine = std::env::args().nth(1).unwrap_or_default();
+    let service = Service { opts: Arc::new(opts), engine: Arc::new(Mutex::new(engine)) };
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tonic::transport::Server::builder()
         .add_service(ResourceProviderServer::new(service))

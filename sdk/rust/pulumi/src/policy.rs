@@ -215,6 +215,9 @@ impl PolicyPack {
 
 #[derive(Default)]
 struct State {
+    /// A factory-built pack, constructed once when the engine configures
+    /// the stack, as the Go SDK does.
+    pack: Option<PolicyPack>,
     /// Per-policy configuration, as the engine configured it.
     config: HashMap<String, (EnforcementLevel, PropertyMap)>,
     stack: StackInfo,
@@ -233,6 +236,14 @@ impl Service {
         match &self.source {
             PackSource::Fixed(p) => Ok(p.clone()),
             PackSource::Factory(f) => {
+                {
+                    let state = self.state.lock().unwrap();
+                    if let Some(pack) = &state.pack {
+                        return Ok(pack.clone());
+                    }
+                }
+                // Not configured yet (the engine asks for plugin info before
+                // ConfigureStack); build from whatever we know so far.
                 let stack = self.state.lock().unwrap().stack.clone();
                 f(stack).map_err(|e| Status::internal(format!("building policy pack: {e}")))
             }
@@ -352,7 +363,11 @@ impl Analyzer for Service {
         request: Request<pulumirpc::AnalyzeRequest>,
     ) -> std::result::Result<Response<pulumirpc::RemediateResponse>, Status> {
         let r = request.into_inner();
-        let resource =
+        // The engine applies each remediation as a full replacement of the
+        // resource's inputs, in order, so every policy must see what the
+        // previous one produced. Passing the original map to all of them
+        // would silently revert all but the last.
+        let mut resource =
             resource_from_proto(r.r#type, r.name, r.urn, r.properties.as_ref());
         let mut remediations = vec![];
         let pack = self.pack()?;
@@ -372,6 +387,7 @@ impl Analyzer for Service {
             .await
             .map_err(|e| Status::internal(format!("{e}")))?;
             if let Some(props) = result {
+                resource.properties = props.clone();
                 remediations.push(pulumirpc::Remediation {
                     policy_name: policy.name.clone(),
                     policy_pack_name: pack.name.clone(),
@@ -435,6 +451,7 @@ impl Analyzer for Service {
     ) -> std::result::Result<Response<()>, Status> {
         let r = request.into_inner();
         let mut state = self.state.lock().unwrap();
+        state.config.clear();
         for (name, config) in r.policy_config {
             let props = config.properties.as_ref().map(unmarshal_properties).unwrap_or_default();
             state
@@ -456,8 +473,7 @@ impl Analyzer for Service {
         request: Request<pulumirpc::AnalyzerStackConfigureRequest>,
     ) -> std::result::Result<Response<pulumirpc::AnalyzerStackConfigureResponse>, Status> {
         let r = request.into_inner();
-        let mut state = self.state.lock().unwrap();
-        state.stack = StackInfo {
+        let stack = StackInfo {
             project: r.project,
             stack: r.stack,
             organization: r.organization,
@@ -465,6 +481,16 @@ impl Analyzer for Service {
             config: r.config.into_iter().collect(),
             tags: r.tags.into_iter().collect(),
         };
+        let built = match &self.source {
+            PackSource::Factory(f) => Some(
+                f(stack.clone())
+                    .map_err(|e| Status::internal(format!("building policy pack: {e}")))?,
+            ),
+            PackSource::Fixed(_) => None,
+        };
+        let mut state = self.state.lock().unwrap();
+        state.stack = stack;
+        state.pack = built;
         Ok(Response::new(pulumirpc::AnalyzerStackConfigureResponse::default()))
     }
 

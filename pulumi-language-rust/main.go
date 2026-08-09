@@ -305,26 +305,118 @@ func (host *rustLanguageHost) Link(
 	return &pulumirpc.LinkResponse{}, nil
 }
 
+// tableHeader returns the table a `[section]` line names, or "" when the
+// line is not a table header.
+func tableHeader(line string) (string, bool) {
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, "[") {
+		return "", false
+	}
+	// Trim a trailing comment before matching the closing bracket.
+	if i := strings.Index(line, "#"); i >= 0 {
+		line = strings.TrimSpace(line[:i])
+	}
+	if !strings.HasSuffix(line, "]") {
+		return "", false
+	}
+	return strings.TrimSpace(strings.Trim(line, "[]")), true
+}
+
+// dependencyKey reports whether a line assigns the named dependency,
+// tolerating the spacing variants cargo accepts.
+func dependencyKey(line, crate string) bool {
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, crate) {
+		return false
+	}
+	return strings.HasPrefix(strings.TrimSpace(line[len(crate):]), "=")
+}
+
 // rewritePathDependency repoints one dependency's path, adding the
-// dependency when the manifest does not already name it.
+// dependency when the manifest does not already name it. Only dependency
+// tables are considered — `[dependencies]` and `[workspace.dependencies]`,
+// the latter because a workspace shares one entry across its members — so a
+// same-named dev-dependency or target-specific entry cannot shadow the real
+// one.
 func rewritePathDependency(manifest, crate, path string) string {
+	entry := fmt.Sprintf("%s = { path = %q }", crate, path)
+	isDepTable := func(name string) bool {
+		return name == "dependencies" || name == "workspace.dependencies"
+	}
+
 	lines := strings.Split(manifest, "\n")
-	prefix := crate + " ="
-	for i, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
-			lines[i] = fmt.Sprintf("%s = { path = %q }", crate, path)
-			return strings.Join(lines, "\n")
+	section := ""
+	rewrote := false
+	depsHeader := -1
+	for i := 0; i < len(lines); i++ {
+		if name, ok := tableHeader(lines[i]); ok {
+			section = name
+			if name == "dependencies" && depsHeader < 0 {
+				depsHeader = i
+			}
+			// The `[dependencies.<crate>]` / `[workspace.dependencies.<crate>]`
+			// table form.
+			if name == "dependencies."+crate || name == "workspace.dependencies."+crate {
+				lines = strings.Split(replaceTable(lines, i, entry, crate), "\n")
+				rewrote = true
+			}
+			continue
+		}
+		if isDepTable(section) && dependencyKey(lines[i], crate) {
+			// A workspace member says `pulumi = { workspace = true }`; that
+			// indirection is what the workspace entry resolves, so leave it.
+			if section == "dependencies" && strings.Contains(lines[i], "workspace") {
+				continue
+			}
+			lines = strings.Split(replaceEntry(lines, i, entry), "\n")
+			rewrote = true
 		}
 	}
-	// Not present: append under [dependencies], or start that section.
-	for i, line := range lines {
-		if strings.TrimSpace(line) == "[dependencies]" {
-			entry := fmt.Sprintf("%s = { path = %q }", crate, path)
-			lines = append(lines[:i+1], append([]string{entry}, lines[i+1:]...)...)
-			return strings.Join(lines, "\n")
+	if rewrote {
+		return strings.Join(lines, "\n")
+	}
+	if depsHeader >= 0 {
+		out := append([]string{}, lines[:depsHeader+1]...)
+		out = append(out, entry)
+		return strings.Join(append(out, lines[depsHeader+1:]...), "\n")
+	}
+	return manifest + fmt.Sprintf("\n[dependencies]\n%s\n", entry)
+}
+
+// replaceEntry swaps the assignment at i, absorbing the continuation lines
+// of a multi-line inline table so no orphaned fragment is left behind.
+func replaceEntry(lines []string, i int, entry string) string {
+	end := i
+	if strings.Count(lines[i], "{") > strings.Count(lines[i], "}") {
+		for end+1 < len(lines) {
+			end++
+			if strings.Contains(lines[end], "}") {
+				break
+			}
 		}
 	}
-	return manifest + fmt.Sprintf("\n[dependencies]\n%s = { path = %q }\n", crate, path)
+	out := append([]string{}, lines[:i]...)
+	out = append(out, entry)
+	return strings.Join(append(out, lines[end+1:]...), "\n")
+}
+
+// replaceTable swaps a `[dependencies.<crate>]` table for an inline entry.
+func replaceTable(lines []string, header int, entry, crate string) string {
+	end := header
+	for end+1 < len(lines) {
+		if _, ok := tableHeader(lines[end+1]); ok {
+			break
+		}
+		end++
+	}
+	// Leave trailing blank lines where they were rather than absorbing them
+	// into the replaced table.
+	for end > header && strings.TrimSpace(lines[end]) == "" {
+		end--
+	}
+	out := append([]string{}, lines[:header]...)
+	out = append(out, "[dependencies]", entry)
+	return strings.Join(append(out, lines[end+1:]...), "\n")
 }
 
 // crateName mirrors the codegen's package-to-crate naming.
@@ -360,25 +452,22 @@ func (host *rustLanguageHost) RunPlugin(
 		dir = req.GetPwd()
 	}
 
-	// Build first so cargo's own progress never reaches stdout ahead of the
-	// port line.
-	build, err := cargoCommand(server.Context(), dir, req.GetEnv(), "build", "--quiet")
+	// Build first, capturing the artifact path. Running the plugin through
+	// `cargo run` would make it a grandchild: killing cargo would leave the
+	// plugin alive holding the output pipes, so the engine's shutdown would
+	// neither stop it nor let this handler return.
+	exe, err := buildPluginBinary(server.Context(), dir, req.GetEnv(), stderr)
 	if err != nil {
 		return err
-	}
-	build.Stdout = stderr
-	build.Stderr = stderr
-	if err := build.Run(); err != nil {
-		return fmt.Errorf("cargo build in %s failed: %w", dir, err)
 	}
 
-	args := append([]string{"run", "--quiet", "--"}, req.GetArgs()...)
-	cmd, err := cargoCommand(server.Context(), dir, req.GetEnv(), args...)
-	if err != nil {
-		return err
-	}
+	cmd := exec.CommandContext(server.Context(), exe, req.GetArgs()...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), req.GetEnv()...)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
+	// Don't wait on the output pipes forever if the plugin ignores the kill.
+	cmd.WaitDelay = 5 * time.Second
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
 		if asExitError(err, &exitErr) {
@@ -391,6 +480,54 @@ func (host *rustLanguageHost) RunPlugin(
 	return server.Send(&pulumirpc.RunPluginResponse{
 		Output: &pulumirpc.RunPluginResponse_Exitcode{Exitcode: 0},
 	})
+}
+
+// buildPluginBinary builds the plugin crate at dir and returns the path of
+// the executable cargo produced. Build output goes to stderr so nothing
+// precedes the port line the engine reads from the plugin's stdout.
+func buildPluginBinary(
+	ctx context.Context, dir string, env []string, stderr io.Writer,
+) (string, error) {
+	cmd, err := cargoCommand(ctx, dir, env, "build", "--message-format=json-render-diagnostics")
+	if err != nil {
+		return "", err
+	}
+	// Buffer the build's own output: cargo's progress lines would otherwise
+	// reach the engine as plugin diagnostics. Only a failed build is worth
+	// reporting, and then the whole log is useful.
+	var out, buildLog bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &buildLog
+	if err := cmd.Run(); err != nil {
+		if _, werr := stderr.Write(buildLog.Bytes()); werr != nil {
+			return "", fmt.Errorf("cargo build in %s failed: %w", dir, err)
+		}
+		return "", fmt.Errorf("cargo build in %s failed: %w", dir, err)
+	}
+
+	// cargo emits one JSON object per line; the executable belongs to the
+	// last compiler-artifact that produced one.
+	var exe string
+	for _, line := range strings.Split(out.String(), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var msg struct {
+			Reason     string  `json:"reason"`
+			Executable *string `json:"executable"`
+		}
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			continue
+		}
+		if msg.Reason == "compiler-artifact" && msg.Executable != nil && *msg.Executable != "" {
+			exe = *msg.Executable
+		}
+	}
+	if exe == "" {
+		return "", fmt.Errorf("cargo build in %s produced no executable", dir)
+	}
+	return exe, nil
 }
 
 // pathDependency describes one local path dependency of a program.
