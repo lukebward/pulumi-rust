@@ -26,6 +26,11 @@ fn main() {
         ctx.export("publicUrl", public.url());
         ctx.export("privateUrl", private.url());
 
+        // `pulumi_resource()` hands back the underlying component resource,
+        // which is what you pass as a `parent` to nest something else under
+        // it — and what the generated SDKs expose for the same purpose.
+        ctx.export("publicUrn", public.pulumi_resource().urn().cast());
+
         Ok(())
     });
 }
