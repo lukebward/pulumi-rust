@@ -213,6 +213,12 @@ fn provider_package_of_urn(urn: &str) -> String {
 }
 
 /// A request to register a resource, produced by generated SDK code.
+///
+/// `Default` is derived for the benefit of hand-written programs, which
+/// would otherwise fail to compile every time a field is added. Generated
+/// code names every field deliberately, so that the generator's own output
+/// is a compile error when it falls behind this struct.
+#[derive(Default)]
 pub struct RegisterRequest {
     pub type_: String,
     pub name: String,
@@ -468,11 +474,15 @@ impl Context {
             providers.insert(pkg.clone(), p.clone());
         }
         // A singular `provider` also joins the map, so children and invokes
-        // parented here inherit it — this is Go's mergeProviders. An explicit
-        // entry in the map wins, since it was named for that package.
+        // parented here inherit it — this is Go's mergeProviders. The conflict
+        // test is against the *explicit* map, not the merged one: an entry
+        // this call named for that package wins, but one merely inherited
+        // from the parent is overridden, which is the whole point.
         if let Some(p) = &req.options.provider {
-            if !p.package.is_empty() {
-                providers.entry(p.package.clone()).or_insert_with(|| p.clone());
+            if !p.package.is_empty()
+                && !req.options.providers.iter().any(|(k, _)| k == &p.package)
+            {
+                providers.insert(p.package.clone(), p.clone());
             }
         }
         let providers = Arc::new(providers);
@@ -481,7 +491,7 @@ impl Context {
         // package would route the resource to the wrong plugin.
         let package = req.type_.split(':').next().unwrap_or_default().to_string();
         let provider = match &provider {
-            Some(p) if p.package.is_empty() || p.package == package => Some(p.clone()),
+            Some(p) if p.package == package => Some(p.clone()),
             _ => providers.get(&package).cloned().map(Arc::new),
         };
         // For a provider resource, the package it serves.
@@ -1617,25 +1627,32 @@ async fn do_invoke(
         return Ok(OutputData { value: PropertyValue::Computed, secret, deps });
     }
 
-    let mut provider = match &opts.provider {
+    // Which provider serves this invoke, the way Go's getProvider decides it:
+    // start from what the parent carries for the invoke's package, and let an
+    // explicit provider override it only when it serves that same package. A
+    // provider for another package is not applicable and is discarded rather
+    // than routing the invoke to the wrong plugin.
+    //
+    // The parent's map is where a singular `provider` option on that parent
+    // ends up (see register_resource), so this is the path by which an invoke
+    // inherits a provider that was never named in a providers map.
+    let pkg = tok.split(':').next().unwrap_or_default().to_string();
+    let mut chosen = opts
+        .parent
+        .as_ref()
+        .and_then(|parent| parent.pulumi_providers().get(&pkg).cloned());
+    if let Some(p) = &opts.provider {
+        if p.package == pkg {
+            chosen = Some(p.clone());
+        }
+    }
+    let provider = match &chosen {
         Some(p) => match p.provider_ref().data().await.value {
             PropertyValue::String(s) => s,
             _ => String::new(),
         },
         None => String::new(),
     };
-    // With no explicit provider, an invoke parented to a resource is served
-    // by the provider that parent names for the invoke's package.
-    if provider.is_empty() {
-        if let Some(parent) = &opts.parent {
-            let pkg = tok.split(':').next().unwrap_or_default().to_string();
-            if let Some(p) = parent.pulumi_providers().get(&pkg) {
-                if let PropertyValue::String(s) = p.provider_ref().data().await.value {
-                    provider = s;
-                }
-            }
-        }
-    }
 
     // Advertise every dependency (explicit and argument-derived) so engines
     // that support INVOKE_DEPENDS_ON can sequence the invoke.
