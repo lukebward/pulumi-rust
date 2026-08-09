@@ -140,7 +140,7 @@ func generateProgramCargoToml(
 ) ([]byte, error) {
 	var w bytes.Buffer
 	fmt.Fprintf(&w, "[package]\n")
-	fmt.Fprintf(&w, "name = %q\n", name)
+	fmt.Fprintf(&w, "name = %q\n", cargoPackageName(name))
 	fmt.Fprintf(&w, "version = \"0.1.0\"\n")
 	fmt.Fprintf(&w, "edition = \"2021\"\n\n")
 	fmt.Fprintf(&w, "[dependencies]\n")
@@ -152,6 +152,7 @@ func generateProgramCargoToml(
 
 	packages := program.PackageReferences()
 	names := make([]string, 0, len(packages))
+	versions := map[string]string{}
 	seen := map[string]bool{}
 	for _, pkg := range packages {
 		if pkg.Name() == "pulumi" || seen[pkg.Name()] {
@@ -159,15 +160,58 @@ func generateProgramCargoToml(
 		}
 		seen[pkg.Name()] = true
 		names = append(names, pkg.Name())
+		if v := pkg.Version(); v != nil {
+			versions[pkg.Name()] = v.String()
+		}
 	}
 	sort.Strings(names)
 	for _, pkgName := range names {
 		if path, ok := localDependencies[pkgName]; ok {
 			fmt.Fprintf(&w, "%s = { path = %q }\n", crateName(pkgName), path)
+			continue
 		}
+		// No local artifact was supplied for a package the program uses,
+		// which is the normal case outside the conformance harness — `pulumi
+		// convert` on a program that references a provider. The program's
+		// `pulumi_<pkg>::` paths are emitted regardless, so the manifest has
+		// to name the crate: a version requirement fails resolution with the
+		// crate's name in the message, where omitting the line leaves cargo
+		// reporting an unresolved import with nothing to point at. `pulumi
+		// package add <pkg>` later rewrites the entry to the generated SDK's
+		// path (see Link in main.go).
+		req, ok := versions[pkgName]
+		if !ok {
+			req = "*"
+		}
+		fmt.Fprintf(&w, "%s = %q\n", crateName(pkgName), req)
 	}
 	fmt.Fprintf(&w, "\n[workspace]\n")
 	return w.Bytes(), nil
+}
+
+// cargoPackageName sanitizes a Pulumi project name into a Cargo package name.
+// Cargo accepts alphanumerics, `-` and `_` and refuses a leading digit, while
+// a Pulumi project name is looser — a dot is legal there and not here — and a
+// manifest naming an invalid package fails every later cargo invocation
+// rather than the generation that produced it.
+func cargoPackageName(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	out := b.String()
+	if out == "" {
+		return "pulumi_program"
+	}
+	if out[0] >= '0' && out[0] <= '9' {
+		out = "_" + out
+	}
+	return out
 }
 
 type programGenerator struct {
@@ -803,6 +847,16 @@ func (g *programGenerator) genReadResource(w *bytes.Buffer, r *pcl.ReadResource)
 		}
 	}
 
+	// An explicit version option names the provider plugin to read through,
+	// overriding the one the schema was loaded from.
+	if r.Options != nil && r.Options.Version != nil {
+		if s, ok := literalString(r.Options.Version); ok {
+			version = s
+		} else {
+			g.errorf(r.Definition.Syntax.DefRange(), "unsupported version expression")
+		}
+	}
+
 	idExpr := "pulumi::pv::null()"
 	var inputs []string
 	for _, input := range r.Inputs {
@@ -813,17 +867,67 @@ func (g *programGenerator) genReadResource(w *bytes.Buffer, r *pcl.ReadResource)
 		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
 			rustString(input.Name), g.expr(input.Value)))
 	}
-	name := varName(r.Name())
+	// declareVar, not varName: a read binds a program variable like any other
+	// node, so it has to take part in the same uniquing (a later local whose
+	// name folds to the same identifier would otherwise shadow it) and be
+	// visible to captureClones (a move closure referencing it would otherwise
+	// consume it).
+	name := g.declareVar(r.Name())
 	g.builtinVars[name] = true
+	g.declaredVars = append(g.declaredVars, name)
 	fmt.Fprintf(w, "let %s = ctx.read_resource(%s, %s, %s, vec![%s], %s, %s);\n",
 		name, rustString(canonical), g.resourceName(r.LogicalName()), idExpr,
 		strings.Join(inputs, ", "), rustString(version), g.readResourceOptions(r))
 }
 
-// readResourceOptions maps a read resource's options (currently none of the
-// interesting ones apply).
+// readResourceOptions renders the options a read is performed with. A read is
+// not a managed resource — the engine never creates, updates, replaces or
+// deletes it — so the lifecycle options have nothing to act on and the read
+// path cannot honour them. Those are reported rather than dropped; the rest
+// are wired through the same renderer every other node uses.
 func (g *programGenerator) readResourceOptions(r *pcl.ReadResource) string {
-	return "pulumi::ResourceOptions::default()"
+	if r.Options == nil {
+		if g.isComponent {
+			return "__options.clone()"
+		}
+		return "pulumi::ResourceOptions::default()"
+	}
+	subject := r.Definition.Syntax.DefRange()
+	unsupported := []struct {
+		name string
+		expr model.Expression
+	}{
+		{"range", r.Options.Range},
+		{"protect", r.Options.Protect},
+		{"retainOnDelete", r.Options.RetainOnDelete},
+		{"deleteBeforeReplace", r.Options.DeleteBeforeReplace},
+		{"deletedWith", r.Options.DeletedWith},
+		{"ignoreChanges", r.Options.IgnoreChanges},
+		{"replaceOnChanges", r.Options.ReplaceOnChanges},
+		{"hideDiffs", r.Options.HideDiffs},
+		{"replaceWith", r.Options.ReplaceWith},
+		{"replacementTrigger", r.Options.ReplacementTrigger},
+		{"import", r.Options.ImportID},
+		{"customTimeouts", r.Options.CustomTimeouts},
+		{"envVarMappings", r.Options.EnvVarMappings},
+		{"hooks", r.Options.Hooks},
+		{"aliases", r.Options.Aliases},
+		{"pluginDownloadURL", r.Options.PluginDownloadURL},
+	}
+	for _, o := range unsupported {
+		if o.expr != nil {
+			g.errorf(subject, "resource option %q is not supported on a read", o.name)
+		}
+	}
+	// Version reaches read_resource as its own argument, not through the
+	// options, so it is deliberately absent here.
+	return g.optionsLiteral(&pcl.ResourceOptions{
+		Parent:                  r.Options.Parent,
+		Provider:                r.Options.Provider,
+		Providers:               r.Options.Providers,
+		DependsOn:               r.Options.DependsOn,
+		AdditionalSecretOutputs: r.Options.AdditionalSecretOutputs,
+	}, subject)
 }
 
 // genStackReference emits a pulumi::StackReference for the builtin
@@ -883,7 +987,8 @@ func (g *programGenerator) typedArgsLiteral(
 // literal underneath for shape matching.
 func unwrapConvert(expr model.Expression) model.Expression {
 	for {
-		if call, ok := expr.(*model.FunctionCallExpression); ok && call.Name == pcl.IntrinsicConvert {
+		call, ok := expr.(*model.FunctionCallExpression)
+		if ok && call.Name == pcl.IntrinsicConvert && len(call.Args) > 0 {
 			expr = call.Args[0]
 			continue
 		}
@@ -1743,22 +1848,70 @@ func formatKeyNumber(f float64) string {
 	return strconv.FormatFloat(f, 'g', -1, 64)
 }
 
+// outputAccessorNames maps a resource's output property names to the accessor
+// methods the SDK generator emits for them. It has to agree exactly with
+// writeResource in gen.go: distinct wire names can fold to the same
+// snake_case identifier (fieldNamesFor disambiguates), and a name that lands
+// on a method the resource struct emits itself is pushed out of the way.
+func outputAccessorNames(props []*schema.Property) map[string]string {
+	names := fieldNamesFor(props)
+	for wire, name := range names {
+		switch name {
+		case "new", "urn", "id", "pulumi_resource":
+			names[wire] = name + "_"
+		}
+	}
+	return names
+}
+
+// resourceOutputProps returns the output properties of the resource a
+// traversal's root is bound to, or nil when the root is not a schema'd
+// resource.
+func resourceOutputProps(expr *model.ScopeTraversalExpression) []*schema.Property {
+	if expr == nil || len(expr.Parts) == 0 {
+		return nil
+	}
+	switch root := expr.Parts[0].(type) {
+	case *pcl.Resource:
+		if root.Schema != nil {
+			return root.Schema.Properties
+		}
+	case *pcl.ReadResource:
+		if root.Schema != nil {
+			return root.Schema.Properties
+		}
+	}
+	return nil
+}
+
+// resourceAccessor renders the read of one output property off a typed
+// resource. The accessor is the one the SDK generator emitted for that
+// property rather than a fresh snake_case of the wire name, because the two
+// disagree whenever names collide or a property lands on a reserved method.
+// `id` and `urn` fall back to the engine's own accessors, which is what PCL
+// means by them unless the schema declares a property of that name — the
+// binder lets the schema property win, so the accessor map is consulted
+// first.
+func (g *programGenerator) resourceAccessor(res string, props []*schema.Property, name string) string {
+	if accessor, ok := outputAccessorNames(props)[name]; ok {
+		return fmt.Sprintf("%s.%s().cast::<pulumi::PropertyValue>()", res, accessor)
+	}
+	switch name {
+	case "urn":
+		return res + ".urn().cast::<pulumi::PropertyValue>()"
+	case "id":
+		return res + ".id().cast::<pulumi::PropertyValue>()"
+	}
+	return fmt.Sprintf("%s.%s().cast::<pulumi::PropertyValue>()", res, fieldName(name))
+}
+
 // resourceAttr renders an attribute access chain on a resource expression.
-func (g *programGenerator) resourceAttr(res string, rest hcl.Traversal) string {
+func (g *programGenerator) resourceAttr(res string, props []*schema.Property, rest hcl.Traversal) string {
 	attr, ok := rest[0].(hcl.TraverseAttr)
 	if !ok {
 		return res + ".urn().cast::<pulumi::PropertyValue>()"
 	}
-	var base string
-	switch attr.Name {
-	case "urn":
-		base = res + ".urn().cast::<pulumi::PropertyValue>()"
-	case "id":
-		base = res + ".id().cast::<pulumi::PropertyValue>()"
-	default:
-		base = fmt.Sprintf("%s.%s().cast::<pulumi::PropertyValue>()", res, fieldName(attr.Name))
-	}
-	return g.traversalChain(base, rest[1:])
+	return g.traversalChain(g.resourceAccessor(res, props, attr.Name), rest[1:])
 }
 
 // rangedInstanceKey renders access to an instance selected by a static
@@ -1849,7 +2002,7 @@ func (g *programGenerator) expr(expr model.Expression) string {
 				name := g.refVar(scope.RootName)
 				if g.rangedVars[name] && len(scope.Traversal) == 1 && len(expr.Traversal) > 0 {
 					inst := g.rangedInstance(name, idx.Key, expr.SyntaxNode().Range())
-					return g.resourceAttr(inst, expr.Traversal)
+					return g.resourceAttr(inst, resourceOutputProps(scope), expr.Traversal)
 				}
 			}
 		}
@@ -1955,14 +2108,20 @@ func (g *programGenerator) scopeTraversalExpr(expr *model.ScopeTraversalExpressi
 		}
 		var base string
 		switch {
-		case attr.Name == "urn":
-			base = res + ".urn().cast::<pulumi::PropertyValue>()"
-		case attr.Name == "id":
-			base = res + ".id().cast::<pulumi::PropertyValue>()"
+		// A builtin, dynamic or read resource binds a bare pulumi::Resource,
+		// which has no generated accessors: everything but the engine's own
+		// urn and id is read dynamically by wire name.
 		case g.builtinVars[g.refVar(expr.RootName)]:
-			base = fmt.Sprintf("%s.output(%s)", res, rustString(attr.Name))
+			switch attr.Name {
+			case "urn":
+				base = res + ".urn().cast::<pulumi::PropertyValue>()"
+			case "id":
+				base = res + ".id().cast::<pulumi::PropertyValue>()"
+			default:
+				base = fmt.Sprintf("%s.output(%s)", res, rustString(attr.Name))
+			}
 		default:
-			base = fmt.Sprintf("%s.%s().cast::<pulumi::PropertyValue>()", res, fieldName(attr.Name))
+			base = g.resourceAccessor(res, resourceOutputProps(expr), attr.Name)
 		}
 		_ = root
 		return g.traversalChain(base, rest[1:])
@@ -2075,15 +2234,24 @@ func (g *programGenerator) unaryOpExpr(expr *model.UnaryOpExpression) string {
 
 func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) string {
 	subject := expr.SyntaxNode().Range()
+	// arg and argExpr are the only ways to reach an argument: a malformed
+	// program has to leave through a diagnostic, not by panicking the
+	// language host mid-GenerateProject.
 	arg := func(i int) string {
 		if i < len(expr.Args) {
 			return g.expr(expr.Args[i])
 		}
 		return "pulumi::pv::null()"
 	}
+	argExpr := func(i int) model.Expression {
+		if i < len(expr.Args) {
+			return expr.Args[i]
+		}
+		return nil
+	}
 	switch expr.Name {
 	case pcl.IntrinsicConvert:
-		inner := g.expr(expr.Args[0])
+		inner := arg(0)
 		switch conversionKind(expr.Type()) {
 		case "number":
 			return fmt.Sprintf("pulumi::ops::to_number(%s)", inner)
@@ -2098,7 +2266,7 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 	case pcl.Invoke:
 		return g.invokeExpr(expr)
 	case "getOutput":
-		if scope, ok := expr.Args[0].(*model.ScopeTraversalExpression); ok && len(scope.Parts) > 0 {
+		if scope, ok := argExpr(0).(*model.ScopeTraversalExpression); ok && len(scope.Parts) > 0 {
 			if _, isRes := scope.Parts[0].(*pcl.Resource); isRes {
 				return fmt.Sprintf("%s.get_output(%s)", g.refVar(scope.RootName), arg(1))
 			}
@@ -2130,7 +2298,7 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 	case "remoteArchive":
 		return fmt.Sprintf("pulumi::pv::remote_archive(%s)", arg(0))
 	case "assetArchive":
-		if object, ok := expr.Args[0].(*model.ObjectConsExpression); ok {
+		if object, ok := argExpr(0).(*model.ObjectConsExpression); ok {
 			var elems []string
 			for _, item := range object.Items {
 				key, ok := keyString(item.Key)
@@ -2168,12 +2336,12 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 	case "entries":
 		return fmt.Sprintf("pulumi::pv::entries(%s)", arg(0))
 	case "pulumiResourceName":
-		if res, ok := g.resourceRef(expr.Args[0]); ok {
+		if res, ok := g.resourceRef(argExpr(0)); ok {
 			return fmt.Sprintf("pulumi::pv::urn_name(%s.urn().cast::<pulumi::PropertyValue>())", res)
 		}
 		return fmt.Sprintf("pulumi::pv::urn_name(%s)", arg(0))
 	case "pulumiResourceType":
-		if res, ok := g.resourceRef(expr.Args[0]); ok {
+		if res, ok := g.resourceRef(argExpr(0)); ok {
 			return fmt.Sprintf("pulumi::pv::urn_type(%s.urn().cast::<pulumi::PropertyValue>())", res)
 		}
 		return fmt.Sprintf("pulumi::pv::urn_type(%s)", arg(0))
@@ -2187,7 +2355,7 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 			hadSaved = true
 		}
 		g.scopeVars["error"] = "__error"
-		recovery := g.expr(expr.Args[1])
+		recovery := arg(1)
 		if hadSaved {
 			g.scopeVars["error"] = saved
 		} else {
@@ -2206,7 +2374,7 @@ func (g *programGenerator) functionCallExpr(expr *model.FunctionCallExpression) 
 	case "can":
 		saved := g.fallible
 		g.fallible = true
-		a := g.expr(expr.Args[0])
+		a := arg(0)
 		g.fallible = saved
 		return fmt.Sprintf("pulumi::ops::can(%s)", a)
 	case "singleOrNone":
@@ -2392,7 +2560,11 @@ func (g *programGenerator) captureClones(bodies []string) string {
 // invokeExpr renders a typed invoke call.
 func (g *programGenerator) invokeExpr(expr *model.FunctionCallExpression) string {
 	subject := expr.SyntaxNode().Range()
-	token, ok := literalString(expr.Args[0])
+	var tokenExpr model.Expression
+	if len(expr.Args) > 0 {
+		tokenExpr = expr.Args[0]
+	}
+	token, ok := literalString(tokenExpr)
 	if !ok {
 		g.errorf(subject, "invoke token must be a literal string")
 		return "pulumi::pv::null()"
@@ -2611,31 +2783,26 @@ func (g *programGenerator) plainPropertyValue(expr model.Expression) (string, bo
 func conversionKind(t model.Type) string {
 	t = model.ResolveOutputs(t)
 	if u, ok := t.(*model.UnionType); ok {
-		// Pick the strongest primitive arm for coercion purposes.
-		hasNumber, hasInt, hasBool, hasString := false, false, false, false
+		// A union destination names several representations, not one to
+		// coerce to: converting `string | number` to a number would turn the
+		// literal "1e5" the program wrote into 100000.0 and hand the provider
+		// a number. The exception is an optional type, which the model spells
+		// as a union with none, so a kind is picked only when every arm that
+		// is not none agrees on it.
+		kind := ""
 		for _, e := range u.ElementTypes {
-			switch model.ResolveOutputs(e) {
-			case model.NumberType:
-				hasNumber = true
-			case model.IntType:
-				hasInt = true
-			case model.BoolType:
-				hasBool = true
-			case model.StringType:
-				hasString = true
+			if e == model.NoneType {
+				continue
+			}
+			k := conversionKind(e)
+			if kind == "" {
+				kind = k
+			}
+			if k == "" || k != kind {
+				return ""
 			}
 		}
-		switch {
-		case hasNumber:
-			return "number"
-		case hasInt:
-			return "int"
-		case hasBool:
-			return "bool"
-		case hasString:
-			return "string"
-		}
-		return ""
+		return kind
 	}
 	switch t {
 	case model.NumberType:
@@ -2681,7 +2848,7 @@ func keyString(expr model.Expression) (string, bool) {
 }
 
 func literalBool(expr model.Expression) (bool, bool) {
-	if lit, ok := expr.(*model.LiteralValueExpression); ok && lit.Value.Type() == cty.Bool {
+	if lit, ok := unwrapConvert(expr).(*model.LiteralValueExpression); ok && lit.Value.Type() == cty.Bool {
 		return lit.Value.True(), true
 	}
 	return false, false

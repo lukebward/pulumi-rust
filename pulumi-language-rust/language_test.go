@@ -126,8 +126,8 @@ func TestLanguage(t *testing.T) {
 		SnapshotDirectory:    snapshotDir,
 		CoreSdkDirectory:     "../sdk/rust/pulumi",
 		CoreSdkVersion:       "0.1.0",
-		PolicyPackDirectory: "./testdata/policies",
-		ProvidersDirectory:  "./testdata/providers",
+		PolicyPackDirectory:  "./testdata/policies",
+		ProvidersDirectory:   "./testdata/providers",
 		SnapshotEdits: []*testingrpc.PrepareLanguageTestsRequest_Replacement{
 			{
 				Pattern:     rootDir + "/artifacts",

@@ -22,15 +22,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	pbempty "google.golang.org/protobuf/types/known/emptypb"
 
 	"google.golang.org/grpc"
@@ -115,8 +118,28 @@ func newLanguageHost(engineAddress string) pulumirpc.LanguageRuntimeServer {
 // sharedTargetDir returns a stable cargo target directory shared by every
 // build the host runs, so dependencies compile once per machine, not once
 // per generated project.
+//
+// It lives under the user's cache directory rather than the system temp
+// directory. A predictable path in a world-writable /tmp is another local
+// user's to claim: they can pre-create it, or point a symlink at a directory
+// they control, and cargo will then write — and later execute — build-script
+// binaries from a location they can rewrite at will.
+//
+// Returns "" when no private cache directory can be located, in which case
+// the caller leaves CARGO_TARGET_DIR unset and cargo falls back to each
+// project's own `target/`. That costs a recompile per project but is never
+// unsafe; sharing is a performance measure, not a correctness one.
 func sharedTargetDir() string {
-	return filepath.Join(os.TempDir(), fmt.Sprintf("pulumi-language-rust-target-%d", os.Getuid()))
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Join(cache, "pulumi-language-rust", "target")
+	// 0o700 so the directory is ours even if the cache root is permissive.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return ""
+	}
+	return dir
 }
 
 func cargoCommand(ctx context.Context, dir string, extraEnv []string, args ...string) (*exec.Cmd, error) {
@@ -127,7 +150,6 @@ func cargoCommand(ctx context.Context, dir string, extraEnv []string, args ...st
 	cmd := exec.CommandContext(ctx, cargo, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
-		"CARGO_TARGET_DIR="+sharedTargetDir(),
 		// Debug info dominates build-artifact size; conformance runs build
 		// hundreds of crates, so keep artifacts lean.
 		"CARGO_PROFILE_DEV_DEBUG=false",
@@ -135,6 +157,9 @@ func cargoCommand(ctx context.Context, dir string, extraEnv []string, args ...st
 		// buy nothing: each generated project is built once.
 		"CARGO_INCREMENTAL=0",
 	)
+	if target := sharedTargetDir(); target != "" {
+		cmd.Env = append(cmd.Env, "CARGO_TARGET_DIR="+target)
+	}
 	cmd.Env = append(cmd.Env, extraEnv...)
 	return cmd, nil
 }
@@ -199,12 +224,11 @@ func (host *rustLanguageHost) Run(ctx context.Context, req *pulumirpc.RunRequest
 	return &pulumirpc.RunResponse{}, nil
 }
 
+// asExitError reports whether err is, or wraps, a process exit failure. A
+// bare type assertion would miss anything the error has been wrapped in on
+// its way up, so ask errors.As.
 func asExitError(err error, target **exec.ExitError) bool {
-	if ee, ok := err.(*exec.ExitError); ok {
-		*target = ee
-		return true
-	}
-	return false
+	return errors.As(err, target)
 }
 
 func constructRunEnv(req *pulumirpc.RunRequest, engineAddress string) ([]string, error) {
@@ -530,6 +554,69 @@ func buildPluginBinary(
 	return exe, nil
 }
 
+// cargoManifest is a decoded Cargo.toml.
+//
+// The manifest is read as the TOML it is rather than scanned line by line.
+// Cargo accepts far more shapes than a scanner can follow — `path="../sdk"`
+// without the spaces, a `[dependencies.pulumi_aws]` sub-table, a
+// `[target.'cfg(unix)'.dependencies]` table, an inline table spread over
+// several lines — and every shape a scanner misses is a dependency that
+// silently disappears. When that dependency is a provider SDK the engine
+// never installs the plugin, and the update fails much later with an
+// unrelated "no resource plugin found".
+type cargoManifest map[string]any
+
+// readCargoManifest decodes dir/Cargo.toml.
+func readCargoManifest(dir string) (cargoManifest, error) {
+	path := filepath.Join(dir, "Cargo.toml")
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	var manifest cargoManifest
+	if _, err := toml.Decode(string(contents), &manifest); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	return manifest, nil
+}
+
+// table walks a chain of nested tables, returning nil if any step is absent
+// or is not a table. The nil is a usable empty map, so callers need not
+// check it before indexing.
+func (m cargoManifest) table(path ...string) map[string]any {
+	current := map[string]any(m)
+	for _, step := range path {
+		next, ok := current[step].(map[string]any)
+		if !ok {
+			return nil
+		}
+		current = next
+	}
+	return current
+}
+
+// dependencyTables returns every table whose entries name a dependency of
+// the crate itself: `[dependencies]`, its per-target forms under
+// `[target.<cfg>.dependencies]`, and `[workspace.dependencies]` — the last
+// because that is where a member's `foo = { workspace = true }` entry
+// actually resolves. dev- and build-dependencies are deliberately excluded:
+// neither is linked into the program the engine runs.
+func (m cargoManifest) dependencyTables() []map[string]any {
+	tables := []map[string]any{
+		m.table("dependencies"),
+		m.table("workspace", "dependencies"),
+	}
+	targets := make([]string, 0, len(m.table("target")))
+	for cfg := range m.table("target") {
+		targets = append(targets, cfg)
+	}
+	sort.Strings(targets)
+	for _, cfg := range targets {
+		tables = append(tables, m.table("target", cfg, "dependencies"))
+	}
+	return tables
+}
+
 // pathDependency describes one local path dependency of a program.
 type pathDependency struct {
 	// The Cargo dependency key (crate name).
@@ -539,48 +626,35 @@ type pathDependency struct {
 }
 
 // readPathDependencies parses a Cargo.toml and returns its local path
-// dependencies.
+// dependencies, ordered by crate name so the answer does not depend on TOML
+// table iteration order.
 func readPathDependencies(programDir string) ([]pathDependency, error) {
-	manifest := filepath.Join(programDir, "Cargo.toml")
-	contents, err := os.ReadFile(manifest)
+	manifest, err := readCargoManifest(programDir)
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", manifest, err)
+		return nil, err
 	}
 	var deps []pathDependency
-	inDeps := false
-	for _, line := range strings.Split(string(contents), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") {
-			inDeps = trimmed == "[dependencies]"
-			continue
+	seen := map[string]bool{}
+	for _, table := range manifest.dependencyTables() {
+		for crate, spec := range table {
+			// A bare `crate = "1.0"` is a registry version requirement, not a
+			// local path; only the table form can carry one.
+			fields, ok := spec.(map[string]any)
+			if !ok || seen[crate] {
+				continue
+			}
+			depPath, ok := fields["path"].(string)
+			if !ok || depPath == "" {
+				continue
+			}
+			seen[crate] = true
+			if !filepath.IsAbs(depPath) {
+				depPath = filepath.Join(programDir, depPath)
+			}
+			deps = append(deps, pathDependency{crateName: crate, path: depPath})
 		}
-		if !inDeps || trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		name, rest, found := strings.Cut(trimmed, "=")
-		if !found {
-			continue
-		}
-		name = strings.TrimSpace(name)
-		idx := strings.Index(rest, "path =")
-		if idx < 0 {
-			continue
-		}
-		pathPart := rest[idx+len("path ="):]
-		pathPart = strings.TrimSpace(pathPart)
-		if !strings.HasPrefix(pathPart, "\"") {
-			continue
-		}
-		end := strings.Index(pathPart[1:], "\"")
-		if end < 0 {
-			continue
-		}
-		depPath := pathPart[1 : 1+end]
-		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Join(programDir, depPath)
-		}
-		deps = append(deps, pathDependency{crateName: name, path: depPath})
 	}
+	sort.Slice(deps, func(i, j int) bool { return deps[i].crateName < deps[j].crateName })
 	return deps, nil
 }
 
@@ -615,50 +689,27 @@ func readPluginJSON(dir string) (*pulumiPluginJSON, error) {
 	return &pj, nil
 }
 
-// readCrateVersion reads the version of the crate at dir from its manifest.
-func readCrateVersion(dir string) (string, error) {
-	contents, err := os.ReadFile(filepath.Join(dir, "Cargo.toml"))
+// readPackageField reads a string field of the `[package]` table of the
+// crate at dir.
+func readPackageField(dir, field string) (string, error) {
+	manifest, err := readCargoManifest(dir)
 	if err != nil {
 		return "", err
 	}
-	inPackage := false
-	for _, line := range strings.Split(string(contents), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") {
-			inPackage = trimmed == "[package]"
-			continue
-		}
-		if !inPackage {
-			continue
-		}
-		if name, rest, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(name) == "version" {
-			return strings.Trim(strings.TrimSpace(rest), "\""), nil
-		}
+	if value, ok := manifest.table("package")[field].(string); ok && value != "" {
+		return value, nil
 	}
-	return "", fmt.Errorf("no version in %s/Cargo.toml", dir)
+	return "", fmt.Errorf("no %s in %s", field, filepath.Join(dir, "Cargo.toml"))
+}
+
+// readCrateVersion reads the version of the crate at dir from its manifest.
+func readCrateVersion(dir string) (string, error) {
+	return readPackageField(dir, "version")
 }
 
 // readCrateName reads the crate name at dir from its manifest.
 func readCrateName(dir string) (string, error) {
-	contents, err := os.ReadFile(filepath.Join(dir, "Cargo.toml"))
-	if err != nil {
-		return "", err
-	}
-	inPackage := false
-	for _, line := range strings.Split(string(contents), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") {
-			inPackage = trimmed == "[package]"
-			continue
-		}
-		if !inPackage {
-			continue
-		}
-		if name, rest, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(name) == "name" {
-			return strings.Trim(strings.TrimSpace(rest), "\""), nil
-		}
-	}
-	return "", fmt.Errorf("no name in %s/Cargo.toml", dir)
+	return readPackageField(dir, "name")
 }
 
 func (host *rustLanguageHost) GetProgramDependencies(

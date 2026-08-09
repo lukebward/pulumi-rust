@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -44,6 +45,9 @@ func GeneratePackage(
 	files["Cargo.toml"] = g.genCargoToml(localDependencies)
 	files["pulumi-plugin.json"] = g.genPulumiPluginJSON()
 	files["src/lib.rs"] = g.genLib(tool)
+	if len(g.errs) > 0 {
+		return nil, fmt.Errorf("generating the %s SDK: %w", pkg.Name, errors.Join(g.errs...))
+	}
 	for p, contents := range extraFiles {
 		files[p] = contents
 	}
@@ -58,6 +62,19 @@ type pkgGenerator struct {
 	// Object tokens that sit on a containment cycle, grouped by cycle.
 	// See findRecursiveTypes.
 	cycleGroup map[string]int
+	// Failures collected while emitting. The writers return no error of
+	// their own, so they record here and GeneratePackage reports the lot
+	// rather than handing back a crate that quietly does the wrong thing.
+	errs []error
+	// Set when some property defaults to an environment variable, so the
+	// helpers that read one are emitted only into the crates that use them.
+	needsEnvHelpers bool
+}
+
+// fail records a generation failure. Emitting continues so one run reports
+// every problem rather than the first.
+func (g *pkgGenerator) fail(err error) {
+	g.errs = append(g.errs, err)
 }
 
 // version returns the package version string, or a default.
@@ -434,6 +451,10 @@ type inputField struct {
 	// defaultValue, when non-empty, is a PropertyValue expression used when
 	// the input is unset (schema default).
 	defaultValue string
+	// defaultEnv, when non-empty, is an expression yielding
+	// Option<PropertyValue> read from the environment. It takes precedence
+	// over defaultValue, matching every other Pulumi SDK.
+	defaultEnv string
 }
 
 // fieldNamesFor assigns each property a unique Rust field name. Distinct
@@ -478,9 +499,6 @@ func (g *pkgGenerator) inputFieldFor(owner string, p *schema.Property, qualify s
 		wireName: p.Name,
 		secret:   p.Secret,
 	}
-	if p.DefaultValue != nil && p.DefaultValue.Value != nil {
-		f.defaultValue = plainConstValue(p.DefaultValue.Value)
-	}
 	t := p.Type
 	if opt, ok := t.(*schema.OptionalType); ok {
 		t = opt.ElementType
@@ -489,6 +507,21 @@ func (g *pkgGenerator) inputFieldFor(owner string, p *schema.Property, qualify s
 	}
 	if in, ok := t.(*schema.InputType); ok {
 		t = in.ElementType
+	}
+
+	if dv := p.DefaultValue; dv != nil {
+		if dv.Value != nil {
+			value, err := plainConstValue(dv.Value)
+			if err != nil {
+				where := fmt.Sprintf("input %q", p.Name)
+				if owner != "" {
+					where = fmt.Sprintf("%s of %s", where, owner)
+				}
+				g.fail(fmt.Errorf("%s: %w", where, err))
+			}
+			f.defaultValue = value
+		}
+		f.defaultEnv = g.envDefaultExpr(t, dv.Environment)
 	}
 
 	plain := p.Plain
@@ -606,15 +639,27 @@ func (g *pkgGenerator) writeArgsStruct(
 			// Schema-secret properties always marshal as secrets.
 			conv = "pulumi::pv::secret(" + conv + ")"
 		}
+		// Wrap a PropertyValue expression the way an explicitly supplied
+		// value would be wrapped, so a default travels as the same shape.
+		asInput := func(value string) string {
+			out := fmt.Sprintf("pulumi::Output::from_value(%s)", value)
+			if f.secret && wrapSecrets {
+				out = "pulumi::pv::secret(" + out + ")"
+			}
+			return out
+		}
 		fmt.Fprintf(w, "        if let Some(v) = self.%s {\n", f.rustName)
 		fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, conv)
+		// The environment is consulted before the static default: an
+		// operator who exports AWS_REGION means it to win over the value
+		// baked into the schema.
+		if f.defaultEnv != "" {
+			fmt.Fprintf(w, "        } else if let Some(v) = %s {\n", f.defaultEnv)
+			fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, asInput("v"))
+		}
 		if f.defaultValue != "" {
 			fmt.Fprintf(w, "        } else {\n")
-			def := fmt.Sprintf("pulumi::Output::from_value(%s)", f.defaultValue)
-			if f.secret && wrapSecrets {
-				def = "pulumi::pv::secret(" + def + ")"
-			}
-			fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, def)
+			fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, asInput(f.defaultValue))
 		}
 		fmt.Fprintf(w, "        }\n")
 	}
@@ -651,27 +696,169 @@ func (g *pkgGenerator) writeOutputStruct(
 	fmt.Fprintf(w, "}\n\n")
 }
 
+// envHelpersModule is emitted into a crate whose schema declares an
+// environment-variable default. It mirrors the equivalent helpers in the Go,
+// Python and Node SDKs: probe the named variables in order and take the
+// first one that is set, so `AWS_REGION` fills in a provider's `region`
+// without the program repeating it.
+const envHelpersModule = `#[doc(hidden)]
+pub mod internal {
+    /// The value of the first of names that is set, if any. A variable set
+    /// to the empty string counts as set, matching the other SDKs.
+    pub fn env_var(names: &[&str]) -> Option<std::string::String> {
+        names.iter().find_map(|name| std::env::var(name).ok())
+    }
+
+    pub fn env_string(names: &[&str]) -> Option<pulumi::PropertyValue> {
+        env_var(names).map(pulumi::PropertyValue::String)
+    }
+
+    pub fn env_bool(names: &[&str]) -> Option<pulumi::PropertyValue> {
+        // The spellings Go's strconv.ParseBool accepts, which is what the
+        // other SDKs settled on.
+        match env_var(names)?.as_str() {
+            "1" | "t" | "T" | "true" | "TRUE" | "True" => Some(pulumi::PropertyValue::Bool(true)),
+            "0" | "f" | "F" | "false" | "FALSE" | "False" => Some(pulumi::PropertyValue::Bool(false)),
+            _ => None,
+        }
+    }
+
+    pub fn env_int(names: &[&str]) -> Option<pulumi::PropertyValue> {
+        let parsed = env_var(names)?.parse::<i64>().ok()?;
+        Some(pulumi::PropertyValue::Number(parsed as f64))
+    }
+
+    pub fn env_number(names: &[&str]) -> Option<pulumi::PropertyValue> {
+        let parsed = env_var(names)?.parse::<f64>().ok()?;
+        Some(pulumi::PropertyValue::Number(parsed))
+    }
+}
+`
+
+// envDefaultExpr renders the Option<PropertyValue> expression that reads a
+// property's default out of the environment, or "" when the property has no
+// environment default or has a type no environment variable can carry — a
+// string is the only thing the process environment holds, so an object or a
+// collection has nothing sensible to decode into and is left alone.
+func (g *pkgGenerator) envDefaultExpr(t schema.Type, environment []string) string {
+	if len(environment) == 0 {
+		return ""
+	}
+	var helper string
+	switch underlyingPrimitive(t) {
+	case schema.BoolType:
+		helper = "env_bool"
+	case schema.IntType:
+		helper = "env_int"
+	case schema.NumberType:
+		helper = "env_number"
+	case schema.StringType:
+		helper = "env_string"
+	default:
+		return ""
+	}
+	names := make([]string, len(environment))
+	for i, name := range environment {
+		names[i] = strconv.Quote(name)
+	}
+	g.needsEnvHelpers = true
+	return fmt.Sprintf("crate::internal::%s(&[%s])", helper, strings.Join(names, ", "))
+}
+
+// underlyingPrimitive looks through the wrappers that do not change what a
+// value is on the wire and reports the underlying primitive type, or nil.
+func underlyingPrimitive(t schema.Type) schema.Type {
+	switch t := t.(type) {
+	case *schema.OptionalType:
+		return underlyingPrimitive(t.ElementType)
+	case *schema.InputType:
+		return underlyingPrimitive(t.ElementType)
+	case *schema.EnumType:
+		return underlyingPrimitive(t.ElementType)
+	case *schema.UnionType:
+		// A union's default is bound against whichever member accepts it;
+		// the default type is the one the schema nominates.
+		if t.DefaultType != nil {
+			return underlyingPrimitive(t.DefaultType)
+		}
+		return nil
+	}
+	switch t {
+	case schema.BoolType, schema.IntType, schema.NumberType, schema.StringType:
+		return t
+	}
+	return nil
+}
+
 // plainConstValue renders a schema constant as a PropertyValue expression.
-func plainConstValue(v any) string {
+//
+// An unrecognised constant is an error rather than an empty string: the
+// caller reads "no expression" as "this property has no default", so a shape
+// that falls off the end of this switch would drop a declared default on the
+// floor and leave the provider to fail at runtime over a value the schema
+// said was always there.
+func plainConstValue(v any) (string, error) {
+	number := func(literal string) string {
+		return fmt.Sprintf("pulumi::PropertyValue::Number(%s)", literal)
+	}
+	integer := func(i int64) string {
+		// Not routed through formatFloat: past 2^53 that would round, and
+		// silently shipping a different number is what this function exists
+		// to avoid.
+		return number(strconv.FormatInt(i, 10) + ".0")
+	}
 	switch v := v.(type) {
 	case bool:
-		return fmt.Sprintf("pulumi::PropertyValue::Bool(%v)", v)
+		return fmt.Sprintf("pulumi::PropertyValue::Bool(%v)", v), nil
 	case int:
-		return fmt.Sprintf("pulumi::PropertyValue::Number(%v.0)", v)
+		return integer(int64(v)), nil
 	case int32:
-		return fmt.Sprintf("pulumi::PropertyValue::Number(%v.0)", v)
+		return integer(int64(v)), nil
 	case int64:
-		return fmt.Sprintf("pulumi::PropertyValue::Number(%v.0)", v)
+		return integer(v), nil
+	case float32:
+		return number(formatFloat(float64(v))), nil
 	case float64:
-		s := strconv.FormatFloat(v, 'g', -1, 64)
-		if !strings.ContainsAny(s, ".eE") {
-			s += ".0"
+		return number(formatFloat(v)), nil
+	case json.Number:
+		// A schema decoded with json.Decoder.UseNumber keeps its numbers as
+		// text rather than as float64.
+		f, err := v.Float64()
+		if err != nil {
+			return "", fmt.Errorf("default value %s is not a number: %w", v.String(), err)
 		}
-		return fmt.Sprintf("pulumi::PropertyValue::Number(%s)", s)
+		return number(formatFloat(f)), nil
 	case string:
-		return fmt.Sprintf("pulumi::PropertyValue::String(%s.to_string())", rustString(v))
+		return fmt.Sprintf("pulumi::PropertyValue::String(%s.to_string())", rustString(v)), nil
+	case []any:
+		elements := make([]string, len(v))
+		for i, e := range v {
+			rendered, err := plainConstValue(e)
+			if err != nil {
+				return "", fmt.Errorf("in element %d: %w", i, err)
+			}
+			elements[i] = rendered
+		}
+		return fmt.Sprintf("pulumi::PropertyValue::Array(vec![%s])", strings.Join(elements, ", ")), nil
+	case map[string]any:
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		entries := make([]string, len(keys))
+		for i, k := range keys {
+			rendered, err := plainConstValue(v[k])
+			if err != nil {
+				return "", fmt.Errorf("in entry %q: %w", k, err)
+			}
+			entries[i] = fmt.Sprintf("(%s.to_string(), %s)", rustString(k), rendered)
+		}
+		return fmt.Sprintf(
+			"pulumi::PropertyValue::Object(std::collections::BTreeMap::from([%s]))",
+			strings.Join(entries, ", ")), nil
 	}
-	return ""
+	return "", fmt.Errorf("cannot render a default value of type %T", v)
 }
 
 // resourceTypeToken returns the registration token for a resource.
@@ -760,13 +947,13 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 
 	// Output property accessors. Schema-secret properties are always
 	// surfaced as secrets, even while the value is unknown.
-	accessorNames := fieldNamesFor(r.Properties)
+	// The same naming the program generator uses to *call* these accessors.
+	// The rule lived in both files and had to be kept in step by hand; a
+	// resource with an output named `id` made this emit `id_()` while the
+	// program emitted `id()`, which does not compile.
+	accessorNames := outputAccessorNames(r.Properties)
 	for _, p := range r.Properties {
 		accessor := accessorNames[p.Name]
-		switch accessor {
-		case "new", "urn", "id", "pulumi_resource":
-			accessor += "_"
-		}
 		typ := g.plainType(p.Type, qualify)
 		// A resource-typed output is a reference the engine must hydrate,
 		// even when the program only forwards it onward.
@@ -965,6 +1152,12 @@ func (g *pkgGenerator) genLib(tool string) []byte {
 			}
 		}
 		fmt.Fprintf(&w, "}\n")
+	}
+
+	// Emitted last, and only when something above referenced it, so a crate
+	// with no environment defaults is byte-for-byte what it was before.
+	if g.needsEnvHelpers {
+		fmt.Fprintf(&w, "\n%s", envHelpersModule)
 	}
 
 	return w.Bytes()
