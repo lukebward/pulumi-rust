@@ -181,6 +181,22 @@ impl<T: FromPropertyValue> FromPropertyValue for Option<T> {
     }
 }
 
+// A generated struct boxes a field that would otherwise make it infinitely
+// sized — a schema object type that contains itself, like Kubernetes'
+// `JSONSchemaProps.not`. The box is a Rust representation detail; on the
+// wire the value is the same object, so both conversions step through it.
+impl<T: IntoPropertyValue> IntoPropertyValue for Box<T> {
+    fn into_property_value(self) -> PropertyValue {
+        (*self).into_property_value()
+    }
+}
+
+impl<T: FromPropertyValue> FromPropertyValue for Box<T> {
+    fn from_property_value(v: PropertyValue) -> Result<Self> {
+        Ok(Box::new(T::from_property_value(v)?))
+    }
+}
+
 impl<T: IntoPropertyValue> IntoPropertyValue for Vec<T> {
     fn into_property_value(self) -> PropertyValue {
         PropertyValue::Array(self.into_iter().map(|v| v.into_property_value()).collect())

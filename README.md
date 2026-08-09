@@ -156,9 +156,8 @@ fn main() {
 
 ## Known limitations
 
-Two behaviors differ from the Go SDK, and the generator cannot yet express
-a self-referential object type. All three are recorded in
-[`docs/roadmap.md`](./docs/roadmap.md); none is covered by a conformance
+Two behaviors differ from the Go SDK, both recorded in
+[`docs/roadmap.md`](./docs/roadmap.md); neither is covered by a conformance
 test.
 
 ## License

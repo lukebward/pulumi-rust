@@ -38,6 +38,7 @@ func GeneratePackage(
 		outputTokens: map[string]*schema.ObjectType{},
 	}
 	g.discoverObjectTypes()
+	g.findRecursiveTypes()
 
 	files := map[string][]byte{}
 	files["Cargo.toml"] = g.genCargoToml(localDependencies)
@@ -54,6 +55,9 @@ type pkgGenerator struct {
 	// Object types reachable from resource/function inputs and outputs.
 	inputTokens  map[string]*schema.ObjectType
 	outputTokens map[string]*schema.ObjectType
+	// Object tokens that sit on a containment cycle, grouped by cycle.
+	// See findRecursiveTypes.
+	cycleGroup map[string]int
 }
 
 // version returns the package version string, or a default.
@@ -154,6 +158,158 @@ func (g *pkgGenerator) discoverObjectTypes() {
 	}
 }
 
+// directObject unwraps the wrappers that do not introduce a heap
+// allocation in the generated Rust — an optional or an input marker — and
+// reports the object type underneath, if any. `Vec` and `BTreeMap` are
+// deliberately not unwrapped: they are pointers to a separate allocation,
+// so a type reached through one does not contribute to its container's
+// size.
+func directObject(t schema.Type) (*schema.ObjectType, bool) {
+	switch t := t.(type) {
+	case *schema.OptionalType:
+		return directObject(t.ElementType)
+	case *schema.InputType:
+		return directObject(t.ElementType)
+	case *schema.ObjectType:
+		o := t
+		if o.IsInputShape() {
+			o = o.PlainShape
+		}
+		return o, true
+	}
+	return nil, false
+}
+
+// findRecursiveTypes locates object types that contain themselves — the
+// Kubernetes schema's `JSONSchemaProps.not`, for instance, whose type is
+// `JSONSchemaProps`. A Rust struct with such a field has no finite size, so
+// the field has to be boxed. Boxing every edge that lies on a cycle breaks
+// all of them, so the question a field asks is "does my type belong to the
+// same cycle as the struct declaring me?" — which is exactly "are we in the
+// same strongly connected component of the direct-containment graph".
+//
+// Populates g.cycleGroup with a component id per token, and only for
+// components that actually contain a cycle: a single object type that never
+// refers to itself is its own trivial component and is left out, so nothing
+// gets boxed unnecessarily.
+func (g *pkgGenerator) findRecursiveTypes() {
+	g.cycleGroup = map[string]int{}
+
+	// The direct-containment graph over every object type the SDK emits.
+	// Input and output shapes generate two Rust structs from the same
+	// schema properties, so one graph covers both.
+	objects := map[string]*schema.ObjectType{}
+	for token, t := range g.inputTokens {
+		objects[token] = t
+	}
+	for token, t := range g.outputTokens {
+		objects[token] = t
+	}
+	tokens := make([]string, 0, len(objects))
+	for token := range objects {
+		tokens = append(tokens, token)
+	}
+	sort.Strings(tokens)
+
+	edges := map[string][]string{}
+	for _, token := range tokens {
+		for _, p := range objects[token].Properties {
+			if o, ok := directObject(p.Type); ok {
+				if _, known := objects[o.Token]; known {
+					edges[token] = append(edges[token], o.Token)
+				}
+			}
+		}
+	}
+
+	// Tarjan's algorithm, iterating tokens in sorted order so component ids
+	// are stable across runs.
+	type state struct {
+		index, lowlink int
+		onStack        bool
+	}
+	states := map[string]*state{}
+	var stack []string
+	next := 1
+	group := 1
+
+	var strongConnect func(v string)
+	strongConnect = func(v string) {
+		s := &state{index: next, lowlink: next, onStack: true}
+		states[v] = s
+		next++
+		stack = append(stack, v)
+
+		for _, w := range edges[v] {
+			if ws, seen := states[w]; !seen {
+				strongConnect(w)
+				if states[w].lowlink < s.lowlink {
+					s.lowlink = states[w].lowlink
+				}
+			} else if ws.onStack && ws.index < s.lowlink {
+				s.lowlink = ws.index
+			}
+		}
+
+		if s.lowlink != s.index {
+			return
+		}
+		var component []string
+		for {
+			w := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			states[w].onStack = false
+			component = append(component, w)
+			if w == v {
+				break
+			}
+		}
+		// A one-token component is only a cycle if the token refers to
+		// itself; larger ones always are.
+		if len(component) == 1 {
+			selfRef := false
+			for _, w := range edges[v] {
+				if w == v {
+					selfRef = true
+					break
+				}
+			}
+			if !selfRef {
+				return
+			}
+		}
+		for _, w := range component {
+			g.cycleGroup[w] = group
+		}
+		group++
+	}
+
+	for _, token := range tokens {
+		if _, seen := states[token]; !seen {
+			strongConnect(token)
+		}
+	}
+}
+
+// closesCycle reports whether a field of type t, declared on the object
+// type `owner`, would make owner's generated struct infinitely sized. Such
+// a field is emitted boxed. An empty owner — a resource or function args
+// struct, which no object type can refer back to — never needs boxing.
+func (g *pkgGenerator) closesCycle(owner string, t schema.Type) bool {
+	if owner == "" {
+		return false
+	}
+	o, ok := directObject(t)
+	if !ok {
+		return false
+	}
+	ownerGroup, ok := g.cycleGroup[owner]
+	if !ok {
+		return false
+	}
+	return g.cycleGroup[o.Token] == ownerGroup
+}
+
 func (g *pkgGenerator) allResources() []*schema.Resource {
 	var resources []*schema.Resource
 	if g.pkg.Provider != nil {
@@ -242,6 +398,27 @@ func (g *pkgGenerator) plainType(t schema.Type, qualify string) string {
 	return "pulumi::PropertyValue"
 }
 
+// plainFieldType renders the type of one field of a plain output struct.
+// It is plainType, except that a field closing a containment cycle is
+// boxed — inside the Option, since it is the field's own size that has to
+// become finite.
+func (g *pkgGenerator) plainFieldType(owner string, t schema.Type, qualify string) string {
+	inner := t
+	optional := false
+	if o, ok := inner.(*schema.OptionalType); ok {
+		optional = true
+		inner = o.ElementType
+	}
+	rendered := g.plainType(inner, qualify)
+	if g.closesCycle(owner, inner) {
+		rendered = "std::boxed::Box<" + rendered + ">"
+	}
+	if optional {
+		rendered = "Option<" + rendered + ">"
+	}
+	return rendered
+}
+
 // inputField describes one generated args-struct field.
 type inputField struct {
 	rustName string
@@ -288,7 +465,10 @@ func isResourceRef(t schema.Type) bool {
 }
 
 // inputFieldFor computes the Rust representation of an input property.
-func (g *pkgGenerator) inputFieldFor(p *schema.Property, qualify string) inputField {
+// owner is the object-type token the field is declared on, or "" for a
+// resource or function args struct; it decides whether the field has to be
+// boxed to keep the struct finitely sized.
+func (g *pkgGenerator) inputFieldFor(owner string, p *schema.Property, qualify string) inputField {
 	f := inputField{
 		rustName: fieldName(p.Name),
 		wireName: p.Name,
@@ -315,6 +495,10 @@ func (g *pkgGenerator) inputFieldFor(p *schema.Property, qualify string) inputFi
 		}
 		f.typ = qualify + g.typeNameForToken(o.Token) + "Args"
 		f.conv = "%s.into_output()"
+		if g.closesCycle(owner, tt) {
+			f.typ = "std::boxed::Box<" + f.typ + ">"
+			f.conv = "(*%s).into_output()"
+		}
 		return f
 	case *schema.ArrayType:
 		if containsObject(tt.ElementType) {
@@ -372,13 +556,13 @@ func unwrapToObject(t schema.Type) (*schema.ObjectType, bool) {
 // wrapSecrets marks schema-secret properties as secrets on the wire; this
 // applies to resource/function inputs but not nested object types.
 func (g *pkgGenerator) writeArgsStruct(
-	w *bytes.Buffer, name string, props []*schema.Property, qualify string, wrapSecrets bool,
+	w *bytes.Buffer, owner, name string, props []*schema.Property, qualify string, wrapSecrets bool,
 ) {
 	names := fieldNamesFor(props)
 	fields := make([]inputField, len(props))
 	allOptional := true
 	for i, p := range props {
-		fields[i] = g.inputFieldFor(p, qualify)
+		fields[i] = g.inputFieldFor(owner, p, qualify)
 		fields[i].rustName = names[p.Name]
 		if !fields[i].optional {
 			allOptional = false
@@ -438,13 +622,13 @@ func (g *pkgGenerator) writeArgsStruct(
 
 // writeOutputStruct emits a plain output struct with FromPropertyValue.
 func (g *pkgGenerator) writeOutputStruct(
-	w *bytes.Buffer, name string, props []*schema.Property, qualify string,
+	w *bytes.Buffer, owner, name string, props []*schema.Property, qualify string,
 ) {
 	names := fieldNamesFor(props)
 	fmt.Fprintf(w, "#[derive(Clone, Debug)]\n")
 	fmt.Fprintf(w, "pub struct %s {\n", name)
 	for _, p := range props {
-		fmt.Fprintf(w, "    pub %s: %s,\n", names[p.Name], g.plainType(p.Type, qualify))
+		fmt.Fprintf(w, "    pub %s: %s,\n", names[p.Name], g.plainFieldType(owner, p.Type, qualify))
 	}
 	fmt.Fprintf(w, "}\n\n")
 
@@ -504,7 +688,7 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 	name := g.resourceStructName(r)
 	argsName := name + "Args"
 
-	g.writeArgsStruct(w, argsName, r.InputProperties, qualify, true)
+	g.writeArgsStruct(w, "", argsName, r.InputProperties, qualify, true)
 
 	fmt.Fprintf(w, "#[derive(Clone)]\n")
 	fmt.Fprintf(w, "pub struct %s {\n", name)
@@ -600,7 +784,7 @@ func (g *pkgGenerator) writeFunction(w *bytes.Buffer, f *schema.Function, qualif
 	if f.Inputs != nil {
 		props = f.Inputs.Properties
 	}
-	g.writeArgsStruct(w, argsName, props, qualify, true)
+	g.writeArgsStruct(w, "", argsName, props, qualify, true)
 
 	resultType := "pulumi::PropertyValue"
 	scalarReturn := false
@@ -756,11 +940,11 @@ func (g *pkgGenerator) genLib(tool string) []byte {
 		qualify := "crate::types::"
 		for _, token := range inputNames {
 			t := g.inputTokens[token]
-			g.writeArgsStruct(&body, g.typeNameForToken(token)+"Args", t.Properties, qualify, false)
+			g.writeArgsStruct(&body, token, g.typeNameForToken(token)+"Args", t.Properties, qualify, false)
 		}
 		for _, token := range outputNames {
 			t := g.outputTokens[token]
-			g.writeOutputStruct(&body, g.typeNameForToken(token), t.Properties, qualify)
+			g.writeOutputStruct(&body, token, g.typeNameForToken(token), t.Properties, qualify)
 		}
 		fmt.Fprintf(&w, "pub mod types {\n")
 		for _, line := range strings.Split(strings.TrimRight(body.String(), "\n"), "\n") {
