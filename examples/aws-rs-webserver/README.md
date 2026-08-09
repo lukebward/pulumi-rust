@@ -49,11 +49,11 @@ and [`aws-go-webserver`](https://github.com/pulumi/examples/tree/master/aws-go-w
     ```
 
     The `pulumi` crate is not published to crates.io yet, so edit the
-    dependency in the generated `sdks/aws/Cargo.toml` to point at this
+    dependency in the generated `sdks/aws/rust/Cargo.toml` to point at this
     repository's copy of the core SDK:
 
     ```toml
-    pulumi = { path = "../../../../sdk/rust/pulumi" }
+    pulumi = { path = "../../../../../sdk/rust/pulumi" }
     ```
 
 5.  Preview and deploy:

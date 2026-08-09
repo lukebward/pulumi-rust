@@ -1,0 +1,3 @@
+name: azure-rs-functions
+runtime: rust
+description: Deploy an HTTP-triggered Azure Function App on a Consumption plan.

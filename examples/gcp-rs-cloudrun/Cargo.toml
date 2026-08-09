@@ -1,0 +1,16 @@
+[package]
+name = "gcp-rs-cloudrun"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../sdk/rust/pulumi" }
+# Generate this SDK before building:
+#   pulumi package gen-sdk gcp@9.33.0 --language rust --out ./sdks/gcp
+pulumi_gcp = { path = "./sdks/gcp/rust" }
+
+# Keep the generated SDK out of this workspace: each generated crate
+# declares its own [workspace], and a path dependency of a workspace root
+# would otherwise be adopted as a member.
+[workspace]
+exclude = ["sdks"]

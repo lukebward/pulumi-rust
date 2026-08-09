@@ -1,0 +1,16 @@
+[package]
+name = "kubernetes-rs-guestbook"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../sdk/rust/pulumi" }
+# Generate this SDK first:
+#   pulumi package gen-sdk kubernetes@4.33.0 --language rust --out ./sdks/kubernetes
+pulumi_kubernetes = { path = "./sdks/kubernetes/rust" }
+
+# Keep the generated SDK out of this workspace: each generated crate
+# declares its own [workspace], and a path dependency of a workspace root
+# would otherwise be adopted as a member.
+[workspace]
+exclude = ["sdks"]

@@ -1,0 +1,3 @@
+name: docker-rs-multi-container-app
+runtime: rust
+description: A Redis backend and an nginx frontend on a user-defined Docker network.

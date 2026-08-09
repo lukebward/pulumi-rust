@@ -1,0 +1,3 @@
+name: azure-rs-webserver
+runtime: rust
+description: A tiny HTTP server running on an Azure Linux virtual machine.

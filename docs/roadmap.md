@@ -34,6 +34,19 @@ exercised by any conformance schema. Both are now fixed.
   `snakeCase` now drops runes that cannot appear in an identifier, while
   the wire name is preserved separately.
 
+One cosmetic defect is recorded but deliberately not fixed. `snakeCase`
+starts a new word only at an uppercase letter whose predecessor is
+lowercase, so a capital following a digit or another capital does not
+separate: `ipv4Address` becomes `ipv4address` rather than `ipv4_address`,
+and `publicIPAllocationMethod` becomes `public_ipallocation_method`. Python
+and Go both word-break there, so the names a Rust user sees diverge from
+every other Pulumi SDK for exactly those properties. The rule is at least
+deterministic and total, and the fix is a small one in `naming.go` — but it
+would rewrite field names throughout every committed snapshot and
+invalidate the field lists in all sixteen cloud examples, each of which was
+checked against the current rule. It is worth doing in a change of its own,
+with the snapshots and examples regenerated together.
+
 ## Deliberate omissions
 
 `Construct` drops two `ConstructRequest` fields that no test exercises and

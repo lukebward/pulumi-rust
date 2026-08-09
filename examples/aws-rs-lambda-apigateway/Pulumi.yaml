@@ -1,0 +1,3 @@
+name: aws-rs-lambda-apigateway
+runtime: rust
+description: A serverless HTTP API — API Gateway v2 in front of an AWS Lambda function.

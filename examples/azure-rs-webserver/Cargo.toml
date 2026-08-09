@@ -1,0 +1,18 @@
+[package]
+name = "azure-rs-webserver"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../sdk/rust/pulumi" }
+# Generate this SDK before building:
+#   pulumi package gen-sdk azure-native@3.25.0 --language rust --out ./sdks/azure-native
+# `gen-sdk` writes to <out>/<language>, so the crate lands in
+# ./sdks/azure-native/rust — which is what the path below points at.
+pulumi_azure_native = { path = "./sdks/azure-native/rust" }
+
+# Keep the generated SDK out of this workspace: each generated crate
+# declares its own [workspace], and a path dependency of a workspace root
+# would otherwise be adopted as a member.
+[workspace]
+exclude = ["sdks"]

@@ -1,0 +1,16 @@
+[package]
+name = "docker-rs-multi-container-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../sdk/rust/pulumi" }
+# Generate this SDK before building:
+#   pulumi package gen-sdk docker@5.1.0 --language rust --out ./sdks/docker
+pulumi_docker = { path = "./sdks/docker/rust" }
+
+# Keep the generated SDK out of this workspace: each generated crate
+# declares its own [workspace], and a path dependency of a workspace root
+# would otherwise be adopted as a member.
+[workspace]
+exclude = ["sdks"]

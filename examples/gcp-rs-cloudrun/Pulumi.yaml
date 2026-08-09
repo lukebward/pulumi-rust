@@ -1,0 +1,3 @@
+name: gcp-rs-cloudrun
+runtime: rust
+description: Run a container on Google Cloud Run, reachable without credentials.

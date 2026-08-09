@@ -36,7 +36,7 @@ language to author policy packs and component providers.
 | Provider host | `sdk/rust/pulumi/src/provider.rs` | Serving a component provider: `GetSchema` and `Construct` |
 | Policy packs | `pulumi-language-rust/testdata/policies` | Nine Rust policy packs exercised by the `policy-*` tests |
 | Providers | `pulumi-language-rust/testdata/providers` | Rust component providers exercised by the `provider-*` tests |
-| Examples | `examples/` | Runnable programs: configuration and outputs, component resources, and consuming a generated provider SDK |
+| Examples | `examples/` | Sixteen pulumi/examples-style cloud programs across AWS, Azure, GCP, Kubernetes, DigitalOcean and Docker, plus language examples for config, outputs and components |
 | Template | `templates/rust` | Starting point for a new Rust Pulumi project |
 
 ## How it fits together
@@ -156,8 +156,9 @@ fn main() {
 
 ## Known limitations
 
-Two behaviors differ from the Go SDK, both recorded in
-[`docs/roadmap.md`](./docs/roadmap.md); neither is covered by a conformance
+Two behaviors differ from the Go SDK, and generated field names word-break
+differently from the other SDKs in one narrow case. All are recorded in
+[`docs/roadmap.md`](./docs/roadmap.md); none is covered by a conformance
 test.
 
 ## License

@@ -1,0 +1,3 @@
+name: aws-rs-static-website
+runtime: rust
+description: A static website in a private S3 bucket, served through the CloudFront CDN.

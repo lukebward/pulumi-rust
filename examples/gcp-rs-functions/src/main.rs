@@ -201,7 +201,7 @@ fn main() {
 
         ctx.export("functionName", greeting.name().cast::<pulumi::PropertyValue>());
         ctx.export(
-            "function_url",
+            "functionUrl",
             greeting.https_trigger_url().cast::<pulumi::PropertyValue>(),
         );
 

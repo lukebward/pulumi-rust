@@ -1,0 +1,3 @@
+name: digitalocean-rs-loadbalanced-droplets
+runtime: rust
+description: Load-balanced nginx web servers on DigitalOcean Droplets.

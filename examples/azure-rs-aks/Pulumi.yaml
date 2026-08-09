@@ -1,0 +1,3 @@
+name: azure-rs-aks
+runtime: rust
+description: Provision a managed Kubernetes cluster on Azure (AKS).

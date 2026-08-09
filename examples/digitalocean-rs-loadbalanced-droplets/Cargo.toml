@@ -1,0 +1,16 @@
+[package]
+name = "digitalocean-rs-loadbalanced-droplets"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../sdk/rust/pulumi" }
+# Generate this SDK before building:
+#   pulumi package gen-sdk digitalocean@4.78.1 --language rust --out ./sdks/digitalocean
+pulumi_digitalocean = { path = "./sdks/digitalocean/rust" }
+
+# Keep the generated SDK out of this workspace: each generated crate
+# declares its own [workspace], and a path dependency of a workspace root
+# would otherwise be adopted as a member.
+[workspace]
+exclude = ["sdks"]

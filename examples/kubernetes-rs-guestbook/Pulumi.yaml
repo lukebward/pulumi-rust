@@ -1,0 +1,3 @@
+name: kubernetes-rs-guestbook
+runtime: rust
+description: The Kubernetes Guestbook — a PHP frontend over a Redis leader and followers.

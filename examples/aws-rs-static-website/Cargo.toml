@@ -1,0 +1,16 @@
+[package]
+name = "aws-rs-static-website"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../sdk/rust/pulumi" }
+# Generate this SDK before building:
+#   pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
+pulumi_aws = { path = "./sdks/aws/rust" }
+
+# Keep the generated SDK out of this workspace: each generated crate
+# declares its own [workspace], and a path dependency of a workspace root
+# would otherwise be adopted as a member.
+[workspace]
+exclude = ["sdks"]

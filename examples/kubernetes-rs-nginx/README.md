@@ -60,11 +60,11 @@ This is the Rust version of
     ```
 
     The `pulumi` crate is not published to crates.io yet, so edit the
-    dependency in the generated `sdks/kubernetes/Cargo.toml` to point at this
+    dependency in the generated `sdks/kubernetes/rust/Cargo.toml` to point at this
     repository's copy of the core SDK:
 
     ```toml
-    pulumi = { path = "../../../../sdk/rust/pulumi" }
+    pulumi = { path = "../../../../../sdk/rust/pulumi" }
     ```
 
 5.  Preview and deploy:
@@ -147,21 +147,3 @@ which is why `PodSpecArgs` in `src/main.rs` is a long list. Those lists track
 one schema version: this program is written against **kubernetes 4.33.0**, and
 a different provider version may add or drop optional fields on exactly those
 structs. Regenerate and recheck them if you pin something else.
-
-## Known issue
-
-As of this writing the Rust SDK generator emits a `pulumi_kubernetes` crate that
-does not compile, for two reasons — both confined to the
-`apiextensions.k8s.io` `JSONSchemaProps` types, which this example never
-touches, but both fatal to the crate as a whole:
-
-- `JSONSchemaProps` has properties named `$ref` and `$schema`, and the
-  generator's `snakeCase` passes `$` through, producing `pub $ref:` — not a
-  legal Rust identifier.
-- `JSONSchemaProps.not` is a direct self-reference, which needs a `Box` to have
-  a finite size in Rust.
-
-Until the generator handles both, the workaround is to patch the generated
-`sdks/kubernetes/src/lib.rs`: rename the two `$`-prefixed fields (leaving the
-`"$ref"` / `"$schema"` wire names alone) and box or dynamically type the four
-`not` fields.

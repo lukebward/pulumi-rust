@@ -62,7 +62,7 @@ values are indicated with `***`.
     equivalent generate-only command is
 
     ```bash
-    $ pulumi package gen-sdk azure-native@3.10.0 --language rust --out ./sdks/azure-native
+    $ pulumi package gen-sdk azure-native@3.25.0 --language rust --out ./sdks/azure-native
     ```
 
     but note that `gen-sdk` writes to `<out>/<language>`, so the crate lands

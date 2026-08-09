@@ -223,7 +223,7 @@ fn main() {
         // off them is an ordinary field access inside `map`. Every field of
         // `ObjectMeta` is optional in the schema, hence the `Option`.
         ctx.export(
-            "deployment_name",
+            "deploymentName",
             deployment.metadata().map(|m| m.name).cast(),
         );
         ctx.export("serviceName", service.metadata().map(|m| m.name).cast());

@@ -1,0 +1,3 @@
+name: gcp-rs-gke
+runtime: rust
+description: A GKE cluster with a separately-managed node pool, plus a kubeconfig.

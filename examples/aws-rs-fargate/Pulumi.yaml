@@ -1,0 +1,3 @@
+name: aws-rs-fargate
+runtime: rust
+description: An nginx container running on AWS Fargate behind an Application Load Balancer.

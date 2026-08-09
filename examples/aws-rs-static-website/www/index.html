@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello, CloudFront!</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main {
+        max-width: 34rem;
+        padding: 2rem;
+      }
+      .eyebrow {
+        margin: 0 0 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.75rem;
+        opacity: 0.65;
+      }
+      h1 {
+        margin: 0 0 1rem;
+        font-size: 2rem;
+        line-height: 1.2;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.9em;
+      }
+      .footnote {
+        opacity: 0.65;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Static website on S3 and CloudFront</p>
+      <h1>Hello from Pulumi and Rust</h1>
+      <p>
+        This page was uploaded from a <code>www/</code> directory by a Pulumi
+        program written in Rust. It lives in a private S3 bucket — you are
+        reading it through a CloudFront distribution, which is the only
+        principal allowed to fetch it.
+      </p>
+      <p class="footnote">
+        Edit <code>www/index.html</code> and run <code>pulumi up</code> again
+        to publish a change, then invalidate the CDN's cache to see it
+        straight away.
+      </p>
+    </main>
+  </body>
+</html>
