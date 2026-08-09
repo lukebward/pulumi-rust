@@ -1734,7 +1734,11 @@ async fn do_invoke(
     let data = OutputData::from_value(ret);
     Ok(OutputData {
         value: data.value,
-        secret: data.secret,
+        // Unlike `do_call`, an invoke's result *does* inherit its arguments'
+        // secretness — Go's invoke path does the same. `l2-invoke-secrets`
+        // depends on it: an invoke given a secret argument must return a
+        // secret result even when the provider does not mark it.
+        secret: secret || data.secret,
         deps: deps.into_iter().chain(data.deps).collect(),
     })
 }
@@ -2005,6 +2009,46 @@ mod provider_tests {
         let reads = captured.lock().unwrap();
         let read = reads.reads.first().expect("no read reached the monitor");
         assert!(!read.provider.is_empty(), "the read did not name its provider");
+    }
+
+    #[tokio::test]
+    async fn an_invoke_result_inherits_its_arguments_secretness() {
+        // The fake monitor returns a plain, non-secret result, so the only
+        // way the output can be secret is the argument. Go's invoke path does
+        // this, and l2-invoke-secrets depends on it.
+        let (ctx, _captured) = fake_monitor_context().await;
+        let out = ctx.invoke(
+            "simple-invoke:index:secretInvoke",
+            vec![("value".to_string(), crate::pv::secret(crate::pv::string("goodbye")))],
+            InvokeOptions::default(),
+        );
+        assert!(out.data().await.secret, "an invoke dropped its argument's secretness");
+    }
+
+    #[tokio::test]
+    async fn a_call_result_does_not_inherit_its_arguments_secretness() {
+        // A call is the other way round: the provider decides what its return
+        // value is, and marking it secret because an argument was would put
+        // values in the state file that the provider never called sensitive.
+        // The argument's secretness still reaches the provider through
+        // arg_dependencies.
+        let (ctx, captured) = fake_monitor_context().await;
+        let receiver = register(&ctx, "simple:index:Resource", "res", ResourceOptions::default());
+        let out = ctx.call(
+            "simple:index:Resource/method",
+            &receiver,
+            vec![("value".to_string(), crate::pv::secret(crate::pv::string("shh")))],
+        );
+        assert!(
+            !out.data().await.secret,
+            "a call result took its secretness from an argument"
+        );
+        let calls = captured.lock().unwrap();
+        let call = calls.calls.first().expect("no call reached the monitor");
+        assert!(
+            call.arg_dependencies.contains_key("__self__"),
+            "the receiver was not declared as an argument dependency"
+        );
     }
 
     #[tokio::test]
