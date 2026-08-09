@@ -526,6 +526,345 @@ mod tests {
         let d = concat(parts).data().await;
         assert_eq!(d.value, PropertyValue::String("n=3".into()));
     }
+
+    // --- the three things every combinator must propagate -------------------
+    //
+    // Unknown short-circuits, secretness is sticky, dependencies union. Every
+    // Pulumi SDK guarantees all three; these pin them per combinator so a
+    // refactor cannot quietly drop one.
+
+    fn data(value: PropertyValue, secret: bool, deps: &[&str]) -> OutputData {
+        OutputData { value, secret, deps: deps.iter().map(|s| s.to_string()).collect() }
+    }
+
+    #[tokio::test]
+    async fn map_does_not_run_on_unknown() {
+        let ran = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = ran.clone();
+        let o: Output<i64> = Output::unknown();
+        let mapped = o.map(move |v| {
+            flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            v
+        });
+        assert!(!mapped.data().await.known());
+        assert!(
+            !ran.load(std::sync::atomic::Ordering::SeqCst),
+            "map ran its closure over an unknown value"
+        );
+    }
+
+    #[tokio::test]
+    async fn map_keeps_secret_of_a_known_value() {
+        let o: Output<i64> = Output::from_data(data(PropertyValue::Number(1.0), true, &[]));
+        assert!(o.map(|v| v + 1).data().await.secret, "secretness is not sticky");
+    }
+
+    #[tokio::test]
+    async fn map_unions_deps_from_both_sides() {
+        // The source depends on A; the mapped-to value carries a dependency on
+        // B as an inline output value. The result must depend on both.
+        let o: Output<i64> = Output::from_data(data(PropertyValue::Number(1.0), false, &["urn:a"]));
+        let mapped = o.map(|_| {
+            PropertyValue::Output(OutputValue {
+                value: Some(Box::new(PropertyValue::Number(2.0))),
+                secret: false,
+                dependencies: vec!["urn:b".into()],
+            })
+        });
+        let d = mapped.data().await;
+        assert_eq!(d.deps, vec!["urn:a".to_string(), "urn:b".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn map_takes_secret_from_the_produced_value() {
+        let o: Output<i64> = Output::known(1i64);
+        let mapped = o.map(|_| PropertyValue::Secret(Box::new(PropertyValue::Number(2.0))));
+        assert!(mapped.data().await.secret);
+    }
+
+    #[tokio::test]
+    async fn flat_map_unions_secret_and_deps() {
+        let o: Output<i64> = Output::from_data(data(PropertyValue::Number(1.0), false, &["urn:a"]));
+        let out = o.flat_map(|_| -> Output<PropertyValue> {
+            Output::from_data(data(PropertyValue::Number(2.0), true, &["urn:b"]))
+        });
+        let d = out.data().await;
+        assert!(d.secret);
+        assert_eq!(d.deps, vec!["urn:a".to_string(), "urn:b".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn flat_map_does_not_run_on_unknown() {
+        let o: Output<i64> = Output::unknown();
+        let out = o.flat_map(|_| -> Output<PropertyValue> {
+            panic!("flat_map ran its closure over an unknown value")
+        });
+        assert!(!out.data().await.known());
+    }
+
+    #[tokio::test]
+    async fn as_secret_marks_a_known_value() {
+        let d = Output::known(1i64).as_secret().data().await;
+        assert!(d.secret);
+        assert_eq!(d.value, PropertyValue::Number(1.0));
+    }
+
+    // --- OutputData <-> PropertyValue -------------------------------------
+
+    #[test]
+    fn into_value_wraps_a_bare_secret() {
+        let v = data(PropertyValue::String("s".into()), true, &[]).into_value();
+        assert_eq!(v, PropertyValue::Secret(Box::new(PropertyValue::String("s".into()))));
+    }
+
+    #[test]
+    fn into_value_leaves_a_plain_known_value_alone() {
+        let v = data(PropertyValue::String("s".into()), false, &[]).into_value();
+        assert_eq!(v, PropertyValue::String("s".into()));
+    }
+
+    #[test]
+    fn into_value_carries_deps_as_an_output_value() {
+        match data(PropertyValue::Number(1.0), false, &["urn:a"]).into_value() {
+            PropertyValue::Output(o) => {
+                assert_eq!(o.value.as_deref(), Some(&PropertyValue::Number(1.0)));
+                assert_eq!(o.dependencies, vec!["urn:a".to_string()]);
+            }
+            other => panic!("expected an output value, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn into_value_drops_the_value_when_unknown() {
+        // An output value carrying deps must have no value at all when
+        // unknown, or the engine reads the unknown sentinel as a real string.
+        match data(PropertyValue::Computed, false, &["urn:a"]).into_value() {
+            PropertyValue::Output(o) => assert!(o.value.is_none()),
+            other => panic!("expected an output value, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn into_value_treats_failed_as_unknown() {
+        // Regression: `Failed` is unknown just like `Computed`. Treating it as
+        // known let a failed value marshal as the literal unknown sentinel
+        // string, which the engine then took for real data.
+        let failed = PropertyValue::Failed("boom".into());
+        match data(failed, false, &["urn:a"]).into_value() {
+            PropertyValue::Output(o) => assert!(o.value.is_none()),
+            other => panic!("expected an output value, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn from_value_lifts_a_nested_secret_output() {
+        let v = PropertyValue::Output(OutputValue {
+            value: Some(Box::new(PropertyValue::Secret(Box::new(PropertyValue::Number(1.0))))),
+            secret: false,
+            dependencies: vec!["urn:a".into()],
+        });
+        let d = OutputData::from_value(v);
+        assert_eq!(d.value, PropertyValue::Number(1.0));
+        assert!(d.secret, "an inner secret must lift to the flag");
+        assert_eq!(d.deps, vec!["urn:a".to_string()]);
+    }
+
+    #[test]
+    fn from_value_of_a_valueless_output_is_unknown() {
+        let v = PropertyValue::Output(OutputValue {
+            value: None,
+            secret: false,
+            dependencies: vec![],
+        });
+        assert!(!OutputData::from_value(v).known());
+    }
+
+    #[test]
+    fn known_sees_through_containers() {
+        let v = PropertyValue::Array(vec![
+            PropertyValue::Number(1.0),
+            PropertyValue::Computed,
+        ]);
+        assert!(!data(v, false, &[]).known());
+    }
+
+    // --- all / concat ------------------------------------------------------
+
+    #[tokio::test]
+    async fn all_keeps_the_array_known_when_an_element_is_not() {
+        // Partially-known collections are a real Pulumi behaviour: the array
+        // stays known and the unknown element is encoded inline.
+        let d = all(vec![
+            Output::from_value(PropertyValue::Number(1.0)),
+            Output::unknown(),
+        ])
+        .data()
+        .await;
+        match &d.value {
+            PropertyValue::Array(vs) => {
+                assert_eq!(vs.len(), 2);
+                assert_eq!(vs[0], PropertyValue::Number(1.0));
+                assert!(vs[1].contains_unknown());
+            }
+            other => panic!("expected an array, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn all_unions_element_deps() {
+        let d = all(vec![
+            Output::from_data(data(PropertyValue::Number(1.0), false, &["urn:a"])),
+            Output::from_data(data(PropertyValue::Number(2.0), false, &["urn:b"])),
+        ])
+        .data()
+        .await;
+        assert_eq!(d.deps, vec!["urn:a".to_string(), "urn:b".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn concat_is_unknown_if_any_part_is() {
+        let d = concat(vec![
+            Output::from_value(PropertyValue::String("a".into())),
+            Output::unknown(),
+        ])
+        .data()
+        .await;
+        assert!(!d.known(), "one unknown part must make the whole string unknown");
+    }
+
+    #[tokio::test]
+    async fn concat_is_secret_if_any_part_is() {
+        let d = concat(vec![
+            Output::from_value(PropertyValue::String("a".into())),
+            Output::from_data(data(PropertyValue::String("b".into()), true, &[])),
+        ])
+        .data()
+        .await;
+        assert!(d.secret);
+    }
+
+    #[tokio::test]
+    async fn concat_unions_deps() {
+        let d = concat(vec![
+            Output::from_data(data(PropertyValue::String("a".into()), false, &["urn:a"])),
+            Output::from_data(data(PropertyValue::String("b".into()), false, &["urn:b"])),
+        ])
+        .data()
+        .await;
+        assert_eq!(d.deps, vec!["urn:a".to_string(), "urn:b".to_string()]);
+    }
+
+    // --- indexing ----------------------------------------------------------
+
+    fn obj(pairs: &[(&str, PropertyValue)]) -> PropertyValue {
+        PropertyValue::Object(
+            pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect(),
+        )
+    }
+
+    #[tokio::test]
+    async fn index_reads_object_keys_and_array_positions() {
+        let o = Output::<PropertyValue>::from_value(obj(&[(
+            "xs",
+            PropertyValue::Array(vec![PropertyValue::Number(7.0)]),
+        )]));
+        let d = o.index("xs").index(0usize).data().await;
+        assert_eq!(d.value, PropertyValue::Number(7.0));
+    }
+
+    #[tokio::test]
+    async fn index_accepts_a_numeric_string_key_on_an_array() {
+        // PCL indexes arrays with string keys; the SDK has to accept both.
+        let o = Output::<PropertyValue>::from_value(PropertyValue::Array(vec![
+            PropertyValue::Number(7.0),
+        ]));
+        assert_eq!(o.index("0").data().await.value, PropertyValue::Number(7.0));
+    }
+
+    #[tokio::test]
+    async fn index_of_an_absent_key_is_null() {
+        let o = Output::<PropertyValue>::from_value(obj(&[]));
+        assert_eq!(o.index("nope").data().await.value, PropertyValue::Null);
+    }
+
+    #[tokio::test]
+    async fn index_checked_of_an_absent_key_is_missing() {
+        // Regression: the missing sentinel exists so `try`/`can` can tell an
+        // absent key from a null one. It must stay inside index_checked —
+        // leaking it into ordinary indexing broke `== null` comparisons.
+        let o = Output::<PropertyValue>::from_value(obj(&[]));
+        assert_eq!(o.index_checked("nope").data().await.value, PropertyValue::Missing);
+    }
+
+    #[tokio::test]
+    async fn index_of_an_unknown_container_stays_unknown() {
+        let o = Output::<PropertyValue>::unknown();
+        assert!(!o.index("k").data().await.known());
+    }
+
+    #[tokio::test]
+    async fn index_lifts_an_element_secret() {
+        let o = Output::<PropertyValue>::from_value(obj(&[(
+            "k",
+            PropertyValue::Secret(Box::new(PropertyValue::Number(1.0))),
+        )]));
+        let d = o.index("k").data().await;
+        assert!(d.secret, "a secret element must make the indexed output secret");
+        assert_eq!(d.value, PropertyValue::Number(1.0));
+    }
+
+    #[tokio::test]
+    async fn index_keeps_container_deps() {
+        let o = Output::<PropertyValue>::from_data(data(
+            obj(&[("k", PropertyValue::Number(1.0))]),
+            false,
+            &["urn:a"],
+        ));
+        assert_eq!(o.index("k").data().await.deps, vec!["urn:a".to_string()]);
+    }
+
+    // --- object / deferred -------------------------------------------------
+
+    #[tokio::test]
+    async fn object_builds_a_map_and_unions_deps() {
+        let d = object(vec![
+            ("a".to_string(), Output::from_data(data(PropertyValue::Number(1.0), false, &["urn:a"]))),
+            ("b".to_string(), Output::from_value(PropertyValue::Number(2.0))),
+        ])
+        .data()
+        .await;
+        match &d.value {
+            PropertyValue::Object(m) => {
+                assert_eq!(m.len(), 2);
+                assert_eq!(m.get("b"), Some(&PropertyValue::Number(2.0)));
+            }
+            other => panic!("expected an object, got {other:?}"),
+        }
+        assert_eq!(d.deps, vec!["urn:a".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn an_unresolved_deferred_output_reads_as_unknown() {
+        // Dropping the resolver must not hang the program: a component whose
+        // deferred input never arrives previews as unknown.
+        let (out, resolver) = deferred_output();
+        drop(resolver);
+        assert!(!out.data().await.known());
+    }
+
+    #[tokio::test]
+    async fn a_resolved_deferred_output_carries_the_value_through() {
+        let (out, resolver) = deferred_output();
+        resolver.resolve(Output::from_data(data(
+            PropertyValue::Number(9.0),
+            true,
+            &["urn:a"],
+        )));
+        let d = out.data().await;
+        assert_eq!(d.value, PropertyValue::Number(9.0));
+        assert!(d.secret);
+        assert_eq!(d.deps, vec!["urn:a".to_string()]);
+    }
 }
 
 /// Resolves a [`deferred_output`] once the producing value is available.

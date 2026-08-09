@@ -243,4 +243,106 @@ mod tests {
             ]))
         );
     }
+
+    fn config(pairs: &[(&str, &str)], secrets: &[&str]) -> Config {
+        Config::new(
+            pairs.iter().map(|(k, v)| (format!("proj:{k}"), v.to_string())).collect(),
+            secrets.iter().map(|k| format!("proj:{k}")).collect(),
+            "proj".to_string(),
+        )
+    }
+
+    #[test]
+    fn a_bare_key_is_scoped_to_the_project_but_a_qualified_one_is_not() {
+        let c = Config::new(
+            [
+                ("proj:mine".to_string(), "a".to_string()),
+                ("aws:region".to_string(), "us-west-2".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+            HashSet::new(),
+            "proj".to_string(),
+        );
+        assert_eq!(c.get("mine"), Some("a".to_string()));
+        assert_eq!(c.get("aws:region"), Some("us-west-2".to_string()));
+        // A bare key never reaches another package's namespace.
+        assert_eq!(c.get("region"), None);
+    }
+
+    #[tokio::test]
+    async fn a_secret_key_produces_a_secret_output_through_every_accessor() {
+        // Secretness has to survive the typed accessors, not just get_value —
+        // this is what keeps a password from landing in plaintext state.
+        let c = config(&[("pw", "hunter2"), ("n", "1"), ("b", "true")], &["pw", "n", "b"]);
+        assert!(c.require_string("pw").unwrap().data().await.secret);
+        assert!(c.get_string_opt("pw").unwrap().data().await.secret);
+        assert!(c.require_number("n").unwrap().data().await.secret);
+        assert!(c.get_bool_or("b", PropertyValue::Bool(false)).data().await.secret);
+    }
+
+    #[test]
+    fn requiring_an_absent_key_names_it_in_the_error() {
+        let c = config(&[], &[]);
+        let err = c.require_string("missing").unwrap_err().to_string();
+        assert!(err.contains("missing"), "unhelpful error: {err}");
+    }
+
+    #[tokio::test]
+    async fn typed_getters_fall_back_to_the_default_only_when_unset() {
+        let c = config(&[("set", "9")], &[]);
+        let got = c.get_int_or("set", PropertyValue::Number(0.0)).data().await;
+        assert_eq!(got.value, PropertyValue::Number(9.0));
+        let dflt = c.get_int_or("unset", PropertyValue::Number(7.0)).data().await;
+        assert_eq!(dflt.value, PropertyValue::Number(7.0));
+    }
+
+    #[test]
+    fn a_string_getter_does_not_parse_its_value_as_json() {
+        // "42" and "true" are legal JSON, but asking for a string must give
+        // back the text, or a config value like a version number changes type.
+        let c = config(&[("v", "42"), ("t", "true")], &[]);
+        assert_eq!(c.typed_value("v", parse_string), Some(PropertyValue::String("42".into())));
+        assert_eq!(c.typed_value("t", parse_string), Some(PropertyValue::String("true".into())));
+    }
+
+    #[test]
+    fn bool_parsing_accepts_the_two_forms_pulumi_writes() {
+        assert_eq!(parse_bool("true"), PropertyValue::Bool(true));
+        assert_eq!(parse_bool("1"), PropertyValue::Bool(true));
+        assert_eq!(parse_bool("false"), PropertyValue::Bool(false));
+        assert_eq!(parse_bool("anything else"), PropertyValue::Bool(false));
+    }
+
+    #[test]
+    fn an_unparseable_object_falls_back_to_the_raw_string() {
+        assert_eq!(parse_object("{not json"), PropertyValue::String("{not json".into()));
+    }
+
+    #[test]
+    fn a_plain_string_config_value_is_not_json_decoded() {
+        // parse_config_value only decodes non-string JSON, so a value that
+        // happens to be quoted text stays text.
+        assert_eq!(parse_config_value("hello"), PropertyValue::String("hello".into()));
+        assert_eq!(parse_config_value("[1]"), PropertyValue::Array(vec![PropertyValue::Number(1.0)]));
+    }
+
+    #[test]
+    fn json_to_property_maps_every_json_shape() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{"n":1,"s":"x","b":true,"nil":null,"a":[1,2],"o":{"k":"v"}}"#,
+        )
+        .unwrap();
+        match json_to_property(&v) {
+            PropertyValue::Object(m) => {
+                assert_eq!(m.get("n"), Some(&PropertyValue::Number(1.0)));
+                assert_eq!(m.get("s"), Some(&PropertyValue::String("x".into())));
+                assert_eq!(m.get("b"), Some(&PropertyValue::Bool(true)));
+                assert_eq!(m.get("nil"), Some(&PropertyValue::Null));
+                assert!(matches!(m.get("a"), Some(PropertyValue::Array(_))));
+                assert!(matches!(m.get("o"), Some(PropertyValue::Object(_))));
+            }
+            other => panic!("expected an object, got {other:?}"),
+        }
+    }
 }

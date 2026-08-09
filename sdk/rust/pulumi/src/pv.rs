@@ -197,9 +197,7 @@ fn property_to_json(v: &PropertyValue) -> serde_json::Value {
             serde_json::Value::String(String::from_utf8_lossy(b).into_owned())
         }
         PropertyValue::Bool(b) => serde_json::Value::Bool(*b),
-        PropertyValue::Number(n) => serde_json::Number::from_f64(*n)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
+        PropertyValue::Number(n) => json_number(*n),
         PropertyValue::String(s) => serde_json::Value::String(s.clone()),
         PropertyValue::Array(a) => {
             serde_json::Value::Array(a.iter().map(property_to_json).collect())
@@ -214,6 +212,24 @@ fn property_to_json(v: &PropertyValue) -> serde_json::Value {
         },
         _ => serde_json::Value::Null,
     }
+}
+
+/// Render a property number the way the other Pulumi SDKs do.
+///
+/// Every Pulumi number is a float on the wire, but Go's `encoding/json` — and
+/// so every language whose `toJSON` goes through it — writes a whole number
+/// without a fractional part. `serde_json::Number::from_f64` keeps the float
+/// representation, so a port that ignores this emits `"containerPort": 80.0`,
+/// which APIs expecting an integer reject. Above 2^53 a float can no longer
+/// represent every integer, so those keep the float form.
+fn json_number(n: f64) -> serde_json::Value {
+    const MAX_EXACT_INT: f64 = 9_007_199_254_740_992.0; // 2^53
+    if n.fract() == 0.0 && n.abs() <= MAX_EXACT_INT {
+        return serde_json::Value::Number(serde_json::Number::from(n as i64));
+    }
+    serde_json::Number::from_f64(n)
+        .map(serde_json::Value::Number)
+        .unwrap_or(serde_json::Value::Null)
 }
 
 fn property_to_json_string(v: &PropertyValue) -> String {
@@ -476,5 +492,226 @@ pub async fn range_entries(r: Output<PropertyValue>) -> Vec<RangeEntry> {
         // A false bool, a zero/negative count, or an unknown range (during a
         // preview) all create nothing.
         _ => vec![],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn value(o: Output<PropertyValue>) -> PropertyValue {
+        o.data().await.value
+    }
+
+    fn s(v: &str) -> Output<PropertyValue> {
+        string(v)
+    }
+
+    // --- toJSON ------------------------------------------------------------
+
+    #[tokio::test]
+    async fn to_json_writes_whole_numbers_without_a_fraction() {
+        // Every Pulumi number is a float on the wire, but `toJSON` in the
+        // other SDKs goes through Go's encoder, which writes 80 not 80.0.
+        // APIs that want an integer port reject the latter.
+        let v = to_json(number(80.0));
+        assert_eq!(value(v).await, PropertyValue::String("80".into()));
+    }
+
+    #[tokio::test]
+    async fn to_json_keeps_a_real_fraction() {
+        let v = to_json(number(1.5));
+        assert_eq!(value(v).await, PropertyValue::String("1.5".into()));
+    }
+
+    #[tokio::test]
+    async fn to_json_nests_numbers_correctly() {
+        let v = to_json(object(vec![
+            ("port".to_string(), number(80.0)),
+            ("ratio".to_string(), number(0.5)),
+        ]));
+        assert_eq!(
+            value(v).await,
+            PropertyValue::String(r#"{"port":80,"ratio":0.5}"#.into())
+        );
+    }
+
+    #[tokio::test]
+    async fn to_json_is_secret_if_anything_inside_is() {
+        // The secret is nested, so it is only visible via contains_secret —
+        // a JSON document built from a secret is itself a secret.
+        let d = to_json(object(vec![("k".to_string(), secret(s("shh")))])).data().await;
+        assert!(d.secret);
+    }
+
+    #[tokio::test]
+    async fn to_json_short_circuits_on_unknown() {
+        let d = to_json(array(vec![s("a"), Output::unknown()])).data().await;
+        assert!(!d.known());
+    }
+
+    // --- collections and strings -------------------------------------------
+
+    #[tokio::test]
+    async fn join_and_split_round_trip() {
+        let joined = join(s(","), array(vec![s("a"), s("b"), s("c")]));
+        assert_eq!(value(joined.clone()).await, PropertyValue::String("a,b,c".into()));
+        let back = split(s(","), joined);
+        assert_eq!(
+            value(back).await,
+            PropertyValue::Array(vec![
+                PropertyValue::String("a".into()),
+                PropertyValue::String("b".into()),
+                PropertyValue::String("c".into()),
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn length_counts_arrays_objects_and_strings() {
+        assert_eq!(value(length(array(vec![s("a"), s("b")]))).await, PropertyValue::Number(2.0));
+        assert_eq!(value(length(s("abcd"))).await, PropertyValue::Number(4.0));
+        assert_eq!(
+            value(length(object(vec![("k".to_string(), s("v"))]))).await,
+            PropertyValue::Number(1.0)
+        );
+    }
+
+    #[tokio::test]
+    async fn lookup_falls_back_to_the_default() {
+        let m = object(vec![("present".to_string(), s("yes"))]);
+        assert_eq!(value(lookup(m.clone(), s("present"), s("dflt"))).await,
+                   PropertyValue::String("yes".into()));
+        assert_eq!(value(lookup(m, s("absent"), s("dflt"))).await,
+                   PropertyValue::String("dflt".into()));
+    }
+
+    #[tokio::test]
+    async fn single_or_none_handles_all_three_cases() {
+        assert_eq!(value(single_or_none(array(vec![s("x")]))).await,
+                   PropertyValue::String("x".into()));
+        assert_eq!(value(single_or_none(array(vec![]))).await, PropertyValue::Null);
+    }
+
+    #[tokio::test]
+    async fn entries_of_an_object_are_key_value_pairs_in_key_order() {
+        let v = entries(object(vec![
+            ("b".to_string(), number(2.0)),
+            ("a".to_string(), number(1.0)),
+        ]));
+        match value(v).await {
+            PropertyValue::Array(items) => {
+                assert_eq!(items.len(), 2);
+                // BTreeMap ordering: "a" before "b", so iteration is stable
+                // across runs — resource names derived from it must not churn.
+                let first = match &items[0] {
+                    PropertyValue::Object(m) => m.get("key").cloned(),
+                    _ => None,
+                };
+                assert_eq!(first, Some(PropertyValue::String("a".into())));
+            }
+            other => panic!("expected an array, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn entries_of_an_array_key_by_index() {
+        let v = entries(array(vec![s("x")]));
+        match value(v).await {
+            PropertyValue::Array(items) => match &items[0] {
+                PropertyValue::Object(m) => {
+                    assert_eq!(m.get("key"), Some(&PropertyValue::Number(0.0)));
+                    assert_eq!(m.get("value"), Some(&PropertyValue::String("x".into())));
+                }
+                other => panic!("expected an object, got {other:?}"),
+            },
+            other => panic!("expected an array, got {other:?}"),
+        }
+    }
+
+    // --- base64 / hashing --------------------------------------------------
+
+    #[tokio::test]
+    async fn base64_round_trips() {
+        let encoded = to_base64(s("hello"));
+        assert_eq!(value(encoded.clone()).await, PropertyValue::String("aGVsbG8=".into()));
+        assert_eq!(value(from_base64(encoded)).await, PropertyValue::String("hello".into()));
+    }
+
+    #[tokio::test]
+    async fn sha1_matches_the_known_digest() {
+        assert_eq!(
+            value(sha1_hex(s("abc"))).await,
+            PropertyValue::String("a9993e364706816aba3e25717850c26c9cd0d89d".into())
+        );
+    }
+
+    // --- secrecy -----------------------------------------------------------
+
+    #[tokio::test]
+    async fn secret_and_unsecret_are_inverses() {
+        let d = secret(s("x")).data().await;
+        assert!(d.secret);
+        let d = unsecret(secret(s("x"))).data().await;
+        assert!(!d.secret);
+    }
+
+    #[tokio::test]
+    async fn an_array_of_a_secret_keeps_the_secret_on_the_element() {
+        // `all` deliberately leaves the array itself non-secret and encodes
+        // element secretness inline, so a partially-secret list round-trips.
+        let d = array(vec![s("plain"), secret(s("shh"))]).data().await;
+        assert!(d.value.contains_secret());
+    }
+
+    // --- urn helpers -------------------------------------------------------
+
+    #[tokio::test]
+    async fn urn_name_and_type_split_a_urn() {
+        let urn = s("urn:pulumi:dev::proj::simple:index:Resource::res");
+        assert_eq!(value(urn_name(urn.clone())).await, PropertyValue::String("res".into()));
+        assert_eq!(
+            value(urn_type(urn)).await,
+            PropertyValue::String("simple:index:Resource".into())
+        );
+    }
+
+    // --- range -------------------------------------------------------------
+
+    #[tokio::test]
+    async fn range_of_a_count_indexes_from_zero() {
+        let entries = range_entries(number(3.0)).await;
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].key_string(), "0");
+        assert_eq!(entries[2].name("web"), "web-2");
+    }
+
+    #[tokio::test]
+    async fn range_of_a_bool_creates_at_most_one_unsuffixed_resource() {
+        let entries = range_entries(bool(true)).await;
+        assert_eq!(entries.len(), 1);
+        // A boolean range names the single resource plainly — no "-0".
+        assert_eq!(entries[0].name("web"), "web");
+        assert!(range_entries(bool(false)).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn range_of_a_map_iterates_by_key() {
+        let entries = range_entries(object(vec![
+            ("b".to_string(), number(2.0)),
+            ("a".to_string(), number(1.0)),
+        ]))
+        .await;
+        let names: Vec<String> = entries.iter().map(|e| e.name("web")).collect();
+        assert_eq!(names, vec!["web-a".to_string(), "web-b".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn an_unknown_range_creates_nothing() {
+        // During a preview the range may be unknown; creating resources from
+        // it would register names that cannot be reproduced on the update.
+        assert!(range_entries(Output::unknown()).await.is_empty());
+        assert!(range_entries(number(0.0)).await.is_empty());
+        assert!(range_entries(number(-1.0)).await.is_empty());
     }
 }

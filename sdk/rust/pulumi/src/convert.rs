@@ -278,3 +278,100 @@ fn unwrap(v: PropertyValue) -> Result<PropertyValue> {
 fn mismatch(expected: &str, got: &PropertyValue) -> Error {
     Error::new(format!("expected {expected}, got {got:?}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn round_trip<T>(v: T) -> T
+    where
+        T: IntoPropertyValue + FromPropertyValue + Clone,
+    {
+        T::from_property_value(v.into_property_value()).expect("conversion failed")
+    }
+
+    #[test]
+    fn scalars_round_trip() {
+        assert_eq!(round_trip("hi".to_string()), "hi".to_string());
+        assert_eq!(round_trip(42i64), 42i64);
+        assert_eq!(round_trip(1.5f64), 1.5f64);
+        assert!(round_trip(true));
+    }
+
+    #[test]
+    fn an_option_maps_none_to_null_and_back() {
+        assert_eq!(PropertyValue::Null, None::<String>.into_property_value());
+        assert_eq!(
+            <Option<String> as FromPropertyValue>::from_property_value(PropertyValue::Null)
+                .unwrap(),
+            None
+        );
+        assert_eq!(round_trip(Some("x".to_string())), Some("x".to_string()));
+    }
+
+    #[test]
+    fn collections_round_trip() {
+        assert_eq!(round_trip(vec![1i64, 2, 3]), vec![1i64, 2, 3]);
+        let m: BTreeMap<String, i64> =
+            [("a".to_string(), 1i64)].into_iter().collect();
+        assert_eq!(round_trip(m.clone()), m);
+    }
+
+    #[test]
+    fn a_box_is_transparent_on_the_wire() {
+        // Generated code boxes a field that would otherwise make its struct
+        // infinitely sized. The box is a Rust detail; the wire sees the value.
+        let boxed = Box::new("x".to_string());
+        assert_eq!(boxed.clone().into_property_value(), PropertyValue::String("x".into()));
+        let back: Box<String> =
+            FromPropertyValue::from_property_value(PropertyValue::String("x".into())).unwrap();
+        assert_eq!(*back, "x".to_string());
+    }
+
+    #[test]
+    fn an_optional_box_round_trips_both_ways() {
+        // Option<Box<T>> is the exact shape a boxed optional field has.
+        let some: Option<Box<i64>> = Some(Box::new(7));
+        let v = some.into_property_value();
+        let back: Option<Box<i64>> = FromPropertyValue::from_property_value(v).unwrap();
+        assert_eq!(back.map(|b| *b), Some(7));
+
+        let none: Option<Box<i64>> =
+            FromPropertyValue::from_property_value(PropertyValue::Null).unwrap();
+        assert!(none.is_none());
+    }
+
+    #[test]
+    fn conversion_sees_through_a_secret_wrapper() {
+        // A secret arriving from the engine must still convert to its type;
+        // secretness is tracked on the Output, not the value.
+        let v = PropertyValue::Secret(Box::new(PropertyValue::String("s".into())));
+        assert_eq!(
+            <String as FromPropertyValue>::from_property_value(v).unwrap(),
+            "s".to_string()
+        );
+    }
+
+    #[test]
+    fn a_type_mismatch_names_the_expected_type_and_shows_the_value() {
+        let err = <i64 as FromPropertyValue>::from_property_value(
+            PropertyValue::String("x".into()),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("integer"), "error does not name the expected type: {err}");
+        assert!(err.contains("x"), "error does not show the offending value: {err}");
+    }
+
+    #[test]
+    fn non_utf8_bytes_refuse_to_become_a_rust_string() {
+        // Silently lossy-converting would corrupt the value; the error has to
+        // say why, since the wire type is still "string".
+        let err = <String as FromPropertyValue>::from_property_value(
+            PropertyValue::ByteString(vec![0xff]),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("non-UTF8"), "unhelpful error: {err}");
+    }
+}

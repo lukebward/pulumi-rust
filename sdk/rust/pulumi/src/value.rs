@@ -548,4 +548,145 @@ mod tests {
         let v = PropertyValue::Archive(Archive::from_assets(assets));
         assert_eq!(PropertyValue::from_proto(&v.to_proto()), v);
     }
+    #[test]
+    fn round_trip_resource_reference() {
+        let v = PropertyValue::ResourceReference(ResourceReference {
+            urn: "urn:pulumi:dev::p::simple:index:Resource::res".into(),
+            id: Some(Some("id-1".into())),
+            package_version: "1.2.3".into(),
+        });
+        assert_eq!(PropertyValue::from_proto(&v.to_proto()), v);
+    }
+
+    #[test]
+    fn a_resource_reference_with_an_unknown_id_round_trips_as_unknown() {
+        // `Some(None)` is "custom resource whose id is not known yet", which
+        // is distinct from `None` ("component, has no id at all").
+        let v = PropertyValue::ResourceReference(ResourceReference {
+            urn: "urn:pulumi:dev::p::simple:index:Resource::res".into(),
+            id: Some(None),
+            package_version: String::new(),
+        });
+        assert_eq!(PropertyValue::from_proto(&v.to_proto()), v);
+    }
+
+    #[test]
+    fn a_component_reference_keeps_having_no_id() {
+        let v = PropertyValue::ResourceReference(ResourceReference {
+            urn: "urn:pulumi:dev::p::my:mod:Component::c".into(),
+            id: None,
+            package_version: String::new(),
+        });
+        assert_eq!(PropertyValue::from_proto(&v.to_proto()), v);
+    }
+
+    #[test]
+    fn a_non_utf8_byte_string_round_trips() {
+        let v = PropertyValue::ByteString(vec![0xff, 0xfe, 0x00, 0x41]);
+        assert_eq!(PropertyValue::from_proto(&v.to_proto()), v);
+    }
+
+    #[test]
+    fn utf8_bytes_normalize_to_a_string_so_the_two_forms_never_overlap() {
+        // Otherwise the same text could arrive as either variant and compare
+        // unequal to itself.
+        assert_eq!(
+            PropertyValue::from_bytes(b"hello".to_vec()),
+            PropertyValue::String("hello".into())
+        );
+        assert!(matches!(
+            PropertyValue::from_bytes(vec![0xff]),
+            PropertyValue::ByteString(_)
+        ));
+    }
+
+    #[test]
+    fn a_failed_value_travels_as_unknown_not_as_a_string() {
+        // Regression: `Failed` marshalled as a known string meant the engine
+        // read the unknown sentinel as real data.
+        let proto = PropertyValue::Failed("boom".into()).to_proto();
+        assert_eq!(proto, string_value(UNKNOWN_STRING_VALUE));
+        // ...and comes back as an ordinary unknown.
+        assert_eq!(PropertyValue::from_proto(&proto), PropertyValue::Computed);
+    }
+
+    #[test]
+    fn the_missing_sentinel_never_reaches_the_wire_as_anything_but_null() {
+        // `Missing` only exists to let try/can distinguish an absent key; the
+        // engine has no concept of it.
+        assert_eq!(
+            PropertyValue::Missing.to_proto(),
+            PropertyValue::Null.to_proto()
+        );
+    }
+
+    #[test]
+    fn every_unknown_sentinel_decodes_to_computed() {
+        for sentinel in [
+            UNKNOWN_STRING_VALUE,
+            UNKNOWN_BOOL_VALUE,
+            UNKNOWN_NUMBER_VALUE,
+            UNKNOWN_ARRAY_VALUE,
+            UNKNOWN_ASSET_VALUE,
+            UNKNOWN_ARCHIVE_VALUE,
+            UNKNOWN_OBJECT_VALUE,
+        ] {
+            assert_eq!(
+                PropertyValue::from_proto(&string_value(sentinel)),
+                PropertyValue::Computed,
+                "sentinel {sentinel} did not decode as unknown"
+            );
+        }
+    }
+
+    #[test]
+    fn contains_unknown_looks_inside_every_container() {
+        let deep = PropertyValue::Object(
+            [(
+                "a".to_string(),
+                PropertyValue::Array(vec![PropertyValue::Secret(Box::new(
+                    PropertyValue::Computed,
+                ))]),
+            )]
+            .into_iter()
+            .collect(),
+        );
+        assert!(deep.contains_unknown());
+        assert!(!PropertyValue::String("x".into()).contains_unknown());
+    }
+
+    #[test]
+    fn contains_secret_looks_inside_every_container() {
+        let deep = PropertyValue::Array(vec![PropertyValue::Object(
+            [("k".to_string(), PropertyValue::Secret(Box::new(PropertyValue::Number(1.0))))]
+                .into_iter()
+                .collect(),
+        )]);
+        assert!(deep.contains_secret());
+        assert!(!PropertyValue::Array(vec![PropertyValue::Number(1.0)]).contains_secret());
+    }
+
+    #[test]
+    fn a_secret_wrapping_an_unknown_round_trips() {
+        let v = PropertyValue::Secret(Box::new(PropertyValue::Computed));
+        assert_eq!(PropertyValue::from_proto(&v.to_proto()), v);
+    }
+
+    #[test]
+    fn nested_containers_round_trip() {
+        let v = PropertyValue::Object(
+            [
+                ("list".to_string(), PropertyValue::Array(vec![
+                    PropertyValue::Number(1.0),
+                    PropertyValue::Bool(false),
+                ])),
+                ("nested".to_string(), PropertyValue::Object(
+                    [("k".to_string(), PropertyValue::String("v".into()))].into_iter().collect(),
+                )),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        assert_eq!(PropertyValue::from_proto(&v.to_proto()), v);
+    }
 }
