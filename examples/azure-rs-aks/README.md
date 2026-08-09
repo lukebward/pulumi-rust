@@ -229,10 +229,9 @@ Every generated args struct derives `Default` and every field is an
 missing one is reported when the resource registers, the same as in the Go,
 C#, Java and Python SDKs.
 
-The generator snake_cases property names but does not insert a separator
-inside a run of capitals or after a digit, which produces some names worth
-watching for in the agent pool profile: `osSKU` becomes `os_sku`,
-`enableFIPS` becomes `enable_fips`, `linuxOSConfig` becomes `linux_osconfig`,
-`podIPAllocationMode` becomes `pod_ipallocation_mode`, and
-`nodePublicIPPrefixID` becomes `node_public_ipprefix_id`. `type` is a Rust
-keyword, so it is emitted as `r#type`.
+Property names snake-case the way Python's do, which keeps a run of
+capitals together as one word unless a lowercase letter ends it: `osSKU`
+becomes `os_sku` and `enableFIPS` becomes `enable_fips`, while
+`linuxOSConfig` becomes `linux_os_config` and `nodePublicIPPrefixID` becomes
+`node_public_ip_prefix_id`. `type` is a Rust keyword, so it is emitted as
+`r#type`.

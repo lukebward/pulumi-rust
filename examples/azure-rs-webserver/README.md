@@ -156,7 +156,7 @@ example calls `vm.id.apply(...)` and looks the address up again afterwards.
 The Rust program does the same thing with an invoke sequenced behind the VM:
 
 ```rust
-let looked_up = network::get_public_ipaddress(
+let looked_up = network::get_public_ip_address(
     &ctx,
     network::GetPublicIPAddressArgs {
         resource_group_name: resource_group.name(),
@@ -190,7 +190,7 @@ $ az network public-ip list \
 ***
 ```
 
-The durable fix is a Static address: set `public_ipallocation_method` to
+The durable fix is a Static address: set `public_ip_allocation_method` to
 `"Static"` in `src/main.rs` and the address is allocated up front, so
 `public_ip.ip_address()` is populated as soon as the resource exists and the
 invoke becomes unnecessary.
@@ -202,7 +202,7 @@ on `server-ip` complaining about the SKU or the allocation method, your
 subscription or region has moved on, and the fix is:
 
 ```rust
-public_ipallocation_method: Some(pulumi::pv::string("Static").cast()),
+public_ip_allocation_method: Some(pulumi::pv::string("Static").cast()),
 sku: Some(types::NetworkPublicIPAddressSkuArgs {
     name: Some(pulumi::pv::string("Standard").cast()),
     ..Default::default()
@@ -221,7 +221,7 @@ whose layout follows the package's schema modules:
 - Resources live under their module: `resources::ResourceGroup`,
   `network::VirtualNetwork`, `compute::VirtualMachine`.
 - Invokes are free functions taking `(&ctx, args, InvokeOptions)`:
-  `network::get_public_ipaddress`.
+  `network::get_public_ip_address`.
 - Nested object types live in one flat `types` module, with the module name
   folded into the type name — so `azure-native:compute:OSProfile` becomes
   `types::ComputeOSProfileArgs` and
@@ -231,14 +231,12 @@ whose layout follows the package's schema modules:
 Three things about this provider are worth knowing before reading
 `src/main.rs`:
 
-- **Runs of capitals do not get a separator.** Property names snake-case one
-  word at a time, and a capital that follows another capital does not start a
-  new word. `publicIPAllocationMethod` therefore becomes
-  `public_ipallocation_method`, not `public_ip_allocation_method`;
-  `enableIPForwarding` becomes `enable_ipforwarding`, and
-  `privateIPAddress` becomes `private_ipaddress`. Meanwhile
-  `publicIpAddressName` — spelled with a lowercase `p` in the schema —
-  *does* become `public_ip_address_name`. Both spellings appear in
+- **A run of capitals is one word, until a lowercase letter ends it.**
+  `publicIPAllocationMethod` becomes `public_ip_allocation_method`,
+  `enableIPForwarding` becomes `enable_ip_forwarding`, and `privateIPAddress`
+  becomes `private_ip_address` — the last capital of each run starts the word
+  that follows. `publicIpAddressName`, spelled with a lowercase `p` in the
+  schema, lands on `public_ip_address_name` too. Both spellings appear in
   `PublicIPAddressArgs`.
 - **`Default` is derived only for all-optional structs.** Every resource here
   requires `resourceGroupName`, so every resource args literal is written out
@@ -251,7 +249,7 @@ Three things about this provider are worth knowing before reading
 - **Enum-valued inputs arrive as dynamic values.** azure-native declares them
   as a union of `string` and the enum type, which the generator renders as
   `Output<PropertyValue>` — hence `pulumi::pv::string("Dynamic").cast()` for
-  `public_ipallocation_method`, `"FromImage"` for `create_option`, and so on.
+  `public_ip_allocation_method`, `"FromImage"` for `create_option`, and so on.
   Everything else in the program is strongly typed: the VM's four nested
   profiles are generated args structs, so this example never needs
   `pulumi::pv::object(vec![...]).cast()`.

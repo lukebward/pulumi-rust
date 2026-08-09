@@ -27,7 +27,7 @@ pub struct Features {
 }
 
 /// Settings for a program run, prepared by [`crate::runtime::run`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct RunSettings {
     pub project: String,
     pub stack: String,
@@ -197,6 +197,21 @@ async fn timeout_str(v: &Option<Output<PropertyValue>>) -> String {
     }
 }
 
+/// The package a provider URN serves, or the empty string if the URN is not
+/// a provider's. A provider's type token is `pulumi:providers:<package>`, so
+/// the package is the last segment of the URN's type.
+fn provider_package_of_urn(urn: &str) -> String {
+    // urn:pulumi:<stack>::<project>::<type>::<name>
+    let type_ = match urn.split("::").nth(2) {
+        Some(t) => t,
+        None => return String::new(),
+    };
+    match type_.strip_prefix("pulumi:providers:") {
+        Some(pkg) => pkg.to_string(),
+        None => String::new(),
+    }
+}
+
 /// A request to register a resource, produced by generated SDK code.
 pub struct RegisterRequest {
     pub type_: String,
@@ -215,6 +230,10 @@ pub struct RegisterRequest {
     /// from another component that is itself waiting on this one. Their
     /// values still flow to the component's children.
     pub deferred_inputs: Vec<String>,
+    /// Wire names of the inputs the schema marks required. Every generated
+    /// args field is an `Option` so the struct can derive `Default`, which
+    /// means required-ness is checked here rather than by the compiler.
+    pub required: &'static [&'static str],
 }
 
 /// A parameterized package: a base plugin plus the parameter that turns it
@@ -247,6 +266,10 @@ pub struct Resource {
     /// The providers this resource was registered with, so children and
     /// invokes parented to it resolve the same providers.
     providers: Arc<BTreeMap<String, Resource>>,
+    /// For a provider resource, the package it serves; empty otherwise. Go
+    /// keys its providers map by this, and uses it to decide whether an
+    /// explicit `provider` option is even applicable to a resource.
+    package: String,
 }
 
 impl std::fmt::Debug for Resource {
@@ -444,7 +467,37 @@ impl Context {
         for (pkg, p) in &req.options.providers {
             providers.insert(pkg.clone(), p.clone());
         }
+        // A singular `provider` also joins the map, so children and invokes
+        // parented here inherit it — this is Go's mergeProviders. An explicit
+        // entry in the map wins, since it was named for that package.
+        if let Some(p) = &req.options.provider {
+            if !p.package.is_empty() {
+                providers.entry(p.package.clone()).or_insert_with(|| p.clone());
+            }
+        }
         let providers = Arc::new(providers);
+        // ...and Go's getProvider: the singular option applies only to its own
+        // package, otherwise the map decides. Sending a provider for the wrong
+        // package would route the resource to the wrong plugin.
+        let package = req.type_.split(':').next().unwrap_or_default().to_string();
+        let provider = match &provider {
+            Some(p) if p.package.is_empty() || p.package == package => Some(p.clone()),
+            _ => providers.get(&package).cloned().map(Arc::new),
+        };
+        // For a provider resource, the package it serves.
+        let serves = req
+            .type_
+            .strip_prefix("pulumi:providers:")
+            .unwrap_or_default()
+            .to_string();
+        // The resolved provider is what travels on the wire too, so a
+        // mismatched explicit provider is discarded rather than routing the
+        // resource to the wrong plugin, and a provider inherited from the map
+        // is actually sent.
+        let mut req = req;
+        if req.options.provider_value.is_none() {
+            req.options.provider = provider.as_ref().map(|p| (**p).clone());
+        }
         let fut = async move { Arc::new(do_register(inner, req).await) }.boxed().shared();
         // Drive the registration immediately so independent resources
         // register concurrently, then track it for draining at shutdown.
@@ -458,6 +511,7 @@ impl Context {
             version,
             plugin_download_url,
             providers,
+            package: serves,
         }
     }
 
@@ -466,6 +520,7 @@ impl Context {
     /// is constructing.
     pub fn resource_from_urn(&self, urn: &str) -> Resource {
         let urn = urn.to_string();
+        let package = provider_package_of_urn(&urn);
         let dry_run = self.dry_run();
         let fut = async move {
             Arc::new(RegisterOutcome {
@@ -487,6 +542,7 @@ impl Context {
             version: String::new(),
             plugin_download_url: String::new(),
             providers: Arc::new(BTreeMap::new()),
+            package,
         }
     }
 
@@ -497,6 +553,7 @@ impl Context {
             Some((urn, id)) => (urn.to_string(), id.to_string()),
             None => (reference.to_string(), String::new()),
         };
+        let package = provider_package_of_urn(&urn);
         let dry_run = self.dry_run();
         let fut = async move {
             Arc::new(RegisterOutcome {
@@ -518,6 +575,7 @@ impl Context {
             version: String::new(),
             plugin_download_url: String::new(),
             providers: Arc::new(BTreeMap::new()),
+            package,
         }
     }
 
@@ -758,6 +816,8 @@ impl Context {
         let type_ = type_.into();
         let name = name.into();
         let version = version.into();
+        // A read resource is never a provider.
+        let package = String::new();
         let fut = async move {
             Arc::new(do_read(inner, type_, name, id, inputs, version, options).await)
         }
@@ -773,6 +833,7 @@ impl Context {
             version: String::new(),
             plugin_download_url: String::new(),
             providers: Arc::new(BTreeMap::new()),
+            package,
         }
     }
 
@@ -1218,6 +1279,36 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         return propagated(msg);
     }
 
+    // Required inputs are checked against the marshalled map rather than
+    // against the args struct, because `into_inputs` has already applied any
+    // schema default — a required property that carries one is supplied, not
+    // missing. Wire names are used deliberately: that is what the schema and
+    // every other language's docs show.
+    let missing: Vec<&str> =
+        req.required.iter().copied().filter(|k| !object.contains_key(*k)).collect();
+    if !missing.is_empty() {
+        let msg = format!(
+            "{} resource '{}': missing required {} {}",
+            req.type_,
+            req.name,
+            if missing.len() == 1 { "input" } else { "inputs" },
+            missing.iter().map(|m| format!("`{m}`")).collect::<Vec<_>>().join(", "),
+        );
+        // Logged as well as returned: `finish` keeps only the first error, and
+        // a program with three broken resources should report all three.
+        if let Some(engine) = &inner.engine {
+            let mut engine = engine.clone();
+            let _ = engine
+                .log(pulumirpc::LogRequest {
+                    severity: pulumirpc::LogSeverity::Error as i32,
+                    message: msg.clone(),
+                    ..Default::default()
+                })
+                .await;
+        }
+        return fail(msg);
+    }
+
     let request = pulumirpc::RegisterResourceRequest {
         r#type: req.type_.clone(),
         name: req.name.clone(),
@@ -1389,14 +1480,23 @@ async fn do_call(
     self_: Resource,
     args: Vec<(String, Output<PropertyValue>)>,
 ) -> Result<OutputData> {
-    let mut secret = false;
+    // A call's result takes its secretness and its dependencies from the
+    // response alone — the provider decides what the returned values depend
+    // on and whether they are sensitive. The arguments' own secretness and
+    // dependencies travel separately, in `arg_dependencies`, so the provider
+    // can see them; folding them into the result as well would mark plain
+    // return values secret and record dependencies the provider did not
+    // claim. Go does the same (CallPackage keeps two separate `deps`), and so
+    // does Python.
+    //
+    // `do_invoke` deliberately does the opposite, because Go's invoke path
+    // does too. The asymmetry is in the reference implementation, not an
+    // oversight here.
     let mut deps: Vec<String> = vec![];
     let mut arg_map = BTreeMap::new();
     let mut arg_dependencies = HashMap::new();
     for (key, out) in args {
         let data = out.data().await;
-        secret |= data.secret;
-        deps.extend(data.deps.clone());
         arg_dependencies.insert(
             key.clone(),
             pulumirpc::resource_call_request::ArgumentDependencies { urns: data.deps.clone() },
@@ -1423,7 +1523,6 @@ async fn do_call(
                 urns: vec![outcome.urn.clone()],
             },
         );
-        deps.push(outcome.urn.clone());
     }
 
     let provider = match &self_.provider {
@@ -1476,7 +1575,7 @@ async fn do_call(
     let data = OutputData::from_value(ret);
     Ok(OutputData {
         value: data.value,
-        secret: secret || data.secret,
+        secret: data.secret,
         deps: deps.into_iter().chain(data.deps).collect(),
     })
 }
@@ -1592,7 +1691,7 @@ async fn do_invoke(
     let data = OutputData::from_value(ret);
     Ok(OutputData {
         value: data.value,
-        secret: secret || data.secret,
+        secret: data.secret,
         deps: deps.into_iter().chain(data.deps).collect(),
     })
 }
@@ -1600,4 +1699,100 @@ async fn do_invoke(
 /// Build a [`Struct`] from marshaled fields — exposed for the runtime module.
 pub(crate) fn empty_struct() -> Struct {
     Struct { fields: Default::default() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A context whose monitor channel is never connected. The required-input
+    /// check runs before any RPC, so it can be exercised without an engine.
+    fn offline_context() -> Arc<ContextInner> {
+        let channel = Channel::from_static("http://127.0.0.1:1").connect_lazy();
+        Arc::new(ContextInner {
+            monitor: ResourceMonitorClient::new(channel),
+            engine: None,
+            settings: RunSettings::default(),
+            features: Features::default(),
+            config: Config::default(),
+            stack_urn: tokio::sync::OnceCell::new(),
+            callbacks: tokio::sync::OnceCell::new(),
+            package_refs: tokio::sync::Mutex::new(HashMap::new()),
+            hydrated: tokio::sync::Mutex::new(HashMap::new()),
+            pending: Mutex::new(vec![]),
+            exports: Mutex::new(vec![]),
+        })
+    }
+
+    fn request(
+        inputs: Vec<(&str, PropertyValue)>,
+        required: &'static [&'static str],
+    ) -> RegisterRequest {
+        RegisterRequest {
+            type_: "test:index:Thing".to_string(),
+            name: "thing".to_string(),
+            custom: true,
+            remote: false,
+            version: String::new(),
+            plugin_download_url: String::new(),
+            inputs: inputs
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), Output::from_value(v)))
+                .collect(),
+            options: ResourceOptions::default(),
+            package: None,
+            deferred_inputs: vec![],
+            required,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_missing_required_input_fails_the_registration_by_name() {
+        // Every generated args field is an Option, so this is the only place
+        // a forgotten required input is caught before the provider sees it.
+        let outcome = do_register(offline_context(), request(vec![], &["bucket"])).await;
+        let err = outcome.error.expect("a missing required input was not reported");
+        assert!(err.contains("test:index:Thing"), "no resource type: {err}");
+        assert!(err.contains("thing"), "no resource name: {err}");
+        assert!(err.contains("`bucket`"), "the missing input is not named: {err}");
+    }
+
+    #[tokio::test]
+    async fn every_missing_required_input_is_named_at_once() {
+        let outcome = do_register(offline_context(), request(vec![], &["bucket", "key"])).await;
+        let err = outcome.error.unwrap();
+        assert!(err.contains("`bucket`") && err.contains("`key`"), "{err}");
+        assert!(err.contains("inputs"), "plural not used: {err}");
+    }
+
+    #[test]
+    fn a_provider_urn_yields_its_package() {
+        assert_eq!(
+            provider_package_of_urn("urn:pulumi:dev::proj::pulumi:providers:aws::prov"),
+            "aws"
+        );
+        // Not a provider, so no package: an ordinary resource must never be
+        // folded into the providers map.
+        assert_eq!(
+            provider_package_of_urn("urn:pulumi:dev::proj::aws:s3/bucket:Bucket::b"),
+            ""
+        );
+        assert_eq!(provider_package_of_urn("nonsense"), "");
+    }
+
+    #[tokio::test]
+    async fn an_input_supplied_by_a_schema_default_is_not_missing() {
+        // `into_inputs` applies schema defaults before the map gets here, so
+        // the check has to look at the produced inputs, not at the args
+        // struct: a required property carrying a default is supplied.
+        let outcome = do_register(
+            offline_context(),
+            request(vec![("bucket", PropertyValue::String("b".into()))], &["bucket"]),
+        )
+        .await;
+        // No missing-input error. The registration fails later, on the
+        // unconnectable monitor, which is what proves the check passed.
+        let err = outcome.error.unwrap_or_default();
+        assert!(!err.contains("missing required"), "{err}");
+    }
 }

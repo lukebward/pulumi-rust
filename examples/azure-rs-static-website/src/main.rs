@@ -58,10 +58,6 @@ fn main() {
 
         // Turning the feature on creates the `$web` container and tells
         // Azure which page to serve for requests to a directory root.
-        //
-        // The generator snake_cases property names but does not insert a
-        // separator after a digit, so `error404Document` folds to
-        // `error404document` — not `error404_document`.
         let website = storage::StorageAccountStaticWebsite::new(
             &ctx,
             "static-website",

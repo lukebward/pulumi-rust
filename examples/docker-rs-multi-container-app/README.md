@@ -189,11 +189,6 @@ Two details of that generated API shaped how `src/main.rs` is written:
 - **`ContainerArgs` has about seventy inputs**, and the program sets four
   of them. Every generated args struct derives `Default`, so the rest are
   elided with `..Default::default()` rather than written out.
-- **`ipv4Address` becomes `ipv4address`, not `ipv4_address`.** The
-  generator's `snakeCase` inserts a separator before an uppercase letter only
-  when the previous character was lowercase, and here it is a digit. The same
-  goes for `ipv6Address`. Both appear in
-  `ContainerNetworksAdvancedArgs`, which this program has to name in full.
 
 ## How the two containers find each other
 

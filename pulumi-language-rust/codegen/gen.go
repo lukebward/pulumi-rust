@@ -557,6 +557,18 @@ func unwrapToObject(t schema.Type) (*schema.ObjectType, bool) {
 	return nil, false
 }
 
+// requiredWireNames renders the schema-required input names as the elements
+// of a Rust static slice.
+func requiredWireNames(props []*schema.Property) string {
+	var names []string
+	for _, p := range props {
+		if p.IsRequired() {
+			names = append(names, fmt.Sprintf("%q", p.Name))
+		}
+	}
+	return strings.Join(names, ", ")
+}
+
 // writeArgsStruct emits an args struct plus its conversion into inputs.
 // wrapSecrets marks schema-secret properties as secrets on the wire; this
 // applies to resource/function inputs but not nested object types.
@@ -727,6 +739,10 @@ func (g *pkgGenerator) writeResource(w *bytes.Buffer, r *schema.Resource, qualif
 	fmt.Fprintf(w, "            options,\n")
 	fmt.Fprintf(w, "            package: %s,\n", g.packageDescriptorExpr())
 	fmt.Fprintf(w, "            deferred_inputs: vec![],\n")
+	// Every args field is an Option so the struct can derive Default, so the
+	// schema's required inputs are checked when the resource registers.
+	// Wire names, because that is what the schema and the error message use.
+	fmt.Fprintf(w, "            required: &[%s],\n", requiredWireNames(r.InputProperties))
 	fmt.Fprintf(w, "        });\n")
 	fmt.Fprintf(w, "        %s { resource }\n", name)
 	fmt.Fprintf(w, "    }\n\n")

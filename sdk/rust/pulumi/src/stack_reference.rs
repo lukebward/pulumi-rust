@@ -30,6 +30,7 @@ impl StackReference {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         StackReference { resource }
     }

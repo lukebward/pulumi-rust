@@ -46,6 +46,7 @@ impl BucketWithPolicy {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
 
         // Children are parented to the component. In a real program these

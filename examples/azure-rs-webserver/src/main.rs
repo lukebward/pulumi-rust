@@ -132,18 +132,12 @@ fn main() {
         // until the VM it is attached to boots, which is why the export at
         // the bottom of this program looks the address up after the fact
         // rather than reading `public_ip.ip_address()`.
-        //
-        // `publicIPAllocationMethod` snake-cases to
-        // `public_ipallocation_method`: the generator does not insert a
-        // separator between two runs of capitals, so `IPAllocation` folds to
-        // `ipallocation`. The same rule gives `enable_ipforwarding` and
-        // `private_ipallocation_method` below.
         let public_ip = network::PublicIPAddress::new(
             &ctx,
             "server-ip",
             network::PublicIPAddressArgs {
                 resource_group_name: Some(resource_group.name()),
-                public_ipallocation_method: Some(pulumi::pv::string("Dynamic").cast()),
+                public_ip_allocation_method: Some(pulumi::pv::string("Dynamic").cast()),
                 ..Default::default()
             },
             pulumi::ResourceOptions::default(),
@@ -185,8 +179,8 @@ fn main() {
                         id: Some(subnet_id.cast()),
                         ..Default::default()
                     }),
-                    private_ipallocation_method: Some(pulumi::pv::string("Dynamic").cast()),
-                    public_ipaddress: Some(types::NetworkPublicIPAddressArgs {
+                    private_ip_allocation_method: Some(pulumi::pv::string("Dynamic").cast()),
+                    public_ip_address: Some(types::NetworkPublicIPAddressArgs {
                         id: Some(public_ip.id()),
                         ..Default::default()
                     }),
@@ -269,7 +263,7 @@ fn main() {
         // with the `getPublicIPAddress` invoke, sequenced after the VM with
         // `depends_on`, is what the TypeScript and Python versions do with
         // `vm.id.apply(...)`. The invoke reports `unknown` during a preview.
-        let looked_up = network::get_public_ipaddress(
+        let looked_up = network::get_public_ip_address(
             &ctx,
             network::GetPublicIPAddressArgs {
                 resource_group_name: Some(resource_group.name()),

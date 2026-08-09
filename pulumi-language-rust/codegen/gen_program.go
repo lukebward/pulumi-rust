@@ -369,7 +369,7 @@ func (g *programGenerator) writeComponentModule(w *bytes.Buffer, body *bytes.Buf
 	fmt.Fprintf(w, "            custom: false,\n            remote: false,\n")
 	fmt.Fprintf(w, "            version: String::new(),\n            plugin_download_url: String::new(),\n")
 	fmt.Fprintf(w, "            inputs: __inputs,\n")
-	fmt.Fprintf(w, "            options,\n            package: None,\n            deferred_inputs: __deferred,\n")
+	fmt.Fprintf(w, "            options,\n            package: None,\n            deferred_inputs: __deferred,\n            required: &[],\n")
 	fmt.Fprintf(w, "        });\n")
 	fmt.Fprintf(w, "        let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };\n")
 	for _, line := range strings.Split(strings.TrimRight(body.String(), "\n"), "\n") {
@@ -659,7 +659,7 @@ func (g *programGenerator) rangedDynamicConstruct(r *pcl.Resource, options strin
 		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
 			rustString(input.Name), g.expr(input.Value)))
 	}
-	return fmt.Sprintf("ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: __range.name(%s), custom: %v, remote: %v, version: %s.to_string(), plugin_download_url: %s.to_string(), inputs: vec![%s], options: %s, package: None, deferred_inputs: vec![] })",
+	return fmt.Sprintf("ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: __range.name(%s), custom: %v, remote: %v, version: %s.to_string(), plugin_download_url: %s.to_string(), inputs: vec![%s], options: %s, package: None, deferred_inputs: vec![], required: &[] })",
 		rustString(canonical), g.rangeBaseName(r.LogicalName()), custom, remote,
 		rustString(version), rustString(pluginDownloadURL), strings.Join(inputs, ", "), options)
 }
@@ -747,7 +747,7 @@ func (g *programGenerator) genDynamicResource(w *bytes.Buffer, r *pcl.Resource) 
 	name := g.declareVar(r.Name())
 	g.builtinVars[name] = true
 	g.declaredVars = append(g.declaredVars, name)
-	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: %v, remote: %v, version: %s.to_string(), plugin_download_url: %s.to_string(), inputs: vec![%s], options: %s, package: None, deferred_inputs: vec![] });\n",
+	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: %v, remote: %v, version: %s.to_string(), plugin_download_url: %s.to_string(), inputs: vec![%s], options: %s, package: None, deferred_inputs: vec![], required: &[] });\n",
 		name, rustString(canonical), g.resourceName(r.LogicalName()), custom, remote,
 		rustString(version), rustString(pluginDownloadURL),
 		strings.Join(inputs, ", "), g.resourceOptions(r))
@@ -786,7 +786,7 @@ func (g *programGenerator) genBuiltinResource(w *bytes.Buffer, r *pcl.Resource) 
 	name := g.declareVar(r.Name())
 	g.builtinVars[name] = true
 	g.declaredVars = append(g.declaredVars, name)
-	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: true, remote: false, version: String::new(), plugin_download_url: String::new(), inputs: vec![%s], options: %s, package: None, deferred_inputs: vec![] });\n",
+	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: true, remote: false, version: String::new(), plugin_download_url: String::new(), inputs: vec![%s], options: %s, package: None, deferred_inputs: vec![], required: &[] });\n",
 		name, rustString(canonical), g.resourceName(r.LogicalName()),
 		strings.Join(inputs, ", "), g.resourceOptions(r))
 }
@@ -1623,7 +1623,6 @@ func (g *programGenerator) optionsLiteral(opts *pcl.ResourceOptions, subject hcl
 		}
 		setField("providers", "vec!["+strings.Join(elems, ", ")+"]")
 	}
-
 
 	if len(fields) == 0 {
 		return "pulumi::ResourceOptions::default()"

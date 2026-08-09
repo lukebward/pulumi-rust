@@ -125,3 +125,22 @@ func TestOutputStructsStillFollowTheSchema(t *testing.T) {
 		t.Error("an optional output property should stay optional")
 	}
 }
+
+// Because required-ness is no longer visible in the Rust types, the generated
+// resource carries the schema's required wire names so the runtime can report
+// a forgotten input by name instead of leaving it to the provider.
+func TestRequiredWireNamesReachTheRuntime(t *testing.T) {
+	lib := generate(t, requiredInputSchema)
+	if !strings.Contains(lib, `required: &["bucket"],`) {
+		t.Error("the resource does not declare its required inputs")
+	}
+	// The provider resource has no required inputs, and must still compile.
+	if !strings.Contains(lib, "required: &[],") {
+		t.Error("a resource with no required inputs should declare an empty slice")
+	}
+	// Wire names, not Rust field names: that is what the schema, the docs and
+	// every other language show.
+	if strings.Contains(lib, `required: &["r#type"]`) {
+		t.Error("required names must be wire names, not escaped Rust identifiers")
+	}
+}

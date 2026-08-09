@@ -165,11 +165,6 @@ fn main() {
 }
 
 /// Attach a container to a network, optionally under a DNS alias.
-///
-/// The odd-looking `ipv4address` / `ipv6address` fields are not typos: the
-/// schema names them `ipv4Address` and `ipv6Address`, and the generator's
-/// `snakeCase` does not insert a separator between a digit and the uppercase
-/// letter that follows it.
 fn network_attachment(
     name: Output<std::string::String>,
     alias: Option<&str>,

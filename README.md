@@ -161,10 +161,10 @@ fn main() {
 
 ## Known limitations
 
-Two behaviors differ from the Go SDK, and generated field names word-break
-differently from the other SDKs in one narrow case. All are recorded in
-[`docs/roadmap.md`](./docs/roadmap.md); none is covered by a conformance
-test.
+None outstanding. [`docs/roadmap.md`](./docs/roadmap.md) records what the
+suite cannot: the two behaviours that used to differ from the Go SDK and
+now do not, the three generator defects the example programs surfaced, and
+what `Construct` deliberately omits.
 
 ## License
 

@@ -325,13 +325,11 @@ Three things about this provider are worth knowing before reading
   `NameValuePair` and `ConnStringInfo` are all-optional and could take
   `..Default::default()`; `storage:Sku` and `sql:Sku` both require `name`,
   so they name every field.
-- **Runs of capitals do not get a separator.** Property names snake-case one
-  word at a time, and a capital that follows another capital does not start a
-  new word. `iPAddressOrRange` on the SAS invoke therefore becomes
-  `i_paddress_or_range`, and `isIPv6Enabled` on `ServerArgs` becomes
-  `is_ipv6enabled` — not `is_ip_v6_enabled`. Meanwhile `enableNfsV3RootSquash`
-  on `BlobContainerArgs`, whose `V3` is followed by a capital `R`, becomes
-  `enable_nfs_v3root_squash`.
+- **A run of capitals is one word.** `isIPv6Enabled` on `ServerArgs`
+  becomes `is_ipv6_enabled`, and `enableNfsV3RootSquash` on
+  `BlobContainerArgs` becomes `enable_nfs_v3_root_squash`. The schema's own
+  `iPAddressOrRange` on the SAS invoke is genuinely odd rather than
+  mis-converted, and comes through as `i_p_address_or_range`.
 - **`type` is a Rust keyword.** The generator escapes it as a raw
   identifier, so `ConnStringInfo`'s `type` property — which is where the
   `SQLAzure` connection-string kind goes — is written `r#type`. `BlobArgs`

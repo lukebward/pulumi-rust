@@ -225,10 +225,6 @@ Two shapes in this program are worth calling out:
   with `pulumi::pv::string(..).cast()` rather than `Output::known(..)`. A bare
   `.cast()` is the habit worth keeping generally: it infers, so it compiles
   whether the field ends up typed or dynamic.
-- **`ipv6Address` folds to `ipv6address`.** The snake-case conversion treats a
-  digit as ending a word without starting a new one, so the capital `A` does
-  not get an underscore in front of it. The same rule turns AWS's
-  `ipv6CidrBlocks` into `ipv6cidr_blocks`.
 
 ## Selecting backends by tag versus by id
 

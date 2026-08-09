@@ -331,13 +331,9 @@ fields inside it that are `Output`s.
 
 Two more details worth knowing:
 
-- The generator snake_cases property names but does not insert a separator
-  inside a run of capitals or after a digit. The EKS and IAM inputs used
-  here are all tame — `roleArn` becomes `role_arn`, `vpcConfig` becomes
-  `vpc_config`, `nodeRoleArn` becomes `node_role_arn` — but the
-  `getVpc` *result* is not: `ipv6CidrBlock` becomes `ipv6cidr_block` and
-  `ipv6AssociationId` becomes `ipv6association_id`, because the character
-  before the capital is a digit rather than a lowercase letter.
+- Property names snake-case the way Python's do: `roleArn` becomes
+  `role_arn`, `vpcConfig` becomes `vpc_config`, and on the `getVpc` result
+  `ipv6CidrBlock` becomes `ipv6_cidr_block`.
 - A few inputs the schema types loosely come through as
   `Output<PropertyValue>` rather than `Output<String>` —
   `RoleArgs::assume_role_policy` and `RolePolicyAttachmentArgs::role` are

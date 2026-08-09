@@ -55,45 +55,111 @@ func escapeIdent(name string) string {
 	return name
 }
 
+// isNameSeparator reports whether r is a rune schemas use to separate words
+// but that cannot appear in a Rust identifier. Each run of them becomes a
+// single underscore.
+func isNameSeparator(r rune) bool {
+	return r == '-' || r == '.' || r == ' ' || r == '/' || r == ':' || r == '_'
+}
+
+// startsWord reports whether chars[i] begins a new word. chars holds only the
+// letters and digits of the name; i is greater than zero.
+//
+// The base rule is the one every camelCase-to-snake_case converter uses, and
+// the one the Pulumi Python generator's PyName implements as a state machine
+// (pulumi/pkg/codegen/python/python.go:49):
+//
+//   - a capital after a lower-case letter or a digit opens a word, so
+//     "kubeletConfigKey" splits three ways and "ipv4Address" splits two;
+//   - a run of capitals is one word, and when a lower-case letter ends the run
+//     the *last* capital of the run belongs to the next word instead:
+//     "HTTPServer" is "http" + "server", "podCIDRSet" is "pod" + "cidr" +
+//     "set";
+//   - a run of capitals that reaches the end of the name stays whole, so
+//     "parseJSON" is "parse" + "json";
+//   - a digit never opens a word, which keeps "SHA256Hash" at "sha256" +
+//     "hash" rather than splitting the number off its acronym.
+//
+// Two lookahead exceptions keep shapes that are common in provider schemas
+// from being shredded by the run-ending rule:
+//
+//   - a plural acronym: an "s" that closes a run of capitals and is not itself
+//     the start of a word keeps the run intact, so "podCIDRs" is "pod_cidrs"
+//     and "podIPs" is "pod_ips", not "pod_cid_rs" and "pod_i_ps". Python folds
+//     any trailing "s" unconditionally and has to special-case its way out of
+//     the fallout; requiring the "s" to be followed by something other than a
+//     lower-case letter is what keeps "openXJsonSerDe" at "open_x_json_ser_de"
+//     (see pulumi/pulumi#5199).
+//   - a version suffix: a single lower-case letter wedged between a run of
+//     capitals and a digit belongs to the acronym, so "isIPv6Enabled" is
+//     "is_ipv6_enabled" and "isNFSv3Enabled" is "is_nfsv3_enabled", not
+//     "is_i_pv6_enabled" and "is_nf_sv3_enabled".
+func startsWord(chars []rune, i int) bool {
+	prev, cur := chars[i-1], chars[i]
+	if !unicode.IsUpper(cur) {
+		return false
+	}
+	if !unicode.IsUpper(prev) {
+		return true
+	}
+	// Inside a run of capitals. The run only breaks where a lower-case letter
+	// ends it, and then cur is the first letter of the word that follows.
+	if i+1 >= len(chars) || !unicode.IsLower(chars[i+1]) {
+		return false
+	}
+	if chars[i+1] == 's' && (i+2 >= len(chars) || !unicode.IsLower(chars[i+2])) {
+		return false
+	}
+	if i+2 < len(chars) && unicode.IsDigit(chars[i+2]) {
+		return false
+	}
+	return true
+}
+
 // snakeCase converts camelCase/PascalCase/kebab-case names to snake_case.
 func snakeCase(name string) string {
-	var b strings.Builder
-	prevLower := false
-	prevUnderscore := true // suppress leading underscore
+	// Split the name into the runes that survive into the identifier, noting
+	// where a word break was forced by punctuation. Runes that cannot appear
+	// in a Rust identifier at all are dropped without breaking a word:
+	// Kubernetes schemas carry properties like "$ref" and "$schema", whose
+	// wire names are preserved separately. The .NET generator drops the same
+	// leading "$" (pulumi/pkg/codegen/dotnet/gen.go:60).
+	var (
+		chars   []rune
+		breaks  []bool
+		pending bool // a separator has been seen since the last kept rune
+	)
 	for _, r := range name {
 		switch {
-		case r == '-' || r == '.' || r == ' ' || r == '/' || r == ':' || r == '_':
-			if !prevUnderscore {
-				b.WriteRune('_')
-				prevUnderscore = true
+		case isNameSeparator(r):
+			if len(chars) > 0 {
+				pending = true
 			}
-			prevLower = false
-			continue
-		case unicode.IsUpper(r):
-			if prevLower && !prevUnderscore {
-				b.WriteRune('_')
-			}
-			b.WriteRune(unicode.ToLower(r))
-			prevLower = false
-			prevUnderscore = false
-		case unicode.IsDigit(r):
-			if b.Len() == 0 {
-				b.WriteRune('_')
-			}
-			b.WriteRune(r)
-			prevLower = false
-			prevUnderscore = false
-		case !unicode.IsLetter(r):
-			// Anything else that cannot appear in a Rust identifier is
-			// dropped: Kubernetes schemas carry properties like "$ref" and
-			// "$schema", whose wire names are preserved separately.
-			continue
-		default:
-			b.WriteRune(r)
-			prevLower = true
-			prevUnderscore = false
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			chars = append(chars, r)
+			breaks = append(breaks, pending)
+			pending = false
 		}
 	}
+
+	var b strings.Builder
+	b.Grow(len(name) + 8)
+	for i, r := range chars {
+		switch {
+		case i == 0:
+			// A Rust identifier cannot start with a digit.
+			if unicode.IsDigit(r) {
+				b.WriteRune('_')
+			}
+		case breaks[i] || startsWord(chars, i):
+			b.WriteRune('_')
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	if pending {
+		b.WriteRune('_')
+	}
+
 	out := b.String()
 	if out == "" {
 		out = "_"

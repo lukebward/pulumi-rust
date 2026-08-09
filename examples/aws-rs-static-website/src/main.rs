@@ -142,7 +142,7 @@ fn main() {
                     // API.
                     domain_name: Some(content_bucket.bucket_regional_domain_name().cast()),
                     origin_id: Some(pulumi::pv::string(ORIGIN_ID).cast()),
-                    s3origin_config: Some(
+                    s3_origin_config: Some(
                         pulumi_aws::types::CloudfrontDistributionOriginS3OriginConfigArgs {
                             // This wants the identity's *path* —
                             // `origin-access-identity/cloudfront/***` — not
