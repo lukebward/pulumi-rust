@@ -54,6 +54,14 @@ values are indicated with `***`.
     $ pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
     ```
 
+    The generated crate's own `Cargo.toml` depends on `pulumi = "0.1"`,
+    which is not published yet; repoint it at this repository:
+
+    ```toml
+    # in ./sdks/aws/rust/Cargo.toml
+    pulumi = { path = "../../../../../sdk/rust/pulumi" }
+    ```
+
     The version is pinned deliberately. `BucketObjectArgs` has a required
     input (`bucket`), so the generator does not derive `Default` for it and
     `src/main.rs` names every field explicitly — including the ones set to

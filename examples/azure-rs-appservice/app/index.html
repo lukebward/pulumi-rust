@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello from Pulumi and Rust</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        margin: 4rem auto;
+        max-width: 40rem;
+        padding: 0 1rem;
+        line-height: 1.6;
+      }
+      code {
+        background: #f4f4f5;
+        border-radius: 3px;
+        padding: 0.1em 0.3em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hello, World from Pulumi!</h1>
+    <p>
+      This page is served by Azure App Service. It was zipped out of the
+      <code>app/</code> directory, uploaded as a blob, and handed to the site
+      through the <code>WEBSITE_RUN_FROM_PACKAGE</code> setting by a Pulumi
+      program written in Rust.
+    </p>
+    <p>
+      The same program created an Azure SQL database and passed its connection
+      string to this app as a secret. The runtime exposes it as the
+      <code>SQLAZURECONNSTR_db</code> environment variable — this static page
+      does not read it, but an application deployed in its place would.
+    </p>
+  </body>
+</html>

@@ -43,7 +43,7 @@ and Go both word-break there, so the names a Rust user sees diverge from
 every other Pulumi SDK for exactly those properties. The rule is at least
 deterministic and total, and the fix is a small one in `naming.go` — but it
 would rewrite field names throughout every committed snapshot and
-invalidate the field lists in all sixteen cloud examples, each of which was
+invalidate the field lists in all nineteen cloud examples, each of which was
 checked against the current rule. It is worth doing in a change of its own,
 with the snapshots and examples regenerated together.
 

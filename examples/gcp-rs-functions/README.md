@@ -69,6 +69,14 @@ values are indicated with `***`.
     $ pulumi package gen-sdk gcp@9.33.0 --language rust --out ./sdks/gcp
     ```
 
+    The generated crate's own `Cargo.toml` depends on `pulumi = "0.1"`,
+    which is not published yet; repoint it at this repository:
+
+    ```toml
+    # in ./sdks/gcp/rust/Cargo.toml
+    pulumi = { path = "../../../../../sdk/rust/pulumi" }
+    ```
+
     The version is pinned deliberately. `BucketArgs`, `BucketObjectArgs`,
     `FunctionArgs`, and `FunctionIamMemberArgs` each have at least one
     required input (`location`, `bucket`, `runtime`, and

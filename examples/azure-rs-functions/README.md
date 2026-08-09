@@ -86,6 +86,14 @@ values are indicated with `***`.
     in `./sdks/azure-native/rust` and you have to repoint `Cargo.toml`
     yourself if the path differs.
 
+    The generated crate's own `Cargo.toml` depends on `pulumi = "0.1"`,
+    which is not published yet; repoint it at this repository:
+
+    ```toml
+    # in ./sdks/azure-native/rust/Cargo.toml
+    pulumi = { path = "../../../../../sdk/rust/pulumi" }
+    ```
+
     The version is pinned deliberately. `StorageAccountArgs`,
     `AppServicePlanArgs` and `WebAppArgs` all have required inputs, so the
     generator does not derive `Default` for them and `src/main.rs` names

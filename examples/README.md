@@ -8,7 +8,7 @@ each with its own `README.md`, `Pulumi.yaml`, `Cargo.toml` and `src/`.
 
 ## Cloud examples
 
-The scenarios pulumi/examples ships for every language, across five
+The scenarios pulumi/examples ships for every language, across six
 providers.
 
 ### AWS
@@ -20,6 +20,7 @@ providers.
 | [`aws-rs-static-website`](./aws-rs-static-website) | The same site in a *private* bucket, served through CloudFront with an origin access identity |
 | [`aws-rs-lambda-apigateway`](./aws-rs-lambda-apigateway) | A serverless HTTP API: API Gateway v2 in front of a Lambda function |
 | [`aws-rs-fargate`](./aws-rs-fargate) | An nginx container on ECS Fargate behind an Application Load Balancer |
+| [`aws-rs-eks`](./aws-rs-eks) | A managed Kubernetes cluster with a node group, exporting a secret kubeconfig |
 
 ### Azure
 
@@ -28,6 +29,7 @@ providers.
 | [`azure-rs-webserver`](./azure-rs-webserver) | A Linux VM with a virtual network, NSG and public IP |
 | [`azure-rs-static-website`](./azure-rs-static-website) | A static website on Blob Storage |
 | [`azure-rs-functions`](./azure-rs-functions) | An HTTP-triggered Function App on a Consumption plan |
+| [`azure-rs-appservice`](./azure-rs-appservice) | A web app on App Service backed by an Azure SQL database |
 | [`azure-rs-aks`](./azure-rs-aks) | A managed Kubernetes cluster, exporting a secret kubeconfig |
 
 ### Google Cloud
@@ -91,9 +93,9 @@ generator produces, and were checked at three different strengths:
 
 | Strength | Examples | What was done |
 |---|---|---|
-| Compiled against the real generated SDK | both `kubernetes-rs-*`, `digitalocean-rs-loadbalanced-droplets` | The provider's published schema was run through this repo's `GeneratePackage`, and the program `cargo check`ed against the result |
+| Compiled against the real generated SDK | both `kubernetes-rs-*`, `digitalocean-rs-loadbalanced-droplets`, `aws-rs-eks` | The provider's published schema was run through this repo's `GeneratePackage`, and the program `cargo check`ed against the result |
 | Compiled against a stub SDK | both `gcp-rs-cloudrun`/`gcp-rs-gke`, `docker-rs-multi-container-app` | Checked against hand-built crates reproducing the generator's shapes, with field lists derived mechanically from the provider's published SDK |
-| Property names machine-checked against the published schema | the AWS and Azure examples, `gcp-rs-webserver`, `gcp-rs-functions` | Every args-struct literal diffed field-by-field against the provider schema at the pinned version, using a reimplementation of the generator's naming rules |
+| Property names machine-checked against the published schema | the remaining AWS and Azure examples, `gcp-rs-webserver`, `gcp-rs-functions` | Every args-struct literal diffed field-by-field against the provider schema at the pinned version, using a reimplementation of the generator's naming rules |
 
 Cloud *semantics* — IAM trust policies, image names, SKU compatibility,
 which ARN an integration wants — are not verified by any of that, and each
