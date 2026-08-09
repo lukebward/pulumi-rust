@@ -67,6 +67,7 @@ async fn construct(args: pulumi::ConstructArgs) -> pulumi::Result<pulumi::Constr
         options: args.options,
         package: None,
         deferred_inputs: vec![],
+        required: &[],
     });
 
     // The engine hands these to Construct, so a component provider sees the

@@ -38,6 +38,7 @@ impl Container {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["inputs"],
         });
         Container { resource }
     }
@@ -100,6 +101,7 @@ impl MapContainer {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["tags"],
         });
         MapContainer { resource }
     }
@@ -158,6 +160,7 @@ impl Receiver {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["details"],
         });
         Receiver { resource }
     }
@@ -216,6 +219,7 @@ impl Target {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["name"],
         });
         Target { resource }
     }
@@ -270,6 +274,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

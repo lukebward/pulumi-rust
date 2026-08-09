@@ -42,6 +42,7 @@ impl Resource {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["externalEnum", "in"],
         });
         Resource { resource }
     }
@@ -108,6 +109,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

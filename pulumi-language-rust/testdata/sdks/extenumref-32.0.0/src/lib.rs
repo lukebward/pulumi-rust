@@ -38,6 +38,7 @@ impl Sink {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Sink { resource }
     }
@@ -92,6 +93,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

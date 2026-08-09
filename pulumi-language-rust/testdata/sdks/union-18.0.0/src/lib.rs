@@ -34,6 +34,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
@@ -88,6 +89,7 @@ impl EnumOutput {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["name"],
         });
         EnumOutput { resource }
     }
@@ -162,6 +164,7 @@ impl Example {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Example { resource }
     }

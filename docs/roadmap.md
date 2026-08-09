@@ -38,6 +38,17 @@ None outstanding. Two were recorded here and both are fixed:
   invoke path does the same. The asymmetry is in the reference, not an
   oversight, and is commented in the code so it does not get "fixed".
 
+  Worth stating plainly, because it *reduces* secret propagation: a method
+  called with a secret argument whose provider does not mark the return
+  secret now produces a non-secret result. Go puts that responsibility on
+  the provider deliberately, and a Rust-only rule here would be exactly the
+  kind of divergence that disqualifies a language from being official.
+
+A third divergence surfaced while verifying those two, and is fixed as well:
+`read_resource` never sent a provider at all, so a resource read through an
+explicit provider was read by the default one instead, and its children
+inherited nothing. Registration and read now share one `resolve_providers`.
+
 ## Generator limitations found writing the examples
 
 Three generator defects surfaced while writing the cloud examples, none of

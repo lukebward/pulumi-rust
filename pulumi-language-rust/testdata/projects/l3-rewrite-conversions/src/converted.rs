@@ -55,6 +55,7 @@ impl Converted {
             options,
             package: None,
             deferred_inputs: __deferred,
+            required: &[],
         });
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
         let boolean = args.boolean.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));

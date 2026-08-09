@@ -34,6 +34,7 @@ impl FlakyCreate {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         FlakyCreate { resource }
     }
@@ -84,6 +85,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

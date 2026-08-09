@@ -38,6 +38,7 @@ impl ComponentCallable {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         ComponentCallable { resource }
     }
@@ -92,6 +93,7 @@ impl ComponentCustomRefInputOutput {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["inputRef"],
         });
         ComponentCustomRefInputOutput { resource }
     }
@@ -150,6 +152,7 @@ impl ComponentCustomRefOutput {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         ComponentCustomRefOutput { resource }
     }
@@ -208,6 +211,7 @@ impl ComponentForeignChild {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         ComponentForeignChild { resource }
     }
@@ -262,6 +266,7 @@ impl Custom {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         Custom { resource }
     }
@@ -316,6 +321,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

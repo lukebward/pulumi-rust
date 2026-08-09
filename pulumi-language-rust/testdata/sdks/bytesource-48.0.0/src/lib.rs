@@ -38,6 +38,7 @@ impl Resource {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["base64"],
         });
         Resource { resource }
     }
@@ -96,6 +97,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

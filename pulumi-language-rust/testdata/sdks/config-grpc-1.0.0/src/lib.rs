@@ -34,6 +34,7 @@ impl ConfigFetcher {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         ConfigFetcher { resource }
     }
@@ -476,6 +477,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

@@ -34,6 +34,7 @@ impl Greeting {
             options,
             package: Some(pulumi::PackageDescriptor { base_name: "extbase".to_string(), base_version: "45.0.0".to_string(), download_url: "".to_string(), name: "myext".to_string(), version: "2.0.0".to_string(), base64_parameter: "SGVsbG8=".to_string(), extension: true }),
             deferred_inputs: vec![],
+            required: &[],
         });
         Greeting { resource }
     }
@@ -88,6 +89,7 @@ impl GreetingComponent {
             options,
             package: Some(pulumi::PackageDescriptor { base_name: "extbase".to_string(), base_version: "45.0.0".to_string(), download_url: "".to_string(), name: "myext".to_string(), version: "2.0.0".to_string(), base64_parameter: "SGVsbG8=".to_string(), extension: true }),
             deferred_inputs: vec![],
+            required: &[],
         });
         GreetingComponent { resource }
     }

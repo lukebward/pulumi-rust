@@ -46,6 +46,7 @@ impl Component {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["resource", "resourceList", "resourceMap"],
         });
         Component { resource }
     }
@@ -100,6 +101,7 @@ impl Custom {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         Custom { resource }
     }
@@ -154,6 +156,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

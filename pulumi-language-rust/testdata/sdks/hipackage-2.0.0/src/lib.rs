@@ -34,6 +34,7 @@ impl HelloWorld {
             options,
             package: Some(pulumi::PackageDescriptor { base_name: "parameterized".to_string(), base_version: "1.2.3".to_string(), download_url: "".to_string(), name: "hipackage".to_string(), version: "2.0.0".to_string(), base64_parameter: "SGVsbG9Xb3JsZA==".to_string(), extension: false }),
             deferred_inputs: vec![],
+            required: &[],
         });
         HelloWorld { resource }
     }
@@ -88,6 +89,7 @@ impl HelloWorldComponent {
             options,
             package: Some(pulumi::PackageDescriptor { base_name: "parameterized".to_string(), base_version: "1.2.3".to_string(), download_url: "".to_string(), name: "hipackage".to_string(), version: "2.0.0".to_string(), base64_parameter: "SGVsbG9Xb3JsZA==".to_string(), extension: false }),
             deferred_inputs: vec![],
+            required: &[],
         });
         HelloWorldComponent { resource }
     }
@@ -142,6 +144,7 @@ impl Provider {
             options,
             package: Some(pulumi::PackageDescriptor { base_name: "parameterized".to_string(), base_version: "1.2.3".to_string(), download_url: "".to_string(), name: "hipackage".to_string(), version: "2.0.0".to_string(), base64_parameter: "SGVsbG9Xb3JsZA==".to_string(), extension: false }),
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

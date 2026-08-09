@@ -34,6 +34,7 @@ impl BuiltinInfo {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         BuiltinInfo { resource }
     }
@@ -96,6 +97,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

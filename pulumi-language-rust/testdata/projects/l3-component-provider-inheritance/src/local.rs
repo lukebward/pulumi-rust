@@ -38,6 +38,7 @@ impl Local {
             options,
             package: None,
             deferred_inputs: __deferred,
+            required: &[],
         });
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
         let mlc = pulumi_component::ComponentForeignChild::new(&ctx, &format!("{}-mlc", name), pulumi_component::ComponentForeignChildArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, __options.clone());

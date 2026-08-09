@@ -34,6 +34,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
@@ -89,6 +90,7 @@ pub mod cool_module {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &["the_input"],
             });
             AnotherResource { resource }
         }
@@ -151,6 +153,7 @@ pub mod cool_module {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &["nested", "the_input"],
             });
             SomeResource { resource }
         }

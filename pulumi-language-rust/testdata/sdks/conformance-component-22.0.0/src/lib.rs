@@ -38,6 +38,7 @@ impl Simple {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         Simple { resource }
     }
@@ -88,6 +89,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }

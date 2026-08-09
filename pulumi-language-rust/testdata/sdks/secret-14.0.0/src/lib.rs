@@ -34,6 +34,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
@@ -123,6 +124,7 @@ impl Resource {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["private", "privateArray", "privateData", "privateDataArray", "privateDataMap", "privateMap", "public", "publicData"],
         });
         Resource { resource }
     }

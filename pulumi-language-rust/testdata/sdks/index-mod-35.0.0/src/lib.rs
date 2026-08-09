@@ -34,6 +34,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
@@ -89,6 +90,7 @@ pub mod index_mine {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &["text"],
             });
             Resource { resource }
         }
@@ -176,6 +178,7 @@ pub mod index_mine_nested {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &["text"],
             });
             Resource { resource }
         }

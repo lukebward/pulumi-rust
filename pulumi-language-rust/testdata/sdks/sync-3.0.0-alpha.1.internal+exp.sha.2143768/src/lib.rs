@@ -34,6 +34,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
@@ -84,6 +85,7 @@ impl Block {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Block { resource }
     }

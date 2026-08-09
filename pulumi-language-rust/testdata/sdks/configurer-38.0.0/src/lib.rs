@@ -38,6 +38,7 @@ impl Configurer {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["providerConfig"],
         });
         Configurer { resource }
     }
@@ -92,6 +93,7 @@ impl Custom {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         Custom { resource }
     }
@@ -154,6 +156,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["config"],
         });
         Provider { resource }
     }

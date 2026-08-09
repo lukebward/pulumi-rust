@@ -46,6 +46,7 @@ impl SomeResource {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["builtins", "lambda", "property"],
         });
         SomeResource { resource }
     }
@@ -108,6 +109,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
@@ -171,6 +173,7 @@ pub mod lambda {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &["builtins", "lambda", "property"],
             });
             SomeResource { resource }
         }
@@ -247,6 +250,7 @@ pub mod module {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &["builtins", "lambda", "property"],
             });
             Lambda { resource }
         }

@@ -73,6 +73,7 @@ async fn construct(args: pulumi::ConstructArgs) -> pulumi::Result<pulumi::Constr
         options: args.options,
         package: None,
         deferred_inputs: vec![],
+        required: &[],
     });
 
     // The child holds the negation of the component's input, so the test can

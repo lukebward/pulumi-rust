@@ -34,6 +34,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
@@ -88,6 +89,7 @@ impl StringResource {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["text"],
         });
         StringResource { resource }
     }

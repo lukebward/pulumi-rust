@@ -58,6 +58,7 @@ impl Deluxe {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Deluxe { resource }
     }
@@ -140,6 +141,7 @@ impl Res {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Res { resource }
     }
@@ -198,6 +200,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
@@ -257,6 +260,7 @@ pub mod r#mod {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &[],
             });
             Res { resource }
         }
@@ -325,6 +329,7 @@ pub mod mod_nested {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &[],
             });
             Res { resource }
         }

@@ -38,6 +38,7 @@ impl InvokeComponent {
             options,
             package: None,
             deferred_inputs: __deferred,
+            required: &[],
         });
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
         let greeting = pulumi_multi_argument_invoke::multi_argument_invoke(&ctx, pulumi_multi_argument_invoke::MultiArgumentInvokeArgs { first: Some(pulumi::pv::string("hello").cast()), ..Default::default() }, pulumi::InvokeOptions { parent: Some(__component.clone()), ..Default::default() }).cast::<pulumi::PropertyValue>();

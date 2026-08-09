@@ -38,6 +38,7 @@ impl ResArray {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         ResArray { resource }
     }
@@ -96,6 +97,7 @@ impl ResList {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         ResList { resource }
     }
@@ -154,6 +156,7 @@ impl ResMap {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         ResMap { resource }
     }
@@ -212,6 +215,7 @@ impl ResResource {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         ResResource { resource }
     }
@@ -266,6 +270,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
@@ -321,6 +326,7 @@ pub mod r#mod {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &["value"],
             });
             Res { resource }
         }
@@ -381,6 +387,7 @@ pub mod mod_nested {
                 options,
                 package: None,
                 deferred_inputs: vec![],
+                required: &["value"],
             });
             Res { resource }
         }

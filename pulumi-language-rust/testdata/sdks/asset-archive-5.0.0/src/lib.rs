@@ -38,6 +38,7 @@ impl ArchiveResource {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         ArchiveResource { resource }
     }
@@ -96,6 +97,7 @@ impl AssetResource {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &["value"],
         });
         AssetResource { resource }
     }
@@ -150,6 +152,7 @@ impl Provider {
             options,
             package: None,
             deferred_inputs: vec![],
+            required: &[],
         });
         Provider { resource }
     }
