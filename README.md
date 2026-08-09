@@ -8,8 +8,11 @@ test suite](https://github.com/pulumi/pulumi/tree/master/pkg/testing/pulumi-test
 > Status: experimental. Built as an exploration of what a conformance-tested
 > Rust language implementation looks like. Not an official Pulumi project.
 
-**Conformance status** (pulumi/pulumi v3.256.0 suite): **all 180 tests
+**Conformance status** (pulumi/pulumi v3.256.0 suite): **all 179 tests
 pass**, with no skips.
+
+(179 is the whole suite: `LanguageTests` registers 180 entries, but the
+harness never hands out the one `internal-` test.)
 
 That covers the full `l1-*` output/config/builtin set including `try`/`can`
 and `recover`; `l2` resources, invokes, resource methods (`call`), every
