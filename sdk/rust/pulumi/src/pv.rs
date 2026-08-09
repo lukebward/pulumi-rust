@@ -105,17 +105,46 @@ pub fn asset_archive(entries: Vec<(String, Output<PropertyValue>)>) -> Output<Pr
     .cast()
 }
 
+/// A builtin that could not produce a value.
+///
+/// These builtins are called from generated programs and return an
+/// `Output<PropertyValue>`, so they have no error channel to report through.
+/// They used to swallow the failure with `unwrap_or_default()`, which is the
+/// worst of both worlds: `readFile("./config.json")` on a bad path wrote an
+/// empty config into real infrastructure, and `filebase64sha256` of a
+/// missing file returned the SHA-256 of zero bytes — a stable-looking hash
+/// that defeats change detection.
+///
+/// `PropertyValue::Failed` is the SDK's existing marker for a value that
+/// never materialised. It carries the message, counts as unknown, so nothing
+/// downstream reads a bogus value; a resource that would have consumed it is
+/// skipped rather than created wrong; and `recover`, `try` and `can` can all
+/// observe it, so a program that wants a fallback can ask for one.
+///
+/// Note this stops the wrong value but does not by itself print the message:
+/// `context::propagated` records a skipped registration with `error: None`,
+/// and `Context::finish` only reports `outcome.error`. Surfacing the text
+/// needs a change in `context.rs`, outside this module.
+fn failed(msg: String) -> PropertyValue {
+    PropertyValue::Failed(msg.into())
+}
+
 /// The current working directory (PCL `cwd()`).
 pub fn cwd() -> Output<PropertyValue> {
-    let dir = std::env::current_dir()
-        .map(|d| d.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    string(dir)
+    match std::env::current_dir() {
+        Ok(d) => string(d.to_string_lossy().into_owned()),
+        Err(e) => Output::from_value(failed(format!("cwd() failed: {e}"))),
+    }
 }
 
 /// Read a file's contents as a string (PCL `readFile`).
 pub fn read_file(path: Output<PropertyValue>) -> Output<PropertyValue> {
-    path.cast::<String>().map(|p: String| std::fs::read_to_string(p).unwrap_or_default()).cast()
+    path.cast::<String>()
+        .map(|p: String| match std::fs::read_to_string(&p) {
+            Ok(s) => PropertyValue::String(s),
+            Err(e) => failed(format!("readFile({p:?}) failed: {e}")),
+        })
+        .cast()
 }
 
 /// Base64-encode a string (PCL `toBase64`).
@@ -127,23 +156,29 @@ pub fn to_base64(v: Output<PropertyValue>) -> Output<PropertyValue> {
 /// Base64-decode a string (PCL `fromBase64`).
 pub fn from_base64(v: Output<PropertyValue>) -> Output<PropertyValue> {
     use base64::Engine;
-    v.cast::<String>().map(|s| {
-        base64::engine::general_purpose::STANDARD
-            .decode(s)
-            .ok()
-            .and_then(|b| String::from_utf8(b).ok())
-            .unwrap_or_default()
-    })
-    .cast()
+    v.cast::<String>()
+        .map(|s: String| {
+            let bytes = match base64::engine::general_purpose::STANDARD.decode(&s) {
+                Ok(b) => b,
+                Err(e) => return failed(format!("fromBase64 failed: {e}")),
+            };
+            match String::from_utf8(bytes) {
+                Ok(s) => PropertyValue::String(s),
+                Err(e) => failed(format!("fromBase64 decoded non-UTF8 bytes: {e}")),
+            }
+        })
+        .cast()
 }
 
 /// Base64-encode a file's raw bytes (PCL `filebase64`).
 pub fn file_base64(path: Output<PropertyValue>) -> Output<PropertyValue> {
     use base64::Engine;
     path.cast::<String>()
-        .map(|p: String| {
-            let bytes = std::fs::read(p).unwrap_or_default();
-            base64::engine::general_purpose::STANDARD.encode(bytes)
+        .map(|p: String| match std::fs::read(&p) {
+            Ok(bytes) => PropertyValue::String(
+                base64::engine::general_purpose::STANDARD.encode(bytes),
+            ),
+            Err(e) => failed(format!("filebase64({p:?}) failed: {e}")),
         })
         .cast()
 }
@@ -153,10 +188,14 @@ pub fn file_base64_sha256(path: Output<PropertyValue>) -> Output<PropertyValue> 
     use base64::Engine;
     use sha2::Digest;
     path.cast::<String>()
-        .map(|p: String| {
-            let bytes = std::fs::read(p).unwrap_or_default();
-            let digest = sha2::Sha256::digest(&bytes);
-            base64::engine::general_purpose::STANDARD.encode(digest)
+        .map(|p: String| match std::fs::read(&p) {
+            Ok(bytes) => {
+                let digest = sha2::Sha256::digest(&bytes);
+                PropertyValue::String(
+                    base64::engine::general_purpose::STANDARD.encode(digest),
+                )
+            }
+            Err(e) => failed(format!("filebase64sha256({p:?}) failed: {e}")),
         })
         .cast()
 }
@@ -178,7 +217,18 @@ pub fn to_json(v: Output<PropertyValue>) -> Output<PropertyValue> {
     Output::from_data_future(async move {
         let d = v.data().await;
         if !d.known() {
-            return d;
+            // The result is always a string, so handing back the source
+            // array or object would put a value of the wrong shape into
+            // whatever consumes it. A `Failed` passes through intact, since
+            // it carries a message `recover`/`try`/`can` can still read.
+            if matches!(d.value, PropertyValue::Failed(_)) {
+                return d;
+            }
+            return OutputData {
+                value: PropertyValue::Computed,
+                secret: d.secret,
+                deps: d.deps,
+            };
         }
         let secret = d.secret || d.value.contains_secret();
         OutputData {
@@ -248,9 +298,28 @@ fn strip_wrappers(v: &PropertyValue) -> PropertyValue {
     }
 }
 
+/// Lift element-level secretness onto the value as a whole.
+///
+/// `output::all` — which `array` is built on — deliberately leaves the array
+/// itself non-secret and encodes a secret element inline as
+/// `PropertyValue::Secret`, so a partially-secret list round-trips. A builtin
+/// that folds those elements into a fresh scalar calls `strip_wrappers` and
+/// throws the marker away with them: `join(",", [secret("pw"), "x"])`
+/// produced a joined string with `secret == false`, and the password landed
+/// in the state file in plaintext. `to_json` already guards this with
+/// `d.secret || d.value.contains_secret()`; anything that consumes elements
+/// has to do the same before it strips them.
+fn lift_secrets(o: Output<PropertyValue>) -> Output<PropertyValue> {
+    Output::from_data_future(async move {
+        let mut d = o.data().await;
+        d.secret = d.secret || d.value.contains_secret();
+        d
+    })
+}
+
 /// Join a list of strings with a separator (PCL `join`).
 pub fn join(sep: Output<PropertyValue>, list: Output<PropertyValue>) -> Output<PropertyValue> {
-    array(vec![sep, list])
+    lift_secrets(array(vec![sep, list]))
         .cast::<Vec<PropertyValue>>().map(|vals| {
             let sep = match strip_wrappers(&vals[0]) {
                 PropertyValue::String(s) => s,
@@ -289,7 +358,7 @@ pub fn length(v: Output<PropertyValue>) -> Output<PropertyValue> {
 
 /// Split a string (PCL `split`).
 pub fn split(sep: Output<PropertyValue>, s: Output<PropertyValue>) -> Output<PropertyValue> {
-    array(vec![sep, s])
+    lift_secrets(array(vec![sep, s]))
         .cast::<Vec<PropertyValue>>().map(|vals| {
             let sep = match strip_wrappers(&vals[0]) {
                 PropertyValue::String(s) => s,
@@ -322,7 +391,7 @@ pub fn single_value(v: Output<PropertyValue>) -> Output<PropertyValue> {
 
 /// The single element of a one-element list, or null (PCL `singleOrNone`).
 pub fn single_or_none(v: Output<PropertyValue>) -> Output<PropertyValue> {
-    v.map(|p: PropertyValue| match p {
+    lift_secrets(v).map(|p: PropertyValue| match p {
         PropertyValue::Array(a) if a.len() == 1 => strip_wrappers(&a[0]),
         PropertyValue::Array(a) if a.is_empty() => PropertyValue::Null,
         PropertyValue::Array(a) => {
@@ -364,7 +433,7 @@ fn fold_numbers(
     init: f64,
     f: impl Fn(f64, f64) -> f64 + Send + 'static,
 ) -> Output<PropertyValue> {
-    array(items)
+    lift_secrets(array(items))
         .cast::<Vec<PropertyValue>>()
         .map(move |vals| {
             // Splat-expanded final arguments arrive as nested lists;
@@ -654,6 +723,79 @@ mod tests {
         assert!(d.secret);
         let d = unsecret(secret(s("x"))).data().await;
         assert!(!d.secret);
+    }
+
+    #[tokio::test]
+    async fn joining_a_secret_element_keeps_the_result_secret() {
+        // `array` leaves the list itself non-secret and marks the element
+        // inline, so a builtin that strips the element wrapper has to lift
+        // the marker onto its own result — otherwise the joined string is
+        // written to the state file in plaintext.
+        let d = join(s(","), array(vec![secret(s("pw")), s("x")])).data().await;
+        assert_eq!(d.value, PropertyValue::String("pw,x".into()));
+        assert!(d.secret, "join dropped the element's secretness");
+    }
+
+    #[tokio::test]
+    async fn splitting_a_secret_keeps_every_piece_secret() {
+        let d = split(s(","), secret(s("a,b"))).data().await;
+        assert!(d.secret, "split dropped the string's secretness");
+    }
+
+    #[tokio::test]
+    async fn min_and_max_of_a_secret_argument_stay_secret() {
+        assert!(min(vec![secret(number(1.0)), number(2.0)]).data().await.secret);
+        assert!(max(vec![secret(number(1.0)), number(2.0)]).data().await.secret);
+    }
+
+    #[tokio::test]
+    async fn single_or_none_keeps_the_element_secret() {
+        let d = single_or_none(array(vec![secret(s("pw"))])).data().await;
+        assert_eq!(d.value, PropertyValue::String("pw".into()));
+        assert!(d.secret, "singleOrNone dropped the element's secretness");
+    }
+
+    // --- builtins that can fail --------------------------------------------
+
+    #[tokio::test]
+    async fn read_file_reports_a_bad_path_instead_of_an_empty_string() {
+        // An empty string here is silently written into real infrastructure
+        // as if it were the file's contents.
+        let d = read_file(s("/nonexistent/pulumi-rust/config.json")).data().await;
+        assert!(!d.known(), "a missing file produced a known value: {:?}", d.value);
+        match d.value {
+            PropertyValue::Failed(msg) => {
+                assert!(msg.contains("config.json"), "unhelpful message: {msg}")
+            }
+            other => panic!("expected a failed value, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn file_base64_and_its_sha_report_a_bad_path() {
+        // The SHA of a missing file used to be the SHA of zero bytes: a
+        // stable-looking hash that never changes, so change detection on the
+        // file silently stops working.
+        assert!(!file_base64(s("/nonexistent/pulumi-rust/a")).data().await.known());
+        let d = file_base64_sha256(s("/nonexistent/pulumi-rust/a")).data().await;
+        assert!(!d.known(), "a missing file hashed to {:?}", d.value);
+    }
+
+    #[tokio::test]
+    async fn from_base64_reports_undecodable_input() {
+        let d = from_base64(s("not valid base64!!")).data().await;
+        assert!(!d.known(), "bad base64 decoded to {:?}", d.value);
+    }
+
+    #[tokio::test]
+    async fn a_failed_builtin_can_be_recovered() {
+        // `Failed` is the SDK's marker for a value that never materialised,
+        // so `recover` gets the message and a program can supply a fallback.
+        let out = crate::ops::recover(
+            read_file(s("/nonexistent/pulumi-rust/config.json")),
+            |_e| string("{}"),
+        );
+        assert_eq!(value(out).await, PropertyValue::String("{}".into()));
     }
 
     #[tokio::test]

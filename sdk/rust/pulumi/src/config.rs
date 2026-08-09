@@ -67,22 +67,56 @@ impl Config {
         Output::from_value(self.get_value(key).unwrap_or(default))
     }
 
-    fn typed_value(&self, key: &str, parse: fn(&str) -> PropertyValue) -> Option<PropertyValue> {
-        let raw = self.get(key)?;
-        let value = parse(&raw);
+    /// A config value that does not parse as the type the program asked for.
+    ///
+    /// The value is quoted into the message the way the other Pulumi SDKs
+    /// report a config type error — except when the key is secret, where
+    /// printing it would publish the secret: this text reaches the engine
+    /// through `log_error` and is written to the update log in plaintext.
+    fn type_error(&self, key: &str, expected: &str, raw: &str) -> Error {
+        let full = self.full_key(key);
         if self.is_secret(key) {
-            Some(PropertyValue::Secret(Box::new(value)))
+            return Error::new(format!(
+                "configuration key '{full}' is not a valid {expected} \
+                 (the value is secret, so it is not shown)"
+            ));
+        }
+        Error::new(format!(
+            "configuration key '{full}' value '{raw}' is not a valid {expected}"
+        ))
+    }
+
+    fn typed_value(
+        &self,
+        key: &str,
+        expected: &str,
+        parse: fn(&str) -> Option<PropertyValue>,
+    ) -> Result<Option<PropertyValue>> {
+        let raw = match self.get(key) {
+            Some(raw) => raw,
+            None => return Ok(None),
+        };
+        // A value that does not parse is a mistake in the stack's config, not
+        // a zero. Coercing it silently provisioned zero replicas from
+        // `replicas: abc`, and read `enabled: TRUE` as false.
+        let value = match parse(&raw) {
+            Some(v) => v,
+            None => return Err(self.type_error(key, expected, &raw)),
+        };
+        if self.is_secret(key) {
+            Ok(Some(PropertyValue::Secret(Box::new(value))))
         } else {
-            Some(value)
+            Ok(Some(value))
         }
     }
 
     fn require_typed(
         &self,
         key: &str,
-        parse: fn(&str) -> PropertyValue,
+        expected: &str,
+        parse: fn(&str) -> Option<PropertyValue>,
     ) -> Result<Output<PropertyValue>> {
-        match self.typed_value(key, parse) {
+        match self.typed_value(key, expected, parse)? {
             Some(v) => Ok(Output::from_value(v)),
             None => Err(Error::new(format!("missing required configuration variable '{key}'"))),
         }
@@ -91,103 +125,136 @@ impl Config {
     fn typed_opt(
         &self,
         key: &str,
-        parse: fn(&str) -> PropertyValue,
+        expected: &str,
+        parse: fn(&str) -> Option<PropertyValue>,
     ) -> Option<Output<PropertyValue>> {
-        self.typed_value(key, parse).map(Output::from_value)
+        or_abort(self.typed_value(key, expected, parse)).map(Output::from_value)
     }
 
     /// Optional typed getters: `Some` when the key is set.
     pub fn get_string_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
-        self.typed_opt(key, parse_string)
+        self.typed_opt(key, "string", parse_string)
     }
 
     pub fn get_number_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
-        self.typed_opt(key, parse_number)
+        self.typed_opt(key, "number", parse_number)
     }
 
     pub fn get_int_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
-        self.typed_opt(key, parse_number)
+        self.typed_opt(key, "int", parse_number)
     }
 
     pub fn get_bool_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
-        self.typed_opt(key, parse_bool)
+        self.typed_opt(key, "bool", parse_bool)
     }
 
     pub fn get_object_opt(&self, key: &str) -> Option<Output<PropertyValue>> {
-        self.typed_opt(key, parse_object)
+        self.typed_opt(key, "object", parse_object)
     }
 
     fn typed_or(
         &self,
         key: &str,
-        parse: fn(&str) -> PropertyValue,
+        expected: &str,
+        parse: fn(&str) -> Option<PropertyValue>,
         default: PropertyValue,
     ) -> Output<PropertyValue> {
-        Output::from_value(self.typed_value(key, parse).unwrap_or(default))
+        let value = or_abort(self.typed_value(key, expected, parse));
+        Output::from_value(value.unwrap_or(default))
     }
 
     /// Require a string-typed config value: the raw value verbatim.
     pub fn require_string(&self, key: &str) -> Result<Output<PropertyValue>> {
-        self.require_typed(key, parse_string)
+        self.require_typed(key, "string", parse_string)
     }
 
     pub fn get_string_or(&self, key: &str, default: PropertyValue) -> Output<PropertyValue> {
-        self.typed_or(key, parse_string, default)
+        self.typed_or(key, "string", parse_string, default)
     }
 
     /// Require a number-typed config value.
     pub fn require_number(&self, key: &str) -> Result<Output<PropertyValue>> {
-        self.require_typed(key, parse_number)
+        self.require_typed(key, "number", parse_number)
     }
 
     pub fn get_number_or(&self, key: &str, default: PropertyValue) -> Output<PropertyValue> {
-        self.typed_or(key, parse_number, default)
+        self.typed_or(key, "number", parse_number, default)
     }
 
     /// Require an int-typed config value.
     pub fn require_int(&self, key: &str) -> Result<Output<PropertyValue>> {
-        self.require_typed(key, parse_number)
+        self.require_typed(key, "int", parse_number)
     }
 
     pub fn get_int_or(&self, key: &str, default: PropertyValue) -> Output<PropertyValue> {
-        self.typed_or(key, parse_number, default)
+        self.typed_or(key, "int", parse_number, default)
     }
 
     /// Require a bool-typed config value.
     pub fn require_bool(&self, key: &str) -> Result<Output<PropertyValue>> {
-        self.require_typed(key, parse_bool)
+        self.require_typed(key, "bool", parse_bool)
     }
 
     pub fn get_bool_or(&self, key: &str, default: PropertyValue) -> Output<PropertyValue> {
-        self.typed_or(key, parse_bool, default)
+        self.typed_or(key, "bool", parse_bool, default)
     }
 
     /// Require a structured (JSON) config value.
     pub fn require_object(&self, key: &str) -> Result<Output<PropertyValue>> {
-        self.require_typed(key, parse_object)
+        self.require_typed(key, "object", parse_object)
     }
 
     pub fn get_object_or(&self, key: &str, default: PropertyValue) -> Output<PropertyValue> {
-        self.typed_or(key, parse_object, default)
+        self.typed_or(key, "object", parse_object, default)
     }
 }
 
-fn parse_string(raw: &str) -> PropertyValue {
-    PropertyValue::String(raw.to_string())
+/// Resolve a typed value where the caller has no error channel.
+///
+/// `get_*_or` and `get_*_opt` are emitted by the code generator into
+/// expression position — `let replicas = ctx.config().get_int_or("r", d);` —
+/// so making them return a `Result` would change the signature of every
+/// typed getter and every call site that uses one. A config value of the
+/// wrong type is a mistake in the stack's configuration that no program can
+/// carry on from, so it stops the program here with the same message
+/// `require_*` returns. The Go SDK does the same (`contract.Failf` in
+/// `config.GetInt`), and this crate already stops a program this way for
+/// `pv::single_or_none` and for a failed output conversion.
+fn or_abort(v: Result<Option<PropertyValue>>) -> Option<PropertyValue> {
+    match v {
+        Ok(v) => v,
+        Err(e) => panic!("{e}"),
+    }
 }
 
-fn parse_number(raw: &str) -> PropertyValue {
-    PropertyValue::Number(raw.parse().unwrap_or(0.0))
+/// A parser returns `None` for a value that is not of the asked-for type.
+fn parse_string(raw: &str) -> Option<PropertyValue> {
+    Some(PropertyValue::String(raw.to_string()))
 }
 
-fn parse_bool(raw: &str) -> PropertyValue {
-    PropertyValue::Bool(raw == "true" || raw == "1")
+fn parse_number(raw: &str) -> Option<PropertyValue> {
+    raw.parse().ok().map(PropertyValue::Number)
 }
 
-fn parse_object(raw: &str) -> PropertyValue {
+/// Parse a bool the way Pulumi writes one.
+///
+/// Anything else is rejected rather than read as false: `enabled: TRUE`
+/// silently disabling a feature is the kind of bug that only shows up in
+/// production. The other Pulumi SDKs raise a config type error here too.
+fn parse_bool(raw: &str) -> Option<PropertyValue> {
+    match raw {
+        "true" | "1" => Some(PropertyValue::Bool(true)),
+        "false" | "0" => Some(PropertyValue::Bool(false)),
+        _ => None,
+    }
+}
+
+/// Structured config is JSON; anything that is not JSON is the string
+/// itself, so this parser never rejects a value.
+fn parse_object(raw: &str) -> Option<PropertyValue> {
     match serde_json::from_str::<serde_json::Value>(raw) {
-        Ok(v) => json_to_property(&v),
-        Err(_) => PropertyValue::String(raw.to_string()),
+        Ok(v) => Some(json_to_property(&v)),
+        Err(_) => Some(PropertyValue::String(raw.to_string())),
     }
 }
 
@@ -302,21 +369,98 @@ mod tests {
         // "42" and "true" are legal JSON, but asking for a string must give
         // back the text, or a config value like a version number changes type.
         let c = config(&[("v", "42"), ("t", "true")], &[]);
-        assert_eq!(c.typed_value("v", parse_string), Some(PropertyValue::String("42".into())));
-        assert_eq!(c.typed_value("t", parse_string), Some(PropertyValue::String("true".into())));
+        assert_eq!(
+            c.typed_value("v", "string", parse_string).unwrap(),
+            Some(PropertyValue::String("42".into()))
+        );
+        assert_eq!(
+            c.typed_value("t", "string", parse_string).unwrap(),
+            Some(PropertyValue::String("true".into()))
+        );
     }
 
     #[test]
-    fn bool_parsing_accepts_the_two_forms_pulumi_writes() {
-        assert_eq!(parse_bool("true"), PropertyValue::Bool(true));
-        assert_eq!(parse_bool("1"), PropertyValue::Bool(true));
-        assert_eq!(parse_bool("false"), PropertyValue::Bool(false));
-        assert_eq!(parse_bool("anything else"), PropertyValue::Bool(false));
+    fn bool_parsing_accepts_the_forms_pulumi_writes_and_rejects_the_rest() {
+        // This used to read every other string as false, so `enabled: TRUE`
+        // quietly turned a feature off. Both spellings of each value are
+        // still accepted; anything else is a config type error, which is
+        // what the other Pulumi SDKs raise.
+        assert_eq!(parse_bool("true"), Some(PropertyValue::Bool(true)));
+        assert_eq!(parse_bool("1"), Some(PropertyValue::Bool(true)));
+        assert_eq!(parse_bool("false"), Some(PropertyValue::Bool(false)));
+        assert_eq!(parse_bool("0"), Some(PropertyValue::Bool(false)));
+        assert_eq!(parse_bool("TRUE"), None);
+        assert_eq!(parse_bool("anything else"), None);
     }
 
     #[test]
     fn an_unparseable_object_falls_back_to_the_raw_string() {
-        assert_eq!(parse_object("{not json"), PropertyValue::String("{not json".into()));
+        assert_eq!(parse_object("{not json"), Some(PropertyValue::String("{not json".into())));
+    }
+
+    #[test]
+    fn a_malformed_number_is_a_config_error_not_a_zero() {
+        // `require_int` returning 0 for `replicas: abc` provisioned zero
+        // replicas and reported nothing.
+        let c = config(&[("replicas", "abc")], &[]);
+        let err = c.require_int("replicas").unwrap_err().to_string();
+        assert!(err.contains("proj:replicas"), "error does not name the key: {err}");
+        assert!(err.contains("int"), "error does not name the type: {err}");
+        assert!(err.contains("abc"), "error does not show the value: {err}");
+    }
+
+    #[test]
+    fn a_malformed_bool_is_a_config_error_not_a_false() {
+        let c = config(&[("enabled", "TRUE")], &[]);
+        let err = c.require_bool("enabled").unwrap_err().to_string();
+        assert!(err.contains("proj:enabled"), "error does not name the key: {err}");
+        assert!(err.contains("bool"), "error does not name the type: {err}");
+    }
+
+    #[test]
+    fn a_config_type_error_never_prints_a_secret_value() {
+        // `runtime.rs` hands this text to the engine with `log_error`, which
+        // writes it to the update log in plaintext.
+        let c = config(&[("n", "hunter2")], &["n"]);
+        let err = c.require_number("n").unwrap_err().to_string();
+        assert!(!err.contains("hunter2"), "the secret leaked into the error: {err}");
+        assert!(err.contains("proj:n"), "error does not name the key: {err}");
+        assert!(err.contains("number"), "error does not name the type: {err}");
+    }
+
+    #[test]
+    #[should_panic(expected = "proj:replicas")]
+    fn a_malformed_number_stops_a_getter_that_has_no_error_channel() {
+        // `get_*_or` is emitted into expression position, so it cannot
+        // return the error; falling back to the default would hide a
+        // misconfigured stack behind a value the program never asked for.
+        let c = config(&[("replicas", "abc")], &[]);
+        let _ = c.get_int_or("replicas", PropertyValue::Number(1.0));
+    }
+
+    #[test]
+    #[should_panic(expected = "proj:enabled")]
+    fn a_malformed_bool_stops_an_optional_getter_too() {
+        let c = config(&[("enabled", "yes")], &[]);
+        let _ = c.get_bool_opt("enabled");
+    }
+
+    #[tokio::test]
+    async fn a_well_formed_value_is_unaffected_by_the_type_check() {
+        let c = config(&[("n", "42"), ("b", "false"), ("s", "abc")], &[]);
+        assert_eq!(
+            c.get_int_or("n", PropertyValue::Number(0.0)).data().await.value,
+            PropertyValue::Number(42.0)
+        );
+        assert_eq!(
+            c.get_bool_or("b", PropertyValue::Bool(true)).data().await.value,
+            PropertyValue::Bool(false)
+        );
+        // A string getter takes the value verbatim, so it can never fail.
+        assert_eq!(
+            c.get_string_or("s", PropertyValue::Null).data().await.value,
+            PropertyValue::String("abc".into())
+        );
     }
 
     #[test]

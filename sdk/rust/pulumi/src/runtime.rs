@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 use std::future::Future;
+
+use futures::future::FutureExt;
 use std::sync::{Arc, Mutex};
 
 use tonic::transport::{Channel, Endpoint};
@@ -157,6 +159,21 @@ async fn register_stack(ctx: &Context) -> Result<()> {
     Ok(())
 }
 
+/// The message a panic carried, for the panics the SDK raises itself.
+///
+/// `panic!("{e}")` and `panic!("literal")` land here as a `String` or a
+/// `&'static str` respectively; anything else is a panic from a dependency
+/// and only its location was printed by the default hook.
+fn panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<String>() {
+        return s.clone();
+    }
+    if let Some(s) = payload.downcast_ref::<&'static str>() {
+        return s.to_string();
+    }
+    "the program panicked".to_string()
+}
+
 /// The exit code signaling "the error was already logged to the engine";
 /// the language host bails silently. Mirrors the other Pulumi SDKs.
 pub const EXIT_STATUS_LOGGED_ERROR: i32 = 32;
@@ -196,7 +213,16 @@ where
         }
     };
 
-    let result = async {
+    // A panic anywhere in the program has to reach the engine as a
+    // diagnostic and exit 32, the same as a returned error. Without this it
+    // escapes as exit 101 and a raw Rust backtrace on stderr, which the host
+    // reports as "Program exited with non-zero exit code: 101" with no clue
+    // what went wrong. The SDK panics deliberately in a few places where
+    // there is no error channel to return through — a config value of the
+    // wrong type, `singleOrNone` on a longer list, an output whose shape does
+    // not match the generated struct — and each of those should read as an
+    // ordinary program failure.
+    let result: Result<()> = std::panic::AssertUnwindSafe(async {
         register_stack(&ctx).await?;
         let program_err = program(ctx.clone()).await.err();
         // Publish stack outputs even when the program body errored.
@@ -205,8 +231,10 @@ where
             Some(e) => Err(e),
             None => Ok(()),
         }
-    }
-    .await;
+    })
+    .catch_unwind()
+    .await
+    .unwrap_or_else(|payload| Err(Error::new(panic_message(&payload))));
 
     match result {
         Ok(()) => {

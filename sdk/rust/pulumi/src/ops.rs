@@ -233,11 +233,21 @@ pub fn for_array(
         }
         let mut items = vec![];
         let mut deps = dc.deps.clone();
+        let mut secret = dc.secret;
         for (k, v) in collection_entries(&dc.value) {
             let k = Output::from_value(k);
             let v = Output::from_value(v);
             let keep = cond(k.clone(), v.clone()).data().await;
             deps.extend(keep.deps.clone());
+            // An unknown condition makes the whole comprehension unknown.
+            // Treating it as false silently dropped the element, so
+            // `[for v in xs : v if v.enabled]` over a pending resource
+            // output previewed as `[]` and the engine reported every
+            // element as a deletion.
+            if !keep.known() {
+                secret |= keep.secret;
+                return OutputData { value: PropertyValue::Computed, secret, deps };
+            }
             if !matches!(keep.value, PropertyValue::Bool(true)) {
                 continue;
             }
@@ -245,7 +255,7 @@ pub fn for_array(
             deps.extend(dv.deps.clone());
             items.push(dv.into_value());
         }
-        OutputData { value: PropertyValue::Array(items), secret: dc.secret, deps }
+        OutputData { value: PropertyValue::Array(items), secret, deps }
     })
 }
 
@@ -270,11 +280,19 @@ pub fn for_object(
         }
         let mut map = std::collections::BTreeMap::new();
         let mut deps = dc.deps.clone();
+        let mut secret = dc.secret;
         for (k, v) in collection_entries(&dc.value) {
             let k = Output::from_value(k);
             let v = Output::from_value(v);
             let keep = cond(k.clone(), v.clone()).data().await;
             deps.extend(keep.deps.clone());
+            // As in `for_array`: an unknown condition means we do not know
+            // which entries survive, so the whole object is unknown rather
+            // than silently missing its filtered entries.
+            if !keep.known() {
+                secret |= keep.secret;
+                return OutputData { value: PropertyValue::Computed, secret, deps };
+            }
             if !matches!(keep.value, PropertyValue::Bool(true)) {
                 continue;
             }
@@ -286,7 +304,7 @@ pub fn for_object(
                 map.insert(ks, dv.into_value());
             }
         }
-        OutputData { value: PropertyValue::Object(map), secret: dc.secret, deps }
+        OutputData { value: PropertyValue::Object(map), secret, deps }
     })
 }
 
@@ -308,44 +326,17 @@ pub fn index(target: Output<PropertyValue>, key: Output<PropertyValue>) -> Outpu
                 return OutputData { value: PropertyValue::Null, secret, deps };
             }
         };
-        let inner = OutputData::from_value(index_plain(&dt.value, &idx));
+        // Indexing semantics live in one place: this used to be a
+        // line-for-line copy of `output::index_value`, and two copies of the
+        // wrapper look-through and numeric-string-key rules had to be kept
+        // in step by hand.
+        let inner = OutputData::from_value(crate::output::index_value(&dt.value, &idx));
         OutputData {
             value: inner.value,
             secret: secret || inner.secret,
             deps: deps.into_iter().chain(inner.deps).collect(),
         }
     })
-}
-
-fn index_plain(v: &PropertyValue, key: &crate::output::PropIndex) -> PropertyValue {
-    use crate::output::PropIndex;
-    match (v, key) {
-        (PropertyValue::Secret(inner), _) => {
-            PropertyValue::Secret(Box::new(index_plain(inner, key)))
-        }
-        (PropertyValue::Output(o), _) => match &o.value {
-            Some(inner) => {
-                let mut out = o.clone();
-                out.value = Some(Box::new(index_plain(inner, key)));
-                PropertyValue::Output(out)
-            }
-            None => v.clone(),
-        },
-        (PropertyValue::Object(m), PropIndex::Key(k)) => {
-            m.get(k).cloned().unwrap_or(PropertyValue::Null)
-        }
-        (PropertyValue::Array(a), PropIndex::Index(i)) => {
-            a.get(*i).cloned().unwrap_or(PropertyValue::Null)
-        }
-        (PropertyValue::Array(a), PropIndex::Key(k)) => match k.parse::<usize>() {
-            Ok(i) => a.get(i).cloned().unwrap_or(PropertyValue::Null),
-            Err(_) => PropertyValue::Null,
-        },
-        (PropertyValue::Object(m), PropIndex::Index(i)) => {
-            m.get(&i.to_string()).cloned().unwrap_or(PropertyValue::Null)
-        }
-        _ => PropertyValue::Null,
-    }
 }
 
 /// Index into a collection, reporting an absent key as the missing
@@ -596,6 +587,40 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn an_unknown_filter_condition_makes_the_comprehension_unknown() {
+        // Regression: an unknown condition counted as false, so
+        // `[for v in list : v if v.enabled]` over a pending resource output
+        // previewed as an empty array. The engine then diffed that against
+        // the existing list and reported every element as a deletion.
+        let out = for_array(
+            pv::array(vec![num(1.0), num(2.0)]),
+            |_k, _v| Output::unknown(),
+            |_k, v| v,
+        );
+        let d = out.data().await;
+        assert!(!d.known(), "an unknown condition filtered instead of going unknown");
+
+        let out = for_object(
+            pv::object(vec![("a".to_string(), num(1.0))]),
+            |_k, _v| Output::unknown(),
+            |k, _v| k,
+            |_k, v| v,
+        );
+        assert!(!out.data().await.known());
+    }
+
+    #[tokio::test]
+    async fn a_known_false_condition_still_just_drops_the_element() {
+        // The unknown short-circuit must not swallow ordinary filtering.
+        let out = for_array(
+            pv::array(vec![num(1.0), num(2.0)]),
+            |_k, v| gt(v, num(1.0)),
+            |_k, v| v,
+        );
+        assert_eq!(value(out).await, PropertyValue::Array(vec![PropertyValue::Number(2.0)]));
+    }
+
     // --- try / can / recover ------------------------------------------------
 
     #[tokio::test]
@@ -645,6 +670,19 @@ mod tests {
     }
 
     // --- indexing -----------------------------------------------------------
+
+    #[tokio::test]
+    async fn index_uses_the_same_pcl_rules_as_output_index() {
+        // `index_plain` used to be a second copy of `output::index_value`.
+        // These are the rules that had to be kept in step by hand: numeric
+        // string keys on arrays, and looking through a secret wrapper while
+        // lifting its secretness onto the result.
+        let arr = pv::array(vec![num(7.0)]);
+        assert_eq!(value(index(arr.clone(), pv::string("0"))).await, PropertyValue::Number(7.0));
+        let d = index(pv::secret(arr), num(0.0)).data().await;
+        assert_eq!(d.value, PropertyValue::Number(7.0));
+        assert!(d.secret, "indexing a secret container lost its secretness");
+    }
 
     #[tokio::test]
     async fn index_checked_flags_an_absent_key_while_index_nulls_it() {

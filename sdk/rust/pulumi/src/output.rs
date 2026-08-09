@@ -273,7 +273,10 @@ fn index_value_checked(v: &PropertyValue, key: &PropIndex) -> PropertyValue {
     index_value(v, key)
 }
 
-fn index_value(v: &PropertyValue, key: &PropIndex) -> PropertyValue {
+/// PCL indexing semantics, shared with [`crate::ops::index`] so the two
+/// entry points cannot drift: `ops` had a line-for-line copy of this,
+/// wrapper look-through and numeric-string-key rule included.
+pub(crate) fn index_value(v: &PropertyValue, key: &PropIndex) -> PropertyValue {
     // Look through transparent wrappers so indexing works on secrets too.
     match v {
         PropertyValue::Secret(inner) => {
@@ -326,6 +329,24 @@ impl<T: IntoPropertyValue> Output<T> {
     }
 }
 
+/// The result a combinator yields when its input is not fully known.
+///
+/// Short-circuiting must not hand the *source* data back: the combinator's
+/// result has a different type and shape, so returning the input meant
+/// `join(", ", [res.name, "x"])` previewed as the two-element array rather
+/// than an unknown string, and the engine diffed a list against a string.
+/// Secretness and dependencies still ride along. A top-level `Failed` is
+/// kept intact, because `recover`/`try`/`can` read the failure message off
+/// the value itself; collapsing it would silently disarm them.
+fn short_circuit(d: OutputData) -> OutputData {
+    let OutputData { value, secret, deps } = d;
+    let value = match value {
+        failed @ PropertyValue::Failed(_) => failed,
+        _ => PropertyValue::Computed,
+    };
+    OutputData { value, secret, deps }
+}
+
 impl<T: FromPropertyValue + Send + 'static> Output<T> {
     /// Transform the value with `f` once it resolves.
     ///
@@ -350,7 +371,7 @@ impl<T: FromPropertyValue + Send + 'static> Output<T> {
         Output::from_data_future(async move {
             let d = data.await;
             if !d.known() {
-                return d;
+                return short_circuit(d);
             }
             let t = match T::from_property_value(d.value.clone()) {
                 Ok(t) => t,
@@ -375,7 +396,7 @@ impl<T: FromPropertyValue + Send + 'static> Output<T> {
         Output::from_data_future(async move {
             let d = data.await;
             if !d.known() {
-                return d;
+                return short_circuit(d);
             }
             let t = match T::from_property_value(d.value.clone()) {
                 Ok(t) => t,
@@ -600,6 +621,68 @@ mod tests {
             panic!("flat_map ran its closure over an unknown value")
         });
         assert!(!out.data().await.known());
+    }
+
+    #[tokio::test]
+    async fn map_over_a_deep_unknown_yields_an_unknown_not_the_source_value() {
+        // Regression: the short-circuit handed the *source* data back, so the
+        // result carried the input's value under the output's type. During a
+        // preview `join(", ", [res.name, "x"])` produced the two-element array
+        // where an unknown string belonged, and the engine diffed a list
+        // against a string.
+        let src: Output<Vec<PropertyValue>> = Output::from_data(data(
+            PropertyValue::Array(vec![
+                PropertyValue::String("x".into()),
+                PropertyValue::Computed,
+            ]),
+            true,
+            &["urn:a"],
+        ));
+        let d = src.map(|_| PropertyValue::String("joined".into())).data().await;
+        assert_eq!(d.value, PropertyValue::Computed, "the source array leaked through");
+        assert!(d.secret, "the short-circuit dropped secretness");
+        assert_eq!(d.deps, vec!["urn:a".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn flat_map_over_a_deep_unknown_yields_an_unknown() {
+        let src: Output<Vec<PropertyValue>> = Output::from_data(data(
+            PropertyValue::Array(vec![PropertyValue::Computed]),
+            false,
+            &[],
+        ));
+        let d = src
+            .flat_map(|_| -> Output<PropertyValue> {
+                panic!("flat_map ran its closure over an unknown value")
+            })
+            .data()
+            .await;
+        assert_eq!(d.value, PropertyValue::Computed);
+    }
+
+    #[tokio::test]
+    async fn joining_a_partially_unknown_list_is_an_unknown_string() {
+        // The end-to-end shape the short-circuit fix is for: `all` keeps the
+        // array known with the unknown encoded inline, and the `map` inside
+        // `join` must turn that into an unknown string.
+        let joined = crate::pv::join(
+            crate::pv::string(", "),
+            all(vec![Output::unknown(), Output::from_value(PropertyValue::String("x".into()))])
+                .cast(),
+        );
+        let d = joined.data().await;
+        assert_eq!(d.value, PropertyValue::Computed, "join leaked its argument list");
+    }
+
+    #[tokio::test]
+    async fn map_keeps_a_failed_value_intact() {
+        // `Failed` reads as unknown, but it is also the marker `recover`,
+        // `try` and `can` pull the failure message off. Collapsing it to a
+        // bare unknown on the short-circuit would silently disarm them.
+        let src: Output<PropertyValue> =
+            Output::from_data(data(PropertyValue::Failed("boom".into()), false, &[]));
+        let d = src.map(|v: PropertyValue| v).data().await;
+        assert_eq!(d.value, PropertyValue::Failed("boom".into()));
     }
 
     #[tokio::test]

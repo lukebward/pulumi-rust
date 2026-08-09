@@ -978,17 +978,63 @@ impl Context {
 /// negotiated features.
 fn encode_value(data: OutputData, features: Features) -> PropertyValue {
     if features.output_values {
-        data.into_value()
+        return data.into_value();
+    }
+    // Degrade: unknowns become the sentinel, secretness keeps the secret
+    // sig, dependencies are carried only out-of-band.
+    let mut value = if !data.known() {
+        PropertyValue::Computed
     } else {
-        // Degrade: unknowns become the sentinel, secretness keeps the secret
-        // sig, dependencies are carried only out-of-band.
-        if !data.known() {
-            PropertyValue::Computed
-        } else if data.secret && features.secrets {
-            PropertyValue::Secret(Box::new(data.value))
+        strip_output_values(data.value, features)
+    };
+    // Secretness survives an unknown value. Dropping it here disagreed with
+    // `Context::finish`, which wraps the very same unknown-and-secret case
+    // as Secret(Computed): one secret export marshaled as a secret and the
+    // identical value marshaled plain when it was a resource input.
+    if data.secret && features.secrets {
+        value = PropertyValue::Secret(Box::new(value));
+    }
+    value
+}
+
+/// Rewrite first-class output values into what a monitor that never
+/// negotiated them can read.
+///
+/// Only the top level used to be unwrapped, but `output::all` and
+/// `output::object` embed `PropertyValue::Output` on the *elements* so that
+/// partially-known collections keep their per-element flags. Those nested
+/// wrappers marshaled with `OUTPUT_VALUE_SIG` to a monitor that had not
+/// asked for it, which reads back as a plain object with a `4dabf18…` key.
+/// Dependencies are dropped — without output values they travel only in the
+/// registration's dependency lists.
+fn strip_output_values(v: PropertyValue, features: Features) -> PropertyValue {
+    let secret_wrap = |inner: PropertyValue, secret: bool| {
+        if secret && features.secrets {
+            PropertyValue::Secret(Box::new(inner))
         } else {
-            data.value
+            inner
         }
+    };
+    match v {
+        PropertyValue::Output(o) => {
+            let inner = match o.value {
+                Some(inner) => strip_output_values(*inner, features),
+                // No value at all means unknown; the sentinel is the only
+                // way to say so without output values.
+                None => PropertyValue::Computed,
+            };
+            secret_wrap(inner, o.secret)
+        }
+        PropertyValue::Secret(inner) => {
+            secret_wrap(strip_output_values(*inner, features), true)
+        }
+        PropertyValue::Array(vs) => PropertyValue::Array(
+            vs.into_iter().map(|v| strip_output_values(v, features)).collect(),
+        ),
+        PropertyValue::Object(m) => PropertyValue::Object(
+            m.into_iter().map(|(k, v)| (k, strip_output_values(v, features))).collect(),
+        ),
+        other => other,
     }
 }
 
@@ -1455,6 +1501,12 @@ async fn do_read(
 
     let mut properties = BTreeMap::new();
     let mut dependencies = BTreeSet::new();
+    // An explicit `depends_on` on a read has to reach the engine too; the
+    // input values alone only cover the resources the read's own arguments
+    // came from.
+    for dep in &options.depends_on {
+        dependencies.insert(await_urn(dep).await);
+    }
     for (key, out) in inputs {
         let data = out.data().await;
         for d in &data.deps {
@@ -1810,6 +1862,74 @@ mod tests {
         let err = outcome.error.unwrap();
         assert!(err.contains("`bucket`") && err.contains("`key`"), "{err}");
         assert!(err.contains("inputs"), "plural not used: {err}");
+    }
+
+    /// Everything the monitor negotiates except first-class output values —
+    /// the degrade path `encode_value` takes for older monitors.
+    fn no_output_values() -> Features {
+        Features {
+            secrets: true,
+            resource_references: true,
+            output_values: false,
+            invoke_depends_on: false,
+        }
+    }
+
+    #[test]
+    fn a_degraded_unknown_keeps_its_secretness() {
+        // `Context::finish` wraps this exact case as Secret(Computed), so
+        // dropping the flag here meant one and the same value marshaled
+        // secret as a stack output and plain as a resource input.
+        let data = OutputData {
+            value: PropertyValue::Computed,
+            secret: true,
+            deps: vec![],
+        };
+        assert_eq!(
+            encode_value(data, no_output_values()),
+            PropertyValue::Secret(Box::new(PropertyValue::Computed)),
+            "an unknown secret input was degraded to a plain unknown"
+        );
+    }
+
+    #[test]
+    fn degrading_reaches_output_values_nested_in_a_collection() {
+        // `output::all`/`object` put the wrappers on the *elements* so that
+        // partially-known collections keep their per-element flags. Stripping
+        // only the top level sent an OUTPUT_VALUE_SIG object to a monitor
+        // that never negotiated it, which reads back as a bare object with a
+        // `4dabf18…` key.
+        let element = PropertyValue::Output(crate::value::OutputValue {
+            value: Some(Box::new(PropertyValue::String("n".into()))),
+            secret: true,
+            dependencies: vec!["urn:a".into()],
+        });
+        let data = OutputData {
+            value: PropertyValue::Array(vec![element, PropertyValue::String("x".into())]),
+            secret: false,
+            deps: vec!["urn:a".into()],
+        };
+        assert_eq!(
+            encode_value(data, no_output_values()),
+            PropertyValue::Array(vec![
+                PropertyValue::Secret(Box::new(PropertyValue::String("n".into()))),
+                PropertyValue::String("x".into()),
+            ]),
+        );
+    }
+
+    #[test]
+    fn output_values_survive_untouched_when_the_monitor_wants_them() {
+        let data = OutputData {
+            value: PropertyValue::String("n".into()),
+            secret: false,
+            deps: vec!["urn:a".into()],
+        };
+        let features = Features { output_values: true, ..no_output_values() };
+        match encode_value(data, features) {
+            PropertyValue::Output(o) => assert_eq!(o.dependencies, vec!["urn:a".to_string()]),
+            other => panic!("expected an output value, got {other:?}"),
+        }
     }
 
     #[test]
