@@ -1839,3 +1839,200 @@ mod tests {
         assert!(!err.contains("missing required"), "{err}");
     }
 }
+
+/// What actually reaches the monitor when providers are involved.
+///
+/// The engine masks nearly all of this: `inheritFromParent` copies a
+/// parent's provider onto a custom child, and the monitor falls back to the
+/// receiver's goal state for `Call`. A language can therefore get every one
+/// of these wrong and still pass the conformance suite, which is exactly why
+/// they are pinned here instead.
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::monitor_test_support::fake_monitor_context;
+
+    /// Register a provider resource and hand back a handle to it.
+    fn provider(ctx: &Context, package: &str, name: &str) -> Resource {
+        ctx.register_resource(RegisterRequest {
+            type_: format!("pulumi:providers:{package}"),
+            name: name.to_string(),
+            custom: true,
+            ..Default::default()
+        })
+    }
+
+    fn register(ctx: &Context, type_: &str, name: &str, options: ResourceOptions) -> Resource {
+        ctx.register_resource(RegisterRequest {
+            type_: type_.to_string(),
+            name: name.to_string(),
+            custom: true,
+            options,
+            ..Default::default()
+        })
+    }
+
+    /// The wire `provider` of the registration for `name`.
+    fn wire_provider(
+        captured: &std::sync::Mutex<crate::monitor_test_support::Captured>,
+        name: &str,
+    ) -> String {
+        captured
+            .lock()
+            .unwrap()
+            .registers
+            .iter()
+            .find(|r| r.name == name)
+            .unwrap_or_else(|| panic!("no registration for {name}"))
+            .provider
+            .clone()
+    }
+
+    #[tokio::test]
+    async fn a_child_inherits_its_parents_singular_provider() {
+        let (ctx, captured) = fake_monitor_context().await;
+        let prov = provider(&ctx, "simple", "prov");
+        let parent = register(
+            &ctx,
+            "simple:index:Resource",
+            "parent1",
+            ResourceOptions { provider: Some(prov.clone()), ..Default::default() },
+        );
+        let _child = register(
+            &ctx,
+            "simple:index:Resource",
+            "child1",
+            ResourceOptions { parent: Some(parent), ..Default::default() },
+        );
+        ctx.drain().await.unwrap();
+        assert!(
+            !wire_provider(&captured, "child1").is_empty(),
+            "the child did not inherit its parent's provider"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_provider_for_another_package_is_discarded() {
+        // Sending it would route the resource to the wrong plugin.
+        let (ctx, captured) = fake_monitor_context().await;
+        let prov = provider(&ctx, "simple", "prov");
+        let _res = register(
+            &ctx,
+            "primitive:index:Resource",
+            "mismatch",
+            ResourceOptions { provider: Some(prov), ..Default::default() },
+        );
+        ctx.drain().await.unwrap();
+        assert_eq!(wire_provider(&captured, "mismatch"), "");
+    }
+
+    #[tokio::test]
+    async fn a_provider_for_the_matching_package_is_sent() {
+        let (ctx, captured) = fake_monitor_context().await;
+        let prov = provider(&ctx, "simple", "prov");
+        let _res = register(
+            &ctx,
+            "simple:index:Resource",
+            "matched",
+            ResourceOptions { provider: Some(prov), ..Default::default() },
+        );
+        ctx.drain().await.unwrap();
+        assert!(!wire_provider(&captured, "matched").is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_childs_own_provider_overrides_one_inherited_from_its_parent() {
+        // The conflict test is against the *explicit* providers map, not the
+        // merged one — testing against the merged map would skip this insert
+        // and leave the child on its parent's provider.
+        let (ctx, captured) = fake_monitor_context().await;
+        let prov_a = provider(&ctx, "simple", "provA");
+        let prov_b = provider(&ctx, "simple", "provB");
+        let parent = register(
+            &ctx,
+            "simple:index:Resource",
+            "parent",
+            ResourceOptions { provider: Some(prov_a), ..Default::default() },
+        );
+        let child = register(
+            &ctx,
+            "simple:index:Resource",
+            "child",
+            ResourceOptions {
+                parent: Some(parent),
+                provider: Some(prov_b.clone()),
+                ..Default::default()
+            },
+        );
+        // The grandchild is where the two merge rules differ. The child's own
+        // wire provider is provB either way, because getProvider prefers the
+        // singular option; what changes is the map the child hands down. A
+        // conflict test against the merged map would leave provA in it.
+        let _grandchild = register(
+            &ctx,
+            "simple:index:Resource",
+            "grandchild",
+            ResourceOptions { parent: Some(child), ..Default::default() },
+        );
+        ctx.drain().await.unwrap();
+        let want = match prov_b.provider_ref().data().await.value {
+            PropertyValue::String(s) => s,
+            other => panic!("provider ref is not a string: {other:?}"),
+        };
+        assert_eq!(wire_provider(&captured, "child"), want);
+        assert_eq!(
+            wire_provider(&captured, "grandchild"),
+            want,
+            "the grandchild inherited the parent's provider instead of the child's"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_read_is_read_through_its_provider() {
+        // do_read used to send no provider at all, so a resource read through
+        // an explicit provider was read by the default one instead.
+        let (ctx, captured) = fake_monitor_context().await;
+        let prov = provider(&ctx, "simple", "prov");
+        let _read = ctx.read_resource(
+            "simple:index:Resource",
+            "imported",
+            Output::from_value(PropertyValue::String("id-0".into())),
+            vec![],
+            "",
+            ResourceOptions { provider: Some(prov), ..Default::default() },
+        );
+        ctx.drain().await.unwrap();
+        let reads = captured.lock().unwrap();
+        let read = reads.reads.first().expect("no read reached the monitor");
+        assert!(!read.provider.is_empty(), "the read did not name its provider");
+    }
+
+    #[tokio::test]
+    async fn an_invoke_parented_to_a_resource_uses_that_resources_provider() {
+        // This is the one case the engine does not mask: the monitor resolves
+        // an invoke's provider from what the program sends, and a component's
+        // provider map, but never from a custom parent's singular provider.
+        let (ctx, captured) = fake_monitor_context().await;
+        let prov = provider(&ctx, "simple", "prov");
+        let parent = register(
+            &ctx,
+            "simple:index:Resource",
+            "parent",
+            ResourceOptions { provider: Some(prov), ..Default::default() },
+        );
+        let _ = ctx
+            .invoke(
+                "simple:index:myInvoke",
+                vec![],
+                InvokeOptions { parent: Some(parent), ..Default::default() },
+            )
+            .data()
+            .await;
+        let invokes = captured.lock().unwrap();
+        let invoke = invokes.invokes.first().expect("no invoke reached the monitor");
+        assert!(
+            !invoke.provider.is_empty(),
+            "the invoke did not inherit its parent's provider"
+        );
+    }
+}

@@ -11,6 +11,8 @@ pub mod convert;
 pub mod error;
 pub mod ops;
 pub mod hooks;
+#[cfg(test)]
+mod monitor_test_support;
 pub mod output;
 pub mod policy;
 pub mod provider;
