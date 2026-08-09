@@ -197,6 +197,43 @@ async fn timeout_str(v: &Option<Output<PropertyValue>>) -> String {
     }
 }
 
+/// Work out which providers a registration inherits and which one actually
+/// serves it, the way Go's `mergeProviders` and `getProvider` do together.
+///
+/// The map is what children and invokes parented here will inherit: the
+/// parent's map, then this call's explicit `providers`, then the singular
+/// `provider` under the package it serves. That last insert is tested
+/// against the *explicit* map rather than the merged one, so an entry this
+/// call named wins but one merely inherited from the parent is overridden.
+///
+/// The resolved provider is the singular option only when it serves the
+/// resource's own package; otherwise the map decides. A provider for another
+/// package is not applicable, and sending it would route the resource to the
+/// wrong plugin.
+fn resolve_providers(
+    type_: &str,
+    options: &ResourceOptions,
+) -> (BTreeMap<String, Resource>, Option<Resource>) {
+    let mut providers: BTreeMap<String, Resource> = match &options.parent {
+        Some(p) => p.providers.as_ref().clone(),
+        None => BTreeMap::new(),
+    };
+    for (pkg, p) in &options.providers {
+        providers.insert(pkg.clone(), p.clone());
+    }
+    if let Some(p) = &options.provider {
+        if !p.package.is_empty() && !options.providers.iter().any(|(k, _)| k == &p.package) {
+            providers.insert(p.package.clone(), p.clone());
+        }
+    }
+    let package = type_.split(':').next().unwrap_or_default();
+    let resolved = match &options.provider {
+        Some(p) if p.package == package => Some(p.clone()),
+        _ => providers.get(package).cloned(),
+    };
+    (providers, resolved)
+}
+
 /// The package a provider URN serves, or the empty string if the URN is not
 /// a provider's. A provider's type token is `pulumi:providers:<package>`, so
 /// the package is the last segment of the URN's type.
@@ -453,7 +490,6 @@ impl Context {
         let inner = self.inner.clone();
         let dry_run = self.dry_run();
         let custom = req.custom;
-        let provider = req.options.provider.clone().map(Arc::new);
         let version = if req.options.version.is_empty() {
             req.version.clone()
         } else {
@@ -464,36 +500,9 @@ impl Context {
         } else {
             req.options.plugin_download_url.clone()
         };
-        // Children and invokes parented here inherit these providers, plus
-        // whatever the parent already carried.
-        let mut providers: BTreeMap<String, Resource> = match &req.options.parent {
-            Some(p) => p.providers.as_ref().clone(),
-            None => BTreeMap::new(),
-        };
-        for (pkg, p) in &req.options.providers {
-            providers.insert(pkg.clone(), p.clone());
-        }
-        // A singular `provider` also joins the map, so children and invokes
-        // parented here inherit it — this is Go's mergeProviders. The conflict
-        // test is against the *explicit* map, not the merged one: an entry
-        // this call named for that package wins, but one merely inherited
-        // from the parent is overridden, which is the whole point.
-        if let Some(p) = &req.options.provider {
-            if !p.package.is_empty()
-                && !req.options.providers.iter().any(|(k, _)| k == &p.package)
-            {
-                providers.insert(p.package.clone(), p.clone());
-            }
-        }
+        let (providers, resolved) = resolve_providers(&req.type_, &req.options);
         let providers = Arc::new(providers);
-        // ...and Go's getProvider: the singular option applies only to its own
-        // package, otherwise the map decides. Sending a provider for the wrong
-        // package would route the resource to the wrong plugin.
-        let package = req.type_.split(':').next().unwrap_or_default().to_string();
-        let provider = match &provider {
-            Some(p) if p.package == package => Some(p.clone()),
-            _ => providers.get(&package).cloned().map(Arc::new),
-        };
+        let provider = resolved.map(Arc::new);
         // For a provider resource, the package it serves.
         let serves = req
             .type_
@@ -826,10 +835,15 @@ impl Context {
         let type_ = type_.into();
         let name = name.into();
         let version = version.into();
-        // A read resource is never a provider.
+        // A read resource is never a provider itself, but it is read
+        // *through* one, and its children inherit that.
         let package = String::new();
+        let (providers, resolved) = resolve_providers(&type_, &options);
+        let providers = Arc::new(providers);
+        let provider = resolved.clone().map(Arc::new);
+        let kept_version = version.clone();
         let fut = async move {
-            Arc::new(do_read(inner, type_, name, id, inputs, version, options).await)
+            Arc::new(do_read(inner, type_, name, id, inputs, version, resolved, options).await)
         }
         .boxed()
         .shared();
@@ -839,10 +853,10 @@ impl Context {
             state: fut,
             custom: true,
             dry_run,
-            provider: None,
-            version: String::new(),
+            provider,
+            version: kept_version,
             plugin_download_url: String::new(),
-            providers: Arc::new(BTreeMap::new()),
+            providers,
             package,
         }
     }
@@ -1415,6 +1429,7 @@ async fn do_read(
     id: Output<PropertyValue>,
     inputs: Vec<(String, Output<PropertyValue>)>,
     version: String,
+    provider: Option<Resource>,
     options: ResourceOptions,
 ) -> RegisterOutcome {
     let fail = |msg: String| RegisterOutcome {
@@ -1448,11 +1463,22 @@ async fn do_read(
         properties.insert(key, encode_value(data, inner.features));
     }
 
+    // A resource read through an explicit provider has to name it, or the
+    // engine reads it with the default provider instead.
+    let provider = match &provider {
+        Some(p) => match p.provider_ref().data().await.value {
+            PropertyValue::String(s) => s,
+            _ => String::new(),
+        },
+        None => String::new(),
+    };
+
     let request = pulumirpc::ReadResourceRequest {
         id: id_str.clone(),
         r#type: type_.clone(),
         name: name.clone(),
         parent,
+        provider,
         properties: Some(marshal_properties(&properties)),
         dependencies: dependencies.into_iter().filter(|d| !d.is_empty()).collect(),
         version,
