@@ -1,3 +1,5 @@
+[![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/lukebward/pulumi-rust/tree/main/examples/aws-rs-webserver)
+
 # Web Server Using Amazon EC2
 
 Starts a tiny HTTP server on a single EC2 instance. The program looks up the
@@ -39,7 +41,7 @@ and [`aws-go-webserver`](https://github.com/pulumi/examples/tree/master/aws-go-w
     ```
 
 4.  Generate the AWS provider SDK. The program does not compile until this
-    exists — `Cargo.toml` depends on it at `./sdks/aws`, and the directory is
+    exists — `Cargo.toml` depends on it at `./sdks/aws/rust`, and the directory is
     gitignored because it is a build product:
 
     ```bash

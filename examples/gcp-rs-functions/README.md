@@ -1,3 +1,5 @@
+[![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/lukebward/pulumi-rust/tree/main/examples/gcp-rs-functions)
+
 # Deploy a Google Cloud Function
 
 An HTTP-triggered [Google Cloud Function](https://cloud.google.com/functions)
@@ -37,7 +39,7 @@ output.
    ```
 
 **The GCP SDK is not checked in.** `Cargo.toml` points `pulumi_gcp` at
-`./sdks/gcp`, which does not exist until you run the `pulumi package gen-sdk`
+`./sdks/gcp/rust`, which does not exist until you run the `pulumi package gen-sdk`
 command in step 3 below. The crate does not build before then.
 
 ## Deploying and running the program

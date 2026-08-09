@@ -1,3 +1,5 @@
+[![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/lukebward/pulumi-rust/tree/main/examples/kubernetes-rs-nginx)
+
 # NGINX Deployment on Kubernetes
 
 Deploys nginx to whatever Kubernetes cluster your kubeconfig currently points
@@ -50,7 +52,7 @@ This is the Rust version of
     ```
 
 4.  Generate the Kubernetes provider SDK. The program does not compile until
-    this exists — `Cargo.toml` depends on it at `./sdks/kubernetes`, and the
+    this exists — `Cargo.toml` depends on it at `./sdks/kubernetes/rust`, and the
     directory is gitignored because it is a build product:
 
     ```bash

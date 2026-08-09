@@ -1,3 +1,5 @@
+[![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/lukebward/pulumi-rust/tree/main/examples/azure-rs-static-website)
+
 # Host a Static Website on Azure Blob Storage
 
 A static website served straight out of an Azure Storage account, using
@@ -28,7 +30,7 @@ output.
    `az account set --subscription <id>`.
 
 **The azure-native SDK is not checked in.** `Cargo.toml` points
-`pulumi_azure_native` at `./sdks/azure-native`, which does not exist until
+`pulumi_azure_native` at `./sdks/azure-native/rust`, which does not exist until
 you run the command in step 3 below. The crate does not build before then.
 
 ## Deploying and running the program

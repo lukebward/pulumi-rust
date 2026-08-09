@@ -1,3 +1,5 @@
+[![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/lukebward/pulumi-rust/tree/main/examples/aws-rs-s3-folder)
+
 # Host a Static Website on Amazon S3
 
 A static website served straight out of an S3 bucket, using
@@ -26,7 +28,7 @@ website endpoint come back as stack outputs.
    for example by setting `AWS_PROFILE` or running `aws configure`.
 
 **The AWS SDK is not checked in.** `Cargo.toml` points `pulumi_aws` at
-`./sdks/aws`, which does not exist until you run the `pulumi package gen-sdk`
+`./sdks/aws/rust`, which does not exist until you run the `pulumi package gen-sdk`
 command in step 3 below. The crate does not build before then.
 
 ## Deploying and running the program
