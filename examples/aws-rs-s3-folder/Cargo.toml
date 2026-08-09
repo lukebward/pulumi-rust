@@ -1,0 +1,13 @@
+[package]
+name = "aws-rs-s3-folder"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../sdk/rust/pulumi" }
+# Generate this SDK before building:
+#   pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks
+pulumi_aws = { path = "./sdks/aws" }
+
+# Standalone crate: never adopt an enclosing workspace.
+[workspace]

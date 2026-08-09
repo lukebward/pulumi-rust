@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello, S3!</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Static website on Amazon S3</p>
+      <h1>Hello from Pulumi and Rust</h1>
+      <p>
+        This page and the stylesheet next to it were uploaded from a
+        <code>www/</code> directory by a Pulumi program written in Rust, and
+        are being served by S3's static website hosting.
+      </p>
+      <p class="footnote">
+        Edit <code>www/index.html</code> and run <code>pulumi up</code> again
+        to publish a change.
+      </p>
+    </main>
+  </body>
+</html>

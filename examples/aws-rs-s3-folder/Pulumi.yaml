@@ -1,0 +1,3 @@
+name: aws-rs-s3-folder
+runtime: rust
+description: Serve a static website from an Amazon S3 bucket.
