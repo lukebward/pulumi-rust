@@ -7,7 +7,7 @@
 //! The program depends on a generated AWS SDK, so generate that first:
 //!
 //! ```sh
-//! pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks
+//! pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
 //! pulumi up
 //! ```
 
@@ -92,11 +92,10 @@ fn main() {
             );
         }
 
-        ctx.export("bucket_name", site_bucket.bucket().cast::<pulumi::PropertyValue>());
-        ctx.export(
-            "website_url",
-            site_bucket.website_endpoint().cast::<pulumi::PropertyValue>(),
-        );
+        let bucket_name = site_bucket.bucket();
+        let website_url = site_bucket.website_endpoint();
+        ctx.export("bucketName", bucket_name.cast::<pulumi::PropertyValue>());
+        ctx.export("websiteUrl", website_url.cast::<pulumi::PropertyValue>());
 
         Ok(())
     });

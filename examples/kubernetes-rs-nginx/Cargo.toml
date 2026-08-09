@@ -1,0 +1,17 @@
+[package]
+name = "kubernetes-rs-nginx"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulumi = { path = "../../sdk/rust/pulumi" }
+# Generate this SDK first:
+#   pulumi package gen-sdk kubernetes@4.33.0 --language rust --out ./sdks/kubernetes
+pulumi_kubernetes = { path = "./sdks/kubernetes/rust" }
+
+# Standalone crate: never adopt an enclosing workspace. `gen-sdk` writes a
+# crate that declares `[workspace]` itself, and cargo would otherwise pull
+# the generated SDK in as a member of this one and report two workspace
+# roots — so it is excluded here.
+[workspace]
+exclude = ["sdks"]

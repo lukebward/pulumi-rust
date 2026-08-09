@@ -15,6 +15,21 @@ them:
 - `do_call` seeds the result's secretness and dependencies from the call
   arguments; Go takes both solely from the `Call` response.
 
+## Generator limitations found writing the examples
+
+Writing the Kubernetes example surfaced a real generator defect that no
+conformance schema exercises: an object type that refers to itself,
+directly or through a chain, generates a Rust struct with an infinitely
+sized field. `JSONSchemaProps` in the Kubernetes schema is the obvious
+case. Fixing it means detecting cycles in `plainType`/`inputFieldFor` and
+boxing the field that closes one. The suite has no self-referential schema,
+so the fix cannot be verified here — hence it is recorded rather than
+attempted.
+
+(The sibling defect, schema properties like `$ref` producing invalid Rust
+identifiers, is fixed: `snakeCase` now drops runes that cannot appear in an
+identifier, while the wire name is preserved separately.)
+
 ## Deliberate omissions
 
 `Construct` drops two `ConstructRequest` fields that no test exercises and

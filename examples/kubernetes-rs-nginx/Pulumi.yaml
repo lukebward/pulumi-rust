@@ -1,0 +1,3 @@
+name: kubernetes-rs-nginx
+runtime: rust
+description: An nginx Deployment fronted by a Service, on any Kubernetes cluster.

@@ -49,7 +49,7 @@ values are indicated with `***`.
 1.  Generate the AWS provider SDK into `./sdks`:
 
     ```bash
-    $ pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks
+    $ pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
     ```
 
     The version is pinned deliberately. `BucketObjectArgs` has a required
@@ -94,17 +94,17 @@ values are indicated with `***`.
 1.  Check that both objects landed in the bucket, then fetch the page:
 
     ```bash
-    $ aws s3 ls $(pulumi stack output bucket_name)
+    $ aws s3 ls $(pulumi stack output bucketName)
     2026-08-09 11:02:14        861 index.html
     2026-08-09 11:02:14       1104 styles.css
 
-    $ curl -sS http://$(pulumi stack output website_url) | head -3
+    $ curl -sS http://$(pulumi stack output websiteUrl) | head -3
     <!doctype html>
     <html lang="en">
       <head>
     ```
 
-    Opening `http://$(pulumi stack output website_url)` in a browser shows
+    Opening `http://$(pulumi stack output websiteUrl)` in a browser shows
     the styled page.
 
 1.  Edit `www/index.html` and run `pulumi up` again: only the object whose

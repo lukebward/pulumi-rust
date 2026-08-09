@@ -43,7 +43,7 @@ and [`aws-go-webserver`](https://github.com/pulumi/examples/tree/master/aws-go-w
     gitignored because it is a build product:
 
     ```bash
-    $ pulumi package gen-sdk aws --language rust --out ./sdks
+    $ pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
     ```
 
     The `pulumi` crate is not published to crates.io yet, so edit the
@@ -82,9 +82,9 @@ and [`aws-go-webserver`](https://github.com/pulumi/examples/tree/master/aws-go-w
     The individual outputs are available too:
 
     ```bash
-    $ pulumi stack output public_ip
+    $ pulumi stack output publicIp
     54.190.13.201
-    $ pulumi stack output public_dns
+    $ pulumi stack output publicDns
     ec2-54-190-13-201.us-west-2.compute.amazonaws.com
     ```
 

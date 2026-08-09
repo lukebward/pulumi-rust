@@ -83,6 +83,11 @@ func snakeCase(name string) string {
 			b.WriteRune(r)
 			prevLower = false
 			prevUnderscore = false
+		case !unicode.IsLetter(r):
+			// Anything else that cannot appear in a Rust identifier is
+			// dropped: Kubernetes schemas carry properties like "$ref" and
+			// "$schema", whose wire names are preserved separately.
+			continue
 		default:
 			b.WriteRune(r)
 			prevLower = true

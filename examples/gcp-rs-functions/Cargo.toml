@@ -1,13 +1,13 @@
 [package]
-name = "aws-rs-s3-folder"
+name = "gcp-rs-functions"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 pulumi = { path = "../../sdk/rust/pulumi" }
 # Generate this SDK before building:
-#   pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
-pulumi_aws = { path = "./sdks/aws/rust" }
+#   pulumi package gen-sdk gcp@9.33.0 --language rust --out ./sdks/gcp
+pulumi_gcp = { path = "./sdks/gcp/rust" }
 
 # Standalone crate: never adopt an enclosing workspace. `gen-sdk` writes a
 # crate that declares `[workspace]` itself, so the generated SDK has to be

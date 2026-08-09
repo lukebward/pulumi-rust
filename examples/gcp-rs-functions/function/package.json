@@ -1,0 +1,11 @@
+{
+  "name": "gcp-rs-functions-handler",
+  "version": "1.0.0",
+  "description": "An HTTP-triggered Google Cloud Function deployed by a Pulumi Rust program.",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {}
+}

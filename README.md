@@ -154,10 +154,12 @@ fn main() {
 }
 ```
 
-## Known divergences
+## Known limitations
 
-Two behaviors differ from the Go SDK, neither covered by a conformance
-test; both are recorded in [`docs/roadmap.md`](./docs/roadmap.md).
+Two behaviors differ from the Go SDK, and the generator cannot yet express
+a self-referential object type. All three are recorded in
+[`docs/roadmap.md`](./docs/roadmap.md); none is covered by a conformance
+test.
 
 ## License
 

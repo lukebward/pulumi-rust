@@ -1,40 +1,68 @@
 # Examples
 
-Pulumi programs written in Rust, laid out like the [pulumi/examples][ex]
-repository: one directory per example, named `<cloud>-rs-<scenario>`, each
-with its own `README.md`, `Pulumi.yaml`, `Cargo.toml` and `src/`.
+Pulumi programs written in Rust, laid out the way the [pulumi/examples][ex]
+repository does: one directory per example, named `<cloud>-rs-<scenario>`,
+each with its own `README.md`, `Pulumi.yaml`, `Cargo.toml` and `src/`.
 
 [ex]: https://github.com/pulumi/examples
 
 ## Cloud examples
 
-These mirror the canonical examples other Pulumi languages ship.
+These mirror the canonical examples the other Pulumi languages ship.
 
 | Example | What it deploys |
 |---|---|
 | [`aws-rs-s3-folder`](./aws-rs-s3-folder) | A static website served from an S3 bucket, one `BucketObject` per local file |
 | [`aws-rs-webserver`](./aws-rs-webserver) | An EC2 instance behind a security group, running a tiny HTTP server |
+| [`azure-rs-static-website`](./azure-rs-static-website) | A static website on Azure Blob Storage |
+| [`gcp-rs-functions`](./gcp-rs-functions) | An HTTP-triggered Google Cloud Function |
+| [`kubernetes-rs-nginx`](./kubernetes-rs-nginx) | An nginx Deployment and Service |
 
-Each depends on a **generated provider SDK**. Generate it before running:
+Each needs a **generated provider SDK**. `pulumi package gen-sdk` writes to
+`<out>/<language>`, so generate into a per-package directory and the paths
+in each `Cargo.toml` line up:
 
 ```sh
 cd aws-rs-s3-folder
-pulumi package gen-sdk aws --language rust --out ./sdks
+pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
 pulumi stack init dev
 pulumi config set aws:region us-west-2
 pulumi up
 ```
 
-> These cloud examples are written against the SDK shapes our generator
-> produces, but they are **not compiled in this repository** — doing so
-> needs the provider schemas, which means a Pulumi CLI and network access.
-> Treat them as reference programs to adapt, and expect to reconcile
-> property names against the SDK your `gen-sdk` run actually emits.
+The generated crate's own `Cargo.toml` declares `pulumi = "0.1"`, which is
+not published — repoint it at your checkout before building:
+
+```sh
+# in ./sdks/aws/rust/Cargo.toml
+pulumi = { path = "../../../../../sdk/rust/pulumi" }
+```
+
+## What is and isn't verified
+
+Only the two examples below that need no provider are compiled in this
+repository. The cloud examples are **reference programs**: they are written
+against the SDK shapes our generator produces, and their Rust-level API use
+(the `pulumi` crate, `Output` handling, args-literal patterns) was
+type-checked against stub SDKs shaped the way the generator emits. Their
+**provider property names are not verified** — reconcile them against the
+SDK your own `gen-sdk` run emits, and expect to adjust.
+
+That caveat matters most where a program has to name every field of a large
+args struct: the generator derives `Default` only when every field of a
+struct is optional, so any struct with a required input must be written out
+in full, and a provider version that adds or drops an optional input will
+break the literal. Each cloud example pins a provider version for that
+reason.
+
+| Example | Needs a provider SDK | Compiled here |
+|---|---|---|
+| [`config-and-outputs`](./config-and-outputs) | no | yes |
+| [`component`](./component) | no | yes |
+| [`random-password`](./random-password) | yes (`random`) | no |
+| the five cloud examples above | yes | no |
 
 ## Language examples
-
-These need no provider and build straight from a checkout, so they are
-verified to compile.
 
 | Example | What it shows |
 |---|---|

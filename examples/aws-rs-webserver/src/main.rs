@@ -3,7 +3,7 @@
 //! Generate the AWS SDK the program depends on, then run it:
 //!
 //! ```sh
-//! pulumi package gen-sdk aws --language rust --out ./sdks
+//! pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
 //! pulumi up
 //! ```
 
@@ -51,7 +51,7 @@ fn main() {
                     from_port: pulumi::Output::known(80),
                     to_port: pulumi::Output::known(80),
                     cidr_blocks: Some(pulumi::Output::known(vec!["0.0.0.0/0".to_string()])),
-                    ipv6_cidr_blocks: None,
+                    ipv6cidr_blocks: None,
                     prefix_list_ids: None,
                     security_groups: None,
                     self_: None,
@@ -63,7 +63,7 @@ fn main() {
                     from_port: pulumi::Output::known(0),
                     to_port: pulumi::Output::known(0),
                     cidr_blocks: Some(pulumi::Output::known(vec!["0.0.0.0/0".to_string()])),
-                    ipv6_cidr_blocks: None,
+                    ipv6cidr_blocks: None,
                     prefix_list_ids: None,
                     security_groups: None,
                     self_: None,
@@ -93,8 +93,8 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        ctx.export("public_ip", server.public_ip().cast::<pulumi::PropertyValue>());
-        ctx.export("public_dns", server.public_dns().cast::<pulumi::PropertyValue>());
+        ctx.export("publicIp", server.public_ip().cast::<pulumi::PropertyValue>());
+        ctx.export("publicDns", server.public_dns().cast::<pulumi::PropertyValue>());
         ctx.export(
             "url",
             pulumi::pv::concat(vec![

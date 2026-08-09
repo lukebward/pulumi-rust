@@ -1,13 +1,14 @@
 [package]
-name = "aws-rs-s3-folder"
+name = "azure-rs-static-website"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 pulumi = { path = "../../sdk/rust/pulumi" }
 # Generate this SDK before building:
-#   pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
-pulumi_aws = { path = "./sdks/aws/rust" }
+#   pulumi package gen-sdk azure-native@3.10.0 --language rust --out ./sdks/azure-native
+# which writes the crate under ./sdks and repoints the path below at it.
+pulumi_azure_native = { path = "./sdks/azure-native/rust" }
 
 # Standalone crate: never adopt an enclosing workspace. `gen-sdk` writes a
 # crate that declares `[workspace]` itself, so the generated SDK has to be

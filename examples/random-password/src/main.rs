@@ -3,7 +3,7 @@
 //! Generate the SDK the program depends on, then run it:
 //!
 //! ```sh
-//! pulumi package gen-sdk random --language rust --out ./sdks
+//! pulumi package gen-sdk random@4.18.4 --language rust --out ./sdks/random
 //! pulumi up
 //! ```
 
