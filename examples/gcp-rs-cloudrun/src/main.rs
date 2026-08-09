@@ -46,18 +46,14 @@ fn main() {
             pulumi::PropertyValue::String(DEFAULT_IMAGE.to_string()),
         );
 
-        // `CloudrunServiceTemplateSpecContainerArgs` requires `image`, so the
-        // generator does not derive `Default` for it and Rust needs every
-        // field named. The ones this program leaves alone are `None`.
         let container = types::CloudrunServiceTemplateSpecContainerArgs {
-            image: image.cast(),
+            image: Some(image.cast()),
             // Telling Knative which port to route to. Cloud Run defaults to
             // 8080, so this is documentation as much as configuration — but
             // it is also the one nested list this example needs.
             ports: Some(vec![types::CloudrunServiceTemplateSpecContainerPortArgs {
                 container_port: Some(pulumi::pv::number(CONTAINER_PORT).cast()),
-                name: None,
-                protocol: None,
+                ..Default::default()
             }]),
             // `limits` is a plain string map in the schema, so `pv::object`
             // builds it and `cast` reinterprets the dynamic value as the
@@ -70,59 +66,30 @@ fn main() {
                     ])
                     .cast(),
                 ),
-                requests: None,
+                ..Default::default()
             }),
-
-            args: None,
-            commands: None,
-            env_froms: None,
-            envs: None,
-            liveness_probe: None,
-            name: None,
-            readiness_probe: None,
-            startup_probe: None,
-            volume_mounts: None,
-            working_dir: None,
+            ..Default::default()
         };
 
-        // The service itself. `ServiceArgs` requires `location`, so again
-        // every field is named. `project` is left unset and comes from the
+        // The service itself. `project` is left unset and comes from the
         // provider's `gcp:project` configuration.
-        //
-        // `CloudrunServiceTemplateArgs` and
-        // `CloudrunServiceTemplateSpecArgs` are all-optional, so both derive
-        // `Default` — they are still written out in full here because the
-        // three-deep nesting reads better when nothing is hidden.
         let service = cloudrun::Service::new(
             &ctx,
             "hello",
             cloudrun::ServiceArgs {
-                location: region.cast(),
+                location: Some(region.cast()),
                 template: Some(types::CloudrunServiceTemplateArgs {
-                    metadata: None,
                     spec: Some(types::CloudrunServiceTemplateSpecArgs {
                         containers: Some(vec![container]),
-
-                        container_concurrency: None,
-                        node_selector: None,
-                        service_account_name: None,
-                        serving_state: None,
-                        timeout_seconds: None,
-                        volumes: None,
+                        ..Default::default()
                     }),
+                    ..Default::default()
                 }),
                 // Let Cloud Run name each revision. Without this, changing the
                 // image with a fixed `template.metadata.name` is rejected: a
                 // Knative revision name cannot be reused.
                 autogenerate_revision_name: Some(pulumi::pv::bool(true).cast()),
-
-                deletion_policy: None,
-                metadata: None,
-                name: None,
-                project: None,
-                // Unset means all traffic goes to the latest revision, which
-                // is what a single-revision service wants.
-                traffics: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -136,13 +103,12 @@ fn main() {
             &ctx,
             "invoker",
             cloudrun::IamMemberArgs {
-                service: service.name().cast(),
-                role: pulumi::pv::string("roles/run.invoker").cast(),
-                member: pulumi::pv::string("allUsers").cast(),
+                service: Some(service.name().cast()),
+                role: Some(pulumi::pv::string("roles/run.invoker").cast()),
+                member: Some(pulumi::pv::string("allUsers").cast()),
                 location: Some(service.location().cast()),
                 project: Some(service.project().cast()),
-
-                condition: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );

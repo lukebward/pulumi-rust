@@ -110,8 +110,8 @@ follows the package's schema modules:
   folded into the type name: `pulumi_aws::types::Ec2SecurityGroupIngressArgs`,
   `pulumi_aws::types::Ec2GetAmiFilterArgs`.
 
-An args struct only derives `Default` when every one of its fields is
-optional, so `..Default::default()` works for `SecurityGroupArgs`,
-`InstanceArgs`, and `GetAmiArgs`, but the ingress and egress rules spell out
-all of their fields — `from_port`, `to_port`, and `protocol` are required
-there.
+Every generated args struct derives `Default` and every field is an
+`Option`, so a program names the inputs it sets and closes the literal with
+`..Default::default()`. Required inputs are not a compile-time constraint: a
+missing one is reported when the resource registers, the same as in the Go,
+C#, Java and Python SDKs.

@@ -128,15 +128,11 @@ fn main() {
         );
 
         // ---------------------------------------------------------------
-        // The network, looked up rather than created.
-        //
-        // EKS needs subnets in at least two availability zones. A default
-        // VPC has one subnet per zone, so `getSubnets` over it satisfies
-        // that in every region — which is what lets this example stay a
-        // handful of resources instead of a VPC build-out.
-        //
-        // Both args structs have only optional inputs, so they derive
-        // `Default` and the unset fields can be elided.
+        // The network, looked up rather than created. EKS needs subnets in at
+        // least two availability zones. A default VPC has one subnet per zone,
+        // so `getSubnets` over it satisfies that in every region — which is
+        // what lets this example stay a handful of resources instead of a VPC
+        // build-out.
         // ---------------------------------------------------------------
         let vpc = ec2::get_vpc(
             &ctx,
@@ -153,8 +149,9 @@ fn main() {
             &ctx,
             ec2::GetSubnetsArgs {
                 filters: Some(vec![types::Ec2GetSubnetsFilterArgs {
-                    name: pulumi::pv::string("vpc-id").cast(),
-                    values: vpc.map(|v: types::Ec2GetVpcResult| vec![v.id]),
+                    name: Some(pulumi::pv::string("vpc-id").cast()),
+                    values: Some(vpc.map(|v: types::Ec2GetVpcResult| vec![v.id])),
+                    ..Default::default()
                 }]),
                 ..Default::default()
             },
@@ -165,31 +162,14 @@ fn main() {
 
         // ---------------------------------------------------------------
         // The control plane's role.
-        //
-        // `assume_role_policy` is required, so `RoleArgs` has no `Default`
-        // and every field is named.
         // ---------------------------------------------------------------
         let cluster_role = iam::Role::new(
             &ctx,
             "eks-cluster-role",
             iam::RoleArgs {
-                assume_role_policy: pulumi::pv::string(CLUSTER_ASSUME_ROLE_POLICY).cast(),
+                assume_role_policy: Some(pulumi::pv::string(CLUSTER_ASSUME_ROLE_POLICY).cast()),
                 description: Some(pulumi::pv::string("Assumed by the EKS control plane").cast()),
-
-                force_detach_policies: None,
-                inline_policies: None,
-                // Attached below as its own resource rather than listed
-                // here: `managed_policy_arns` is exclusive, and setting it
-                // detaches anything attached out of band.
-                managed_policy_arns: None,
-                max_session_duration: None,
-                // Left unset so Pulumi auto-names the role, which keeps two
-                // stacks in one account from colliding.
-                name: None,
-                name_prefix: None,
-                path: None,
-                permissions_boundary: None,
-                tags: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -199,8 +179,9 @@ fn main() {
             &ctx,
             "eks-cluster-policy",
             iam::RolePolicyAttachmentArgs {
-                role: cluster_role.name().cast(),
-                policy_arn: pulumi::pv::string(CLUSTER_POLICY_ARN).cast(),
+                role: Some(cluster_role.name().cast()),
+                policy_arn: Some(pulumi::pv::string(CLUSTER_POLICY_ARN).cast()),
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -214,20 +195,11 @@ fn main() {
             &ctx,
             "eks-node-role",
             iam::RoleArgs {
-                assume_role_policy: pulumi::pv::string(NODE_ASSUME_ROLE_POLICY).cast(),
+                assume_role_policy: Some(pulumi::pv::string(NODE_ASSUME_ROLE_POLICY).cast()),
                 description: Some(
                     pulumi::pv::string("Assumed by the EKS managed node group's instances").cast(),
                 ),
-
-                force_detach_policies: None,
-                inline_policies: None,
-                managed_policy_arns: None,
-                max_session_duration: None,
-                name: None,
-                name_prefix: None,
-                path: None,
-                permissions_boundary: None,
-                tags: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -236,8 +208,9 @@ fn main() {
             &ctx,
             "eks-worker-node-policy",
             iam::RolePolicyAttachmentArgs {
-                role: node_role.name().cast(),
-                policy_arn: pulumi::pv::string(WORKER_NODE_POLICY_ARN).cast(),
+                role: Some(node_role.name().cast()),
+                policy_arn: Some(pulumi::pv::string(WORKER_NODE_POLICY_ARN).cast()),
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -246,8 +219,9 @@ fn main() {
             &ctx,
             "eks-cni-policy",
             iam::RolePolicyAttachmentArgs {
-                role: node_role.name().cast(),
-                policy_arn: pulumi::pv::string(CNI_POLICY_ARN).cast(),
+                role: Some(node_role.name().cast()),
+                policy_arn: Some(pulumi::pv::string(CNI_POLICY_ARN).cast()),
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -256,83 +230,30 @@ fn main() {
             &ctx,
             "eks-ecr-policy",
             iam::RolePolicyAttachmentArgs {
-                role: node_role.name().cast(),
-                policy_arn: pulumi::pv::string(ECR_READ_ONLY_POLICY_ARN).cast(),
+                role: Some(node_role.name().cast()),
+                policy_arn: Some(pulumi::pv::string(ECR_READ_ONLY_POLICY_ARN).cast()),
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
 
         // ---------------------------------------------------------------
         // The cluster itself.
-        //
-        // `ClusterArgs` requires `roleArn` and `vpcConfig`, so the generator
-        // does not derive `Default` for it and every field is named; the
-        // ones this program leaves alone are `None`.
         // ---------------------------------------------------------------
         let cluster = eks::Cluster::new(
             &ctx,
             "eks-cluster",
             eks::ClusterArgs {
-                role_arn: cluster_role.arn().cast(),
+                role_arn: Some(cluster_role.arn().cast()),
 
-                // `EksClusterVpcConfigArgs` requires `subnetIds`, so it has
-                // no `Default` either. Every subnet of the default VPC is
-                // handed over, which puts the API server's network
-                // interfaces in at least two availability zones.
-                vpc_config: types::EksClusterVpcConfigArgs {
-                    subnet_ids: subnet_ids.clone(),
-
-                    // An output-only attribute of the cluster; setting it as
-                    // an input is not how the cluster's own security group
-                    // is chosen.
-                    cluster_security_group_id: None,
-                    control_plane_egress_mode: None,
-                    // Left unset, so the API server keeps its default
-                    // public endpoint and no private one. Flipping these
-                    // two is how a cluster is made VPC-internal — at which
-                    // point `kubectl` has to run from inside the VPC.
-                    endpoint_private_access: None,
-                    endpoint_public_access: None,
-                    // Unset means 0.0.0.0/0: the public endpoint is
-                    // reachable from anywhere, though still only by a caller
-                    // holding valid AWS credentials.
-                    public_access_cidrs: None,
-                    security_group_ids: None,
-                    vpc_id: None,
-                },
-
-                // Unset, so AWS picks its current default Kubernetes
-                // version. Pin it here to make upgrades an explicit change
-                // to the program.
-                version: None,
-
-                // Unset, so the cluster keeps the provider's default access
-                // configuration — which grants the IAM principal that ran
-                // `pulumi up` cluster-admin, and is what makes the exported
-                // kubeconfig work without any further wiring.
-                access_config: None,
-                bootstrap_self_managed_addons: None,
-                compute_config: None,
-                control_plane_scaling_config: None,
-                default_addons_to_removes: None,
-                // The provider defaults this to false; an example has to be
-                // tearable down, so it is left alone rather than enabled.
-                deletion_protection: None,
-                // Control-plane logs go to CloudWatch when named here —
-                // "api", "audit", "authenticator", "controllerManager",
-                // "scheduler". They cost money, so none are on.
-                enabled_cluster_log_types: None,
-                encryption_config: None,
-                force_update_version: None,
-                kubernetes_network_config: None,
-                name: None,
-                outpost_config: None,
-                region: None,
-                remote_network_config: None,
-                storage_config: None,
-                tags: None,
-                upgrade_policy: None,
-                zonal_shift_config: None,
+                // Every subnet of the default VPC is handed over, which puts
+                // the API server's network interfaces in at least two
+                // availability zones.
+                vpc_config: Some(types::EksClusterVpcConfigArgs {
+                    subnet_ids: Some(subnet_ids.clone()),
+                    ..Default::default()
+                }),
+                ..Default::default()
             },
             pulumi::ResourceOptions {
                 // Creating a cluster whose role has no policy yet fails with
@@ -347,61 +268,32 @@ fn main() {
 
         // ---------------------------------------------------------------
         // The nodes.
-        //
-        // `NodeGroupArgs` requires `clusterName`, `nodeRoleArn`,
-        // `scalingConfig` and `subnetIds`, so it has no `Default` and every
-        // field is named.
         // ---------------------------------------------------------------
         let node_group = eks::NodeGroup::new(
             &ctx,
             "eks-nodegroup",
             eks::NodeGroupArgs {
-                cluster_name: cluster.name().cast(),
-                node_role_arn: node_role.arn().cast(),
-                subnet_ids: subnet_ids.clone(),
+                cluster_name: Some(cluster.name().cast()),
+                node_role_arn: Some(node_role.arn().cast()),
+                subnet_ids: Some(subnet_ids.clone()),
 
                 // All three fields of `EksNodeGroupScalingConfigArgs` are
                 // required. `desired_size` is what actually gets built;
                 // `max_size` leaves the cluster autoscaler room to grow into
                 // if one is ever installed, and nothing shrinks the group
                 // below one node.
-                scaling_config: types::EksNodeGroupScalingConfigArgs {
-                    desired_size: node_count.cast(),
-                    max_size: node_count.cast(),
-                    min_size: Output::known(1),
-                },
+                scaling_config: Some(types::EksNodeGroupScalingConfigArgs {
+                    desired_size: Some(node_count.cast()),
+                    max_size: Some(node_count.cast()),
+                    min_size: Some(Output::known(1)),
+                    ..Default::default()
+                }),
 
                 // A list, because a node group may be given several
                 // interchangeable shapes to draw from; this one gets a
                 // single entry from configuration.
                 instance_types: Some(instance_type.cast::<String>().map(|t: String| vec![t])),
-
-                // Unset, so AWS picks the default `AL2023_x86_64_STANDARD`
-                // image and a Kubernetes version matching the cluster's.
-                ami_type: None,
-                // Unset means `ON_DEMAND`; `SPOT` is the cheaper, evictable
-                // alternative.
-                capacity_type: None,
-                disk_size: None,
-                force_update_version: None,
-                labels: None,
-                // A launch template is the escape hatch for anything the
-                // node group's own inputs do not cover — user data, a
-                // specific AMI, instance metadata options.
-                launch_template: None,
-                node_group_name: None,
-                node_group_name_prefix: None,
-                node_repair_config: None,
-                region: None,
-                release_version: None,
-                // Unset, so the nodes get no SSH key and no inbound access.
-                remote_access: None,
-                tags: None,
-                taints: None,
-                update_config: None,
-                // Unset, so the node group tracks the cluster's version.
-                version: None,
-                warm_pool_config: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions {
                 // A node group created before its role's policies land comes

@@ -51,51 +51,43 @@ impl Provider {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ResourceArgs {
-    pub private: pulumi::Output<std::string::String>,
-    pub private_array: pulumi::Output<std::vec::Vec<std::string::String>>,
-    pub private_data: crate::types::DataArgs,
-    pub private_data_array: std::vec::Vec<crate::types::DataArgs>,
-    pub private_data_map: std::collections::BTreeMap<std::string::String, crate::types::DataArgs>,
-    pub private_map: pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>,
-    pub public: pulumi::Output<std::string::String>,
-    pub public_data: crate::types::DataArgs,
+    pub private: Option<pulumi::Output<std::string::String>>,
+    pub private_array: Option<pulumi::Output<std::vec::Vec<std::string::String>>>,
+    pub private_data: Option<crate::types::DataArgs>,
+    pub private_data_array: Option<std::vec::Vec<crate::types::DataArgs>>,
+    pub private_data_map: Option<std::collections::BTreeMap<std::string::String, crate::types::DataArgs>>,
+    pub private_map: Option<pulumi::Output<std::collections::BTreeMap<std::string::String, std::string::String>>>,
+    pub public: Option<pulumi::Output<std::string::String>>,
+    pub public_data: Option<crate::types::DataArgs>,
 }
 
 impl ResourceArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.private;
+        if let Some(v) = self.private {
             inputs.push(("private".to_string(), pulumi::pv::secret(v.cast())));
         }
-        {
-            let v = self.private_array;
+        if let Some(v) = self.private_array {
             inputs.push(("privateArray".to_string(), pulumi::pv::secret(v.cast())));
         }
-        {
-            let v = self.private_data;
+        if let Some(v) = self.private_data {
             inputs.push(("privateData".to_string(), pulumi::pv::secret(v.into_output())));
         }
-        {
-            let v = self.private_data_array;
+        if let Some(v) = self.private_data_array {
             inputs.push(("privateDataArray".to_string(), pulumi::pv::secret(pulumi::output::all(v.into_iter().map(|e| e.into_output()).collect()).cast())));
         }
-        {
-            let v = self.private_data_map;
+        if let Some(v) = self.private_data_map {
             inputs.push(("privateDataMap".to_string(), pulumi::pv::secret(pulumi::output::object(v.into_iter().map(|(k, e)| (k, e.into_output())).collect()))));
         }
-        {
-            let v = self.private_map;
+        if let Some(v) = self.private_map {
             inputs.push(("privateMap".to_string(), pulumi::pv::secret(v.cast())));
         }
-        {
-            let v = self.public;
+        if let Some(v) = self.public {
             inputs.push(("public".to_string(), v.cast()));
         }
-        {
-            let v = self.public_data;
+        if let Some(v) = self.public_data {
             inputs.push(("publicData".to_string(), v.into_output()));
         }
         inputs
@@ -181,21 +173,19 @@ impl Resource {
 }
 
 pub mod types {
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Default)]
     pub struct DataArgs {
-        pub private: pulumi::Output<std::string::String>,
-        pub public: pulumi::Output<std::string::String>,
+        pub private: Option<pulumi::Output<std::string::String>>,
+        pub public: Option<pulumi::Output<std::string::String>>,
     }
 
     impl DataArgs {
         pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
             let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-            {
-                let v = self.private;
+            if let Some(v) = self.private {
                 inputs.push(("private".to_string(), v.cast()));
             }
-            {
-                let v = self.public;
+            if let Some(v) = self.public {
                 inputs.push(("public".to_string(), v.cast()));
             }
             inputs

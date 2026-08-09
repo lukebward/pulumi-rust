@@ -136,14 +136,8 @@ places it does reach for `pv` are the Service's `type` and `targetPort`, which
 are unions in the schema (`targetPort` is Kubernetes' int-or-string) and so
 arrive as `Output<PropertyValue>`.
 
-An args struct only derives `Default` when every one of its fields is optional.
-`DeploymentArgs`, `ServiceArgs`, `ServiceSpecArgs`, `ObjectMetaArgs`,
-`LabelSelectorArgs`, and `PodTemplateSpecArgs` all qualify, so
-`..Default::default()` works for them. `DeploymentSpecArgs` (`selector`,
-`template`), `PodSpecArgs` (`containers`), `ContainerArgs` (`name`),
-`ContainerPortArgs` (`containerPort`), and `ServicePortArgs` (`port`) have
-required fields, so they name every field and leave the unused ones `None` —
-which is why `PodSpecArgs` in `src/main.rs` is a long list. Those lists track
-one schema version: this program is written against **kubernetes 4.33.0**, and
-a different provider version may add or drop optional fields on exactly those
-structs. Regenerate and recheck them if you pin something else.
+Every generated args struct derives `Default` and every field is an
+`Option`, so a program names the inputs it sets and closes the literal with
+`..Default::default()`. Required inputs are not a compile-time constraint: a
+missing one is reported when the resource registers, the same as in the Go,
+C#, Java and Python SDKs.

@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let with_secret = pulumi_simple::Resource::new(&ctx, "withSecret", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { additional_secret_outputs: vec!["value".to_string()], ..Default::default() });
-        let without_secret = pulumi_simple::Resource::new(&ctx, "withoutSecret", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let with_secret = pulumi_simple::Resource::new(&ctx, "withSecret", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { additional_secret_outputs: vec!["value".to_string()], ..Default::default() });
+        let without_secret = pulumi_simple::Resource::new(&ctx, "withoutSecret", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

@@ -41,12 +41,10 @@ const IMAGE_SKU: &str = "22_04-lts-gen2";
 
 /// One inbound "allow" rule for a single TCP port.
 ///
-/// `SecurityRule` is the one nested type in this program with required
-/// fields (`access`, `direction`, `protocol`), so the generator does not
-/// derive `Default` for it and Rust needs every field named. Building the
-/// rules in a helper keeps that list in one place instead of two.
+/// Building the rules in a helper keeps the shared shape in one place
+/// instead of two.
 ///
-/// Those three required fields are `string | enum` unions in the schema, so
+/// `access`, `direction` and `protocol` are `string | enum` unions in the schema, so
 /// they surface as `Output<PropertyValue>` rather than `Output<String>`;
 /// `pulumi::pv::string(..).cast()` is how a dynamic value is spelled.
 /// `priority` is optional in the schema but Azure rejects a rule without
@@ -55,26 +53,15 @@ fn allow_inbound_tcp(name: &str, port: &str, priority: i32) -> types::NetworkSec
     types::NetworkSecurityRuleArgs {
         name: Some(pulumi::Output::known(name.to_string())),
         priority: Some(pulumi::Output::known(priority)),
-        access: pulumi::pv::string("Allow").cast(),
-        direction: pulumi::pv::string("Inbound").cast(),
-        protocol: pulumi::pv::string("Tcp").cast(),
+        access: Some(pulumi::pv::string("Allow").cast()),
+        direction: Some(pulumi::pv::string("Inbound").cast()),
+        protocol: Some(pulumi::pv::string("Tcp").cast()),
         // "*" is Azure's any-address / any-port wildcard.
         source_address_prefix: Some(pulumi::Output::known("*".to_string())),
         source_port_range: Some(pulumi::Output::known("*".to_string())),
         destination_address_prefix: Some(pulumi::Output::known("*".to_string())),
         destination_port_range: Some(pulumi::Output::known(port.to_string())),
-
-        description: None,
-        destination_address_prefixes: None,
-        destination_application_security_groups: None,
-        destination_port_ranges: None,
-        etag: None,
-        id: None,
-        provisioning_state: None,
-        source_address_prefixes: None,
-        source_application_security_groups: None,
-        source_port_ranges: None,
-        r#type: None,
+        ..Default::default()
     }
 }
 
@@ -96,10 +83,7 @@ fn main() {
             pulumi::PropertyValue::String("Standard_B1s".into()),
         );
 
-        // Everything lands in one resource group. Every input of
-        // `ResourceGroupArgs` is optional, so the generated struct derives
-        // `Default`; the region comes from the provider's
-        // `azure-native:location` config rather than being hard-coded here.
+        // Everything lands in one resource group.
         let resource_group = resources::ResourceGroup::new(
             &ctx,
             "server-rg",
@@ -107,10 +91,6 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        // Every azure-native resource requires `resourceGroupName`, so none
-        // of the args structs below derive `Default` and each one names all
-        // of its fields — the ones this program leaves alone are `None`.
-        //
         // The subnet is declared inline on the network rather than as a
         // separate `network:Subnet` resource; the two ways of expressing it
         // conflict, and the inline form is what the TypeScript and Python
@@ -121,34 +101,17 @@ fn main() {
             network::VirtualNetworkArgs {
                 // Feeding the group's own output in here makes the engine
                 // order the two registrations and records the dependency.
-                resource_group_name: resource_group.name(),
+                resource_group_name: Some(resource_group.name()),
                 address_space: Some(types::NetworkAddressSpaceArgs {
                     address_prefixes: Some(pulumi::Output::known(vec!["10.0.0.0/16".to_string()])),
-                    ipam_pool_prefix_allocations: None,
+                    ..Default::default()
                 }),
                 subnets: Some(vec![types::NetworkSubnetArgs {
                     name: Some(pulumi::Output::known("default".to_string())),
                     address_prefix: Some(pulumi::Output::known("10.0.1.0/24".to_string())),
-                    // All of `Subnet`'s inputs are optional, so this one
-                    // does derive `Default`.
                     ..Default::default()
                 }]),
-
-                bgp_communities: None,
-                ddos_protection_plan: None,
-                dhcp_options: None,
-                enable_ddos_protection: None,
-                enable_vm_protection: None,
-                encryption: None,
-                extended_location: None,
-                flow_timeout_in_minutes: None,
-                id: None,
-                ip_allocations: None,
-                location: None,
-                private_endpoint_vnet_policies: None,
-                tags: None,
-                virtual_network_name: None,
-                virtual_network_peerings: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -179,28 +142,9 @@ fn main() {
             &ctx,
             "server-ip",
             network::PublicIPAddressArgs {
-                resource_group_name: resource_group.name(),
+                resource_group_name: Some(resource_group.name()),
                 public_ipallocation_method: Some(pulumi::pv::string("Dynamic").cast()),
-
-                ddos_settings: None,
-                delete_option: None,
-                dns_settings: None,
-                extended_location: None,
-                id: None,
-                idle_timeout_in_minutes: None,
-                ip_address: None,
-                ip_tags: None,
-                linked_public_ipaddress: None,
-                location: None,
-                migration_phase: None,
-                nat_gateway: None,
-                public_ipaddress_version: None,
-                public_ipprefix: None,
-                public_ip_address_name: None,
-                service_public_ipaddress: None,
-                sku: None,
-                tags: None,
-                zones: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -212,17 +156,12 @@ fn main() {
             &ctx,
             "server-nsg",
             network::NetworkSecurityGroupArgs {
-                resource_group_name: resource_group.name(),
+                resource_group_name: Some(resource_group.name()),
                 security_rules: Some(vec![
                     allow_inbound_tcp("allow-http", "80", 1000),
                     allow_inbound_tcp("allow-ssh", "22", 1001),
                 ]),
-
-                flush_connection: None,
-                id: None,
-                location: None,
-                network_security_group_name: None,
-                tags: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -239,7 +178,7 @@ fn main() {
             &ctx,
             "server-nic",
             network::NetworkInterfaceArgs {
-                resource_group_name: resource_group.name(),
+                resource_group_name: Some(resource_group.name()),
                 ip_configurations: Some(vec![types::NetworkNetworkInterfaceIPConfigurationArgs {
                     name: Some(pulumi::Output::known("webserveripcfg".to_string())),
                     subnet: Some(types::NetworkSubnetArgs {
@@ -257,22 +196,7 @@ fn main() {
                     id: Some(security_group.id()),
                     ..Default::default()
                 }),
-
-                auxiliary_mode: None,
-                auxiliary_sku: None,
-                disable_tcp_state_tracking: None,
-                dns_settings: None,
-                enable_accelerated_networking: None,
-                enable_ipforwarding: None,
-                extended_location: None,
-                id: None,
-                location: None,
-                migration_phase: None,
-                network_interface_name: None,
-                nic_type: None,
-                private_link_service: None,
-                tags: None,
-                workload_type: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -288,10 +212,10 @@ fn main() {
             &ctx,
             "server-vm",
             compute::VirtualMachineArgs {
-                resource_group_name: resource_group.name(),
+                resource_group_name: Some(resource_group.name()),
                 hardware_profile: Some(types::ComputeHardwareProfileArgs {
                     vm_size: Some(vm_size.cast()),
-                    vm_size_properties: None,
+                    ..Default::default()
                 }),
                 os_profile: Some(types::ComputeOSProfileArgs {
                     computer_name: Some(pulumi::Output::known("webserver".to_string())),
@@ -307,20 +231,15 @@ fn main() {
                         disable_password_authentication: Some(pulumi::Output::known(false)),
                         ..Default::default()
                     }),
-
-                    allow_extension_operations: None,
-                    require_guest_provision_signal: None,
-                    secrets: None,
-                    windows_configuration: None,
+                    ..Default::default()
                 }),
                 network_profile: Some(types::ComputeNetworkProfileArgs {
                     network_interfaces: Some(vec![types::ComputeNetworkInterfaceReferenceArgs {
                         id: Some(network_interface.id()),
                         primary: Some(pulumi::Output::known(true)),
-                        delete_option: None,
+                        ..Default::default()
                     }]),
-                    network_api_version: None,
-                    network_interface_configurations: None,
+                    ..Default::default()
                 }),
                 storage_profile: Some(types::ComputeStorageProfileArgs {
                     image_reference: Some(types::ComputeImageReferenceArgs {
@@ -333,52 +252,13 @@ fn main() {
                     // `OSDisk` is the other nested type with a required
                     // field (`createOption`), so it too names everything.
                     os_disk: Some(types::ComputeOSDiskArgs {
-                        create_option: pulumi::pv::string("FromImage").cast(),
+                        create_option: Some(pulumi::pv::string("FromImage").cast()),
                         name: Some(pulumi::Output::known("server-vm-osdisk".to_string())),
-
-                        caching: None,
-                        delete_option: None,
-                        diff_disk_settings: None,
-                        disk_size_gb: None,
-                        encryption_settings: None,
-                        image: None,
-                        managed_disk: None,
-                        os_type: None,
-                        vhd: None,
-                        write_accelerator_enabled: None,
+                        ..Default::default()
                     }),
-                    align_regional_disks_to_vmzone: None,
-                    data_disks: None,
-                    disk_controller_type: None,
+                    ..Default::default()
                 }),
-
-                additional_capabilities: None,
-                application_profile: None,
-                availability_set: None,
-                billing_profile: None,
-                capacity_reservation: None,
-                diagnostics_profile: None,
-                eviction_policy: None,
-                extended_location: None,
-                extensions_time_budget: None,
-                host: None,
-                host_group: None,
-                identity: None,
-                license_type: None,
-                location: None,
-                placement: None,
-                plan: None,
-                platform_fault_domain: None,
-                priority: None,
-                proximity_placement_group: None,
-                scheduled_events_policy: None,
-                scheduled_events_profile: None,
-                security_profile: None,
-                tags: None,
-                user_data: None,
-                virtual_machine_scale_set: None,
-                vm_name: None,
-                zones: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -392,9 +272,9 @@ fn main() {
         let looked_up = network::get_public_ipaddress(
             &ctx,
             network::GetPublicIPAddressArgs {
-                resource_group_name: resource_group.name(),
-                public_ip_address_name: public_ip.name(),
-                expand: None,
+                resource_group_name: Some(resource_group.name()),
+                public_ip_address_name: Some(public_ip.name()),
+                ..Default::default()
             },
             pulumi::InvokeOptions {
                 depends_on: vec![vm.pulumi_resource().clone()],

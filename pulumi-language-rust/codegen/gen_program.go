@@ -859,23 +859,22 @@ func (g *programGenerator) typedArgsLiteral(
 	names := fieldNamesFor(props)
 	var fields []string
 	for _, p := range props {
-		name := names[p.Name]
-		optional := !p.IsRequired()
 		expr, has := values[p.Name]
 		if !has {
-			if optional {
-				fields = append(fields, fmt.Sprintf("%s: None", name))
-			} else {
+			// Every args field is an Option on a struct deriving Default, so
+			// an unset input needs no mention: the trailing
+			// `..Default::default()` covers it. A required input missing from
+			// the PCL is still an error here, where we can point at the
+			// source, rather than at deploy time.
+			if p.IsRequired() {
 				g.errorf(subject, "missing required input %q", p.Name)
-				fields = append(fields, fmt.Sprintf("%s: todo!()", name))
 			}
 			continue
 		}
-		value := g.typedInput(expr, p, subject)
-		if optional {
-			value = "Some(" + value + ")"
-		}
-		fields = append(fields, fmt.Sprintf("%s: %s", name, value))
+		fields = append(fields, fmt.Sprintf("%s: Some(%s)", names[p.Name], g.typedInput(expr, p, subject)))
+	}
+	if len(fields) < len(props) {
+		fields = append(fields, "..Default::default()")
 	}
 	return fmt.Sprintf("%s { %s }", argsPath, strings.Join(fields, ", "))
 }

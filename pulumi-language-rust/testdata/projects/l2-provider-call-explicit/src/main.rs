@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let explicit_prov = pulumi_call::Provider::new(&ctx, "explicitProv", pulumi_call::ProviderArgs { value: pulumi::ops::to_string(pulumi::pv::string("explicitProvValue")).cast() }, pulumi::ResourceOptions::default());
-        let explicit_res = pulumi_call::Custom::new(&ctx, "explicitRes", pulumi_call::CustomArgs { value: pulumi::ops::to_string(pulumi::pv::string("explicitValue")).cast() }, pulumi::ResourceOptions { provider: Some(explicit_prov.pulumi_resource().clone()), ..Default::default() });
+        let explicit_prov = pulumi_call::Provider::new(&ctx, "explicitProv", pulumi_call::ProviderArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("explicitProvValue")).cast()) }, pulumi::ResourceOptions::default());
+        let explicit_res = pulumi_call::Custom::new(&ctx, "explicitRes", pulumi_call::CustomArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("explicitValue")).cast()) }, pulumi::ResourceOptions { provider: Some(explicit_prov.pulumi_resource().clone()), ..Default::default() });
         ctx.export("explicitProviderValue", ctx.call("call:index:Custom/providerValue", explicit_res.pulumi_resource(), vec![]).index("result"));
         ctx.export("explicitProvFromIdentity", ctx.call("pulumi:providers:call/identity", explicit_prov.pulumi_resource(), vec![]).index("result"));
         ctx.export("explicitProvFromPrefixed", ctx.call("pulumi:providers:call/prefixed", explicit_prov.pulumi_resource(), vec![("prefix".to_string(), pulumi::pv::string("call-prefix-"))]).index("result"));

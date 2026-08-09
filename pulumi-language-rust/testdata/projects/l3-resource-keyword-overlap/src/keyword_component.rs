@@ -44,8 +44,8 @@ impl KeywordComponent {
         });
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
         let input = args.input.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));
-        let this = pulumi_simple::Resource::new(&ctx, &format!("{}-this", name), pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(input.clone()).cast() }, __options.clone());
-        let parent = pulumi_simple::Resource::new(&ctx, &format!("{}-parent", name), pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(this.value().cast::<pulumi::PropertyValue>()).cast() }, __options.clone());
+        let this = pulumi_simple::Resource::new(&ctx, &format!("{}-this", name), pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(input.clone()).cast()) }, __options.clone());
+        let parent = pulumi_simple::Resource::new(&ctx, &format!("{}-parent", name), pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(this.value().cast::<pulumi::PropertyValue>()).cast()) }, __options.clone());
         let __out_0 = parent.value().cast::<pulumi::PropertyValue>();
         ctx.register_resource_outputs(&__component, vec![("result".to_string(), __out_0.clone())]);
         Ok(KeywordComponent {

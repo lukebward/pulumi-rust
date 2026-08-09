@@ -45,8 +45,8 @@ impl First {
         });
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
         let input = args.input.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));
-        let first_untainted = pulumi_simple::Resource::new(&ctx, &format!("{}-first-untainted", name), pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, __options.clone());
-        let first_tainted = pulumi_simple::Resource::new(&ctx, &format!("{}-first-tainted", name), pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::ops::not(input.clone())).cast() }, __options.clone());
+        let first_untainted = pulumi_simple::Resource::new(&ctx, &format!("{}-first-untainted", name), pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, __options.clone());
+        let first_tainted = pulumi_simple::Resource::new(&ctx, &format!("{}-first-tainted", name), pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::ops::not(input.clone())).cast()) }, __options.clone());
         let __out_0 = first_untainted.value().cast::<pulumi::PropertyValue>();
         let __out_1 = first_tainted.value().cast::<pulumi::PropertyValue>();
         ctx.register_resource_outputs(&__component, vec![("untainted".to_string(), __out_0.clone()), ("tainted".to_string(), __out_1.clone())]);

@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let target = pulumi_simple::Resource::new(&ctx, "target", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let other = pulumi_nestedobject::Container::new(&ctx, "other", pulumi_nestedobject::ContainerArgs { inputs: pulumi::pv::array(vec![pulumi::ops::to_string(pulumi::pv::string("a"))]).cast() }, pulumi::ResourceOptions::default());
+        let target = pulumi_simple::Resource::new(&ctx, "target", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
+        let other = pulumi_nestedobject::Container::new(&ctx, "other", pulumi_nestedobject::ContainerArgs { inputs: Some(pulumi::pv::array(vec![pulumi::ops::to_string(pulumi::pv::string("a"))]).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

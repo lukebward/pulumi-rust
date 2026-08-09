@@ -34,19 +34,11 @@ fn main() {
         // Everything lands in one resource group. The region comes from the
         // provider's `azure-native:location` config rather than being
         // hard-coded, so nothing here names a location.
-        //
-        // Every input of `ResourceGroupArgs` is optional in azure-native
-        // 3.25.0 — the generator would derive `Default` — but the fields are
-        // written out anyway so that a provider version which promotes one
-        // of them to required does not silently change the program's shape.
         let resource_group = resources::ResourceGroup::new(
             &ctx,
             "functions-rg",
             resources::ResourceGroupArgs {
-                location: None,
-                managed_by: None,
-                resource_group_name: None,
-                tags: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -54,53 +46,21 @@ fn main() {
         // A Function App always needs a storage account: the host keeps
         // timers, leases and logs there. This one doubles as the place the
         // deployment zip lives.
-        //
-        // `StorageAccountArgs` has required inputs (`kind`,
-        // `resourceGroupName`, `sku`), so the generator does not derive
-        // `Default` for it. Rust therefore needs every field named; the ones
-        // this program leaves alone are `None`.
         let account = storage::StorageAccount::new(
             &ctx,
             "functionssa",
             storage::StorageAccountArgs {
-                resource_group_name: resource_group.name(),
-                kind: pulumi::pv::string("StorageV2").cast(),
+                resource_group_name: Some(resource_group.name()),
+                kind: Some(pulumi::pv::string("StorageV2").cast()),
                 // `Sku` is a nested object type, so it arrives as a plain
                 // args struct rather than an output.
-                sku: types::StorageSkuArgs {
-                    name: pulumi::pv::string("Standard_LRS").cast(),
-                },
+                sku: Some(types::StorageSkuArgs {
+                    name: Some(pulumi::pv::string("Standard_LRS").cast()),
+                    ..Default::default()
+                }),
                 // The zip is read through a SAS token, never anonymously.
                 allow_blob_public_access: Some(pulumi::pv::bool(false).cast()),
-
-                access_tier: None,
-                account_name: None,
-                allow_cross_tenant_replication: None,
-                allow_shared_key_access: None,
-                allowed_copy_scope: None,
-                azure_files_identity_based_authentication: None,
-                custom_domain: None,
-                default_to_oauth_authentication: None,
-                dns_endpoint_type: None,
-                enable_extended_groups: None,
-                enable_https_traffic_only: None,
-                enable_nfs_v3: None,
-                encryption: None,
-                extended_location: None,
-                identity: None,
-                immutable_storage_with_versioning: None,
-                is_hns_enabled: None,
-                is_local_user_enabled: None,
-                is_sftp_enabled: None,
-                key_policy: None,
-                large_file_shares_state: None,
-                location: None,
-                minimum_tls_version: None,
-                network_rule_set: None,
-                public_network_access: None,
-                routing_preference: None,
-                sas_policy: None,
-                tags: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -110,19 +70,9 @@ fn main() {
             &ctx,
             "zips",
             storage::BlobContainerArgs {
-                resource_group_name: resource_group.name(),
-                account_name: account.name(),
-
-                container_name: None,
-                default_encryption_scope: None,
-                deny_encryption_scope_override: None,
-                enable_nfs_v3all_squash: None,
-                enable_nfs_v3root_squash: None,
-                immutable_storage_with_versioning: None,
-                metadata: None,
-                // Left unset, which means "no public access": the blob is
-                // only reachable with the SAS token built below.
-                public_access: None,
+                resource_group_name: Some(resource_group.name()),
+                account_name: Some(account.name()),
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -138,20 +88,15 @@ fn main() {
             &ctx,
             "zip",
             storage::BlobArgs {
-                resource_group_name: resource_group.name(),
-                account_name: account.name(),
+                resource_group_name: Some(resource_group.name()),
+                account_name: Some(account.name()),
                 // Taking the container name from the container resource
                 // rather than writing a literal is what orders the upload
                 // after the container exists.
-                container_name: code_container.name(),
+                container_name: Some(code_container.name()),
                 source: Some(pulumi::pv::file_archive(pulumi::pv::string(FUNCTION_DIR)).cast()),
                 content_type: Some(pulumi::pv::string("application/zip").cast()),
-
-                access_tier: None,
-                blob_name: None,
-                content_md5: None,
-                metadata: None,
-                r#type: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -175,9 +120,9 @@ fn main() {
         let account_keys = storage::list_storage_account_keys(
             &ctx,
             storage::ListStorageAccountKeysArgs {
-                account_name: account.name(),
-                resource_group_name: resource_group.name(),
-                expand: None,
+                account_name: Some(account.name()),
+                resource_group_name: Some(resource_group.name()),
+                ..Default::default()
             },
             pulumi::InvokeOptions::default(),
         );
@@ -212,36 +157,21 @@ fn main() {
         let code_sas = storage::list_storage_account_service_sas(
             &ctx,
             storage::ListStorageAccountServiceSASArgs {
-                account_name: account.name(),
-                resource_group_name: resource_group.name(),
-                canonicalized_resource: pulumi::pv::concat(vec![
+                account_name: Some(account.name()),
+                resource_group_name: Some(resource_group.name()),
+                canonicalized_resource: Some(pulumi::pv::concat(vec![
                     pulumi::pv::string("/blob/"),
                     account.name().cast(),
                     pulumi::pv::string("/"),
                     code_container.name().cast(),
                 ])
-                .cast(),
+                .cast()),
                 resource: Some(pulumi::pv::string("c").cast()),
                 permissions: Some(pulumi::pv::string("r").cast()),
                 protocols: Some(pulumi::pv::string("https").cast()),
                 shared_access_start_time: Some(pulumi::pv::string(SAS_START).cast()),
                 shared_access_expiry_time: Some(pulumi::pv::string(SAS_EXPIRY).cast()),
-
-                cache_control: None,
-                content_disposition: None,
-                content_encoding: None,
-                content_language: None,
-                content_type: None,
-                // Not a typo: the schema property is `iPAddressOrRange`, and
-                // the generator's snake_casing breaks before each capital
-                // that follows a lowercase letter.
-                i_paddress_or_range: None,
-                identifier: None,
-                key_to_sign: None,
-                partition_key_end: None,
-                partition_key_start: None,
-                row_key_end: None,
-                row_key_start: None,
+                ..Default::default()
             },
             pulumi::InvokeOptions::default(),
         );
@@ -258,71 +188,33 @@ fn main() {
         ])
         .as_secret();
 
-        // The Consumption plan: `Y1` on the `Dynamic` tier is what makes
-        // this serverless — instances appear per request and the plan costs
-        // nothing while idle. Swapping the SKU for `B1`/`Basic` or
+        // The Consumption plan: `Y1` on the `Dynamic` tier is what makes this
+        // serverless — instances appear per request and the plan costs nothing
+        // while idle. Swapping the SKU for `B1`/`Basic` or
         // `EP1`/`ElasticPremium` is the only change needed to move the same
         // app onto a dedicated or premium plan.
-        //
-        // `AppServicePlanArgs` requires `resourceGroupName`, so it has no
-        // `Default` and every field is named.
         let plan = web::AppServicePlan::new(
             &ctx,
             "functions-plan",
             web::AppServicePlanArgs {
-                resource_group_name: resource_group.name(),
-                // `SkuDescriptionArgs` is all-optional, so it *does* derive
-                // `Default` and the rest of its fields can be elided.
+                resource_group_name: Some(resource_group.name()),
                 sku: Some(types::WebSkuDescriptionArgs {
                     name: Some(pulumi::pv::string("Y1").cast()),
                     tier: Some(pulumi::pv::string("Dynamic").cast()),
                     ..Default::default()
                 }),
-
-                async_scaling_enabled: None,
-                elastic_scale_enabled: None,
-                extended_location: None,
-                free_offer_expiration_time: None,
-                hosting_environment_profile: None,
-                hyper_v: None,
-                identity: None,
-                install_scripts: None,
-                is_custom_mode: None,
-                is_spot: None,
-                is_xenon: None,
-                kind: None,
-                kube_environment_profile: None,
-                location: None,
-                maximum_elastic_worker_count: None,
-                name: None,
-                network: None,
-                per_site_scaling: None,
-                plan_default_identity: None,
-                rdp_enabled: None,
-                registry_adapters: None,
-                reserved: None,
-                spot_expiration_time: None,
-                storage_mounts: None,
-                tags: None,
-                target_worker_count: None,
-                target_worker_size_id: None,
-                worker_tier_name: None,
-                zone_redundant: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
 
         // The Function App. A `WebApp` with `kind: "functionapp"` is what
         // Azure calls a Function App — there is no separate resource type.
-        //
-        // `WebAppArgs` requires `resourceGroupName`, so again every field is
-        // named. `SiteConfigArgs` and `NameValuePairArgs` are all-optional
-        // and do derive `Default`.
         let app = web::WebApp::new(
             &ctx,
             "fa",
             web::WebAppArgs {
-                resource_group_name: resource_group.name(),
+                resource_group_name: Some(resource_group.name()),
                 // Passing the plan's id is what places the app on the plan
                 // and orders the two registrations.
                 server_farm_id: Some(plan.id()),
@@ -346,46 +238,7 @@ fn main() {
                     ]),
                     ..Default::default()
                 }),
-
-                auto_generated_domain_name_label_scope: None,
-                client_affinity_enabled: None,
-                client_affinity_partitioning_enabled: None,
-                client_affinity_proxy_enabled: None,
-                client_cert_enabled: None,
-                client_cert_exclusion_paths: None,
-                client_cert_mode: None,
-                cloning_info: None,
-                container_size: None,
-                custom_domain_verification_id: None,
-                daily_memory_time_quota: None,
-                dapr_config: None,
-                dns_configuration: None,
-                enabled: None,
-                end_to_end_encryption_enabled: None,
-                extended_location: None,
-                function_app_config: None,
-                host_name_ssl_states: None,
-                host_names_disabled: None,
-                hosting_environment_profile: None,
-                hyper_v: None,
-                identity: None,
-                ip_mode: None,
-                is_xenon: None,
-                key_vault_reference_identity: None,
-                location: None,
-                managed_environment_id: None,
-                name: None,
-                outbound_vnet_routing: None,
-                public_network_access: None,
-                redundancy_mode: None,
-                reserved: None,
-                resource_config: None,
-                scm_site_also_stopped: None,
-                ssh_enabled: None,
-                storage_account_required: None,
-                tags: None,
-                virtual_network_subnet_id: None,
-                workload_profile_name: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );

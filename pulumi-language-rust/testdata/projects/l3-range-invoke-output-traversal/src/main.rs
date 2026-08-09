@@ -3,13 +3,13 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let source = pulumi_nestedobject::Container::new(&ctx, "source", pulumi_nestedobject::ContainerArgs { inputs: pulumi::pv::array(vec![pulumi::ops::to_string(pulumi::pv::string("alpha")), pulumi::ops::to_string(pulumi::pv::string("bravo")), pulumi::ops::to_string(pulumi::pv::string("charlie"))]).cast() }, pulumi::ResourceOptions::default());
-        let values = pulumi_nestedobject::get_values(&ctx, pulumi_nestedobject::GetValuesArgs { names: source.inputs().cast::<pulumi::PropertyValue>().cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>();
+        let source = pulumi_nestedobject::Container::new(&ctx, "source", pulumi_nestedobject::ContainerArgs { inputs: Some(pulumi::pv::array(vec![pulumi::ops::to_string(pulumi::pv::string("alpha")), pulumi::ops::to_string(pulumi::pv::string("bravo")), pulumi::ops::to_string(pulumi::pv::string("charlie"))]).cast()) }, pulumi::ResourceOptions::default());
+        let values = pulumi_nestedobject::get_values(&ctx, pulumi_nestedobject::GetValuesArgs { names: Some(source.inputs().cast::<pulumi::PropertyValue>().cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>();
         let routes = {
         let mut __instances = std::collections::BTreeMap::new();
         for __range in pulumi::range_entries(pulumi::pv::length(values.clone().index("results"))).await {
         let __range_scope = pulumi::pv::object(vec![("key".to_string(), pulumi::Output::from_value(__range.key.clone())), ("value".to_string(), pulumi::Output::from_value(__range.value.clone()))]);
-        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("routes"), pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(pulumi::ops::index(values.clone().index("results"), __range_scope.clone().index("value"))).cast() }, pulumi::ResourceOptions::default()));
+        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("routes"), pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(pulumi::ops::index(values.clone().index("results"), __range_scope.clone().index("value"))).cast()) }, pulumi::ResourceOptions::default()));
         }
         __instances
         };

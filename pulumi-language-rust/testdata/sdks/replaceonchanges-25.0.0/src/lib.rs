@@ -51,10 +51,10 @@ impl Provider {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ResourceAArgs {
     pub replace_prop: Option<pulumi::Output<bool>>,
-    pub value: pulumi::Output<bool>,
+    pub value: Option<pulumi::Output<bool>>,
 }
 
 impl ResourceAArgs {
@@ -63,8 +63,7 @@ impl ResourceAArgs {
         if let Some(v) = self.replace_prop {
             inputs.push(("replaceProp".to_string(), v.cast()));
         }
-        {
-            let v = self.value;
+        if let Some(v) = self.value {
             inputs.push(("value".to_string(), v.cast()));
         }
         inputs
@@ -120,16 +119,15 @@ impl ResourceA {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ResourceBArgs {
-    pub value: pulumi::Output<bool>,
+    pub value: Option<pulumi::Output<bool>>,
 }
 
 impl ResourceBArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.value;
+        if let Some(v) = self.value {
             inputs.push(("value".to_string(), v.cast()));
         }
         inputs

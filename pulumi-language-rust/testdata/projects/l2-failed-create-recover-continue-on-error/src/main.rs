@@ -3,10 +3,10 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let failing = pulumi_fail_on_create::Resource::new(&ctx, "failing", pulumi_fail_on_create::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(false)).cast() }, pulumi::ResourceOptions::default());
+        let failing = pulumi_fail_on_create::Resource::new(&ctx, "failing", pulumi_fail_on_create::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(false)).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("recovered", pulumi::ops::recover(failing.urn().cast::<pulumi::PropertyValue>(), move |__error| pulumi::pv::concat(vec![pulumi::pv::string("recovered: "), __error.clone()])));
-        let recovered_value = pulumi_simple::Resource::new(&ctx, "recovered_value", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::ops::recover(failing.value().cast::<pulumi::PropertyValue>(), move |__error| pulumi::ops::neq(__error.clone(), pulumi::pv::string("")))).cast() }, pulumi::ResourceOptions::default());
-        let independent = pulumi_simple::Resource::new(&ctx, "independent", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let recovered_value = pulumi_simple::Resource::new(&ctx, "recovered_value", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::ops::recover(failing.value().cast::<pulumi::PropertyValue>(), move |__error| pulumi::ops::neq(__error.clone(), pulumi::pv::string("")))).cast()) }, pulumi::ResourceOptions::default());
+        let independent = pulumi_simple::Resource::new(&ctx, "independent", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

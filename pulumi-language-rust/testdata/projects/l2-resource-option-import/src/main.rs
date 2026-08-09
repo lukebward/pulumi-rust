@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let import = pulumi_simple::Resource::new(&ctx, "import", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { import_id: "fakeID123".to_string(), ..Default::default() });
-        let not_import = pulumi_simple::Resource::new(&ctx, "notImport", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let import = pulumi_simple::Resource::new(&ctx, "import", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { import_id: "fakeID123".to_string(), ..Default::default() });
+        let not_import = pulumi_simple::Resource::new(&ctx, "notImport", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

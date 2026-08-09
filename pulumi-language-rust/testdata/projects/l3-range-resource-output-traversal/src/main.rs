@@ -3,13 +3,13 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let container = pulumi_nestedobject::Container::new(&ctx, "container", pulumi_nestedobject::ContainerArgs { inputs: pulumi::pv::array(vec![pulumi::ops::to_string(pulumi::pv::string("alpha")), pulumi::ops::to_string(pulumi::pv::string("bravo"))]).cast() }, pulumi::ResourceOptions::default());
-        let map_container = pulumi_nestedobject::MapContainer::new(&ctx, "mapContainer", pulumi_nestedobject::MapContainerArgs { tags: pulumi::pv::object(vec![("k1".to_string(), pulumi::ops::to_string(pulumi::pv::string("charlie"))), ("k2".to_string(), pulumi::ops::to_string(pulumi::pv::string("delta")))]).cast() }, pulumi::ResourceOptions::default());
+        let container = pulumi_nestedobject::Container::new(&ctx, "container", pulumi_nestedobject::ContainerArgs { inputs: Some(pulumi::pv::array(vec![pulumi::ops::to_string(pulumi::pv::string("alpha")), pulumi::ops::to_string(pulumi::pv::string("bravo"))]).cast()) }, pulumi::ResourceOptions::default());
+        let map_container = pulumi_nestedobject::MapContainer::new(&ctx, "mapContainer", pulumi_nestedobject::MapContainerArgs { tags: Some(pulumi::pv::object(vec![("k1".to_string(), pulumi::ops::to_string(pulumi::pv::string("charlie"))), ("k2".to_string(), pulumi::ops::to_string(pulumi::pv::string("delta")))]).cast()) }, pulumi::ResourceOptions::default());
         let list_output = {
         let mut __instances = std::collections::BTreeMap::new();
         for __range in pulumi::range_entries(container.details().cast::<pulumi::PropertyValue>()).await {
         let __range_scope = pulumi::pv::object(vec![("key".to_string(), pulumi::Output::from_value(__range.key.clone())), ("value".to_string(), pulumi::Output::from_value(__range.value.clone()))]);
-        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("listOutput"), pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(__range_scope.clone().index("value").index("value")).cast() }, pulumi::ResourceOptions::default()));
+        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("listOutput"), pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(__range_scope.clone().index("value").index("value")).cast()) }, pulumi::ResourceOptions::default()));
         }
         __instances
         };
@@ -17,7 +17,7 @@ fn main() {
         let mut __instances = std::collections::BTreeMap::new();
         for __range in pulumi::range_entries(map_container.tags().cast::<pulumi::PropertyValue>()).await {
         let __range_scope = pulumi::pv::object(vec![("key".to_string(), pulumi::Output::from_value(__range.key.clone())), ("value".to_string(), pulumi::Output::from_value(__range.value.clone()))]);
-        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("mapOutput"), pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(pulumi::pv::concat(vec![__range_scope.clone().index("key"), pulumi::pv::string("=>"), __range_scope.clone().index("value")])).cast() }, pulumi::ResourceOptions::default()));
+        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("mapOutput"), pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(pulumi::pv::concat(vec![__range_scope.clone().index("key"), pulumi::pv::string("=>"), __range_scope.clone().index("value")])).cast()) }, pulumi::ResourceOptions::default()));
         }
         __instances
         };

@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let protected = pulumi_simple::Resource::new(&ctx, "protected", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { protect: Some(true), ..Default::default() });
-        let unprotected = pulumi_simple::Resource::new(&ctx, "unprotected", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { protect: Some(false), ..Default::default() });
-        let defaulted = pulumi_simple::Resource::new(&ctx, "defaulted", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let protected = pulumi_simple::Resource::new(&ctx, "protected", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { protect: Some(true), ..Default::default() });
+        let unprotected = pulumi_simple::Resource::new(&ctx, "unprotected", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { protect: Some(false), ..Default::default() });
+        let defaulted = pulumi_simple::Resource::new(&ctx, "defaulted", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

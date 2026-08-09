@@ -4,7 +4,7 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let explicit_provider = pulumi_simple_invoke::Provider::new(&ctx, "explicitProvider", pulumi_simple_invoke::ProviderArgs {  }, pulumi::ResourceOptions::default());
-        let data = pulumi_simple_invoke::my_invoke(&ctx, pulumi_simple_invoke::MyInvokeArgs { value: pulumi::pv::string("hello").cast() }, pulumi::InvokeOptions { provider: Some(explicit_provider.pulumi_resource().clone()), parent: Some(explicit_provider.pulumi_resource().clone()), version: "10.0.0".to_string(), plugin_download_url: "https://example.com/github/example".to_string(), ..Default::default() }).cast::<pulumi::PropertyValue>();
+        let data = pulumi_simple_invoke::my_invoke(&ctx, pulumi_simple_invoke::MyInvokeArgs { value: Some(pulumi::pv::string("hello").cast()) }, pulumi::InvokeOptions { provider: Some(explicit_provider.pulumi_resource().clone()), parent: Some(explicit_provider.pulumi_resource().clone()), version: "10.0.0".to_string(), plugin_download_url: "https://example.com/github/example".to_string(), ..Default::default() }).cast::<pulumi::PropertyValue>();
         ctx.export("hello", data.clone().index("result"));
         Ok(())
     });

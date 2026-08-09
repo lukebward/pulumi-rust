@@ -44,8 +44,8 @@ impl ProviderComponent {
         });
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
         let text = args.text.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));
-        let prov = pulumi_config::Provider::new(&ctx, &format!("{}-prov", name), pulumi_config::ProviderArgs { name: pulumi::ops::to_string(pulumi::pv::string("my config")).cast(), plugin_download_url: None }, __options.clone());
-        let res = pulumi_config::Resource::new(&ctx, &format!("{}-res", name), pulumi_config::ResourceArgs { text: pulumi::ops::to_string(text.clone()).cast() }, pulumi::ResourceOptions { parent: Some(__component.clone()), provider: Some(prov.pulumi_resource().clone()), ..Default::default() });
+        let prov = pulumi_config::Provider::new(&ctx, &format!("{}-prov", name), pulumi_config::ProviderArgs { name: Some(pulumi::ops::to_string(pulumi::pv::string("my config")).cast()), ..Default::default() }, __options.clone());
+        let res = pulumi_config::Resource::new(&ctx, &format!("{}-res", name), pulumi_config::ResourceArgs { text: Some(pulumi::ops::to_string(text.clone()).cast()) }, pulumi::ResourceOptions { parent: Some(__component.clone()), provider: Some(prov.pulumi_resource().clone()), ..Default::default() });
         let __out_0 = res.text().cast::<pulumi::PropertyValue>();
         ctx.register_resource_outputs(&__component, vec![("result".to_string(), __out_0.clone())]);
         Ok(ProviderComponent {

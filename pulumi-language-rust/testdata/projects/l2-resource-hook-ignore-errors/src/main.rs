@@ -4,7 +4,7 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let failing_hook = ctx.register_resource_hook("failingHook", false, true, move |__args| { pulumi::pv::array(vec![pulumi::pv::string("false")]) }).await?;
-        let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { hooks: pulumi::ResourceHookBinding { after_create: vec![failing_hook.clone()], ..Default::default() }, ..Default::default() });
+        let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { hooks: pulumi::ResourceHookBinding { after_create: vec![failing_hook.clone()], ..Default::default() }, ..Default::default() });
         Ok(())
     });
 }

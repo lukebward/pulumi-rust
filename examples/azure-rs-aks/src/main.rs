@@ -46,54 +46,39 @@ fn main() {
         // The cluster lands in its own resource group. The region comes from
         // the provider's `azure-native:location` config rather than being
         // hard-coded here.
-        //
-        // Every input of `ResourceGroupArgs` is optional in azure-native
-        // 3.25.0 — the generator would derive `Default` — but the fields are
-        // written out anyway so that a provider version which promotes one
-        // of them to required does not silently change the program's shape.
         let resource_group = resources::ResourceGroup::new(
             &ctx,
             "aks-rg",
             resources::ResourceGroupArgs {
-                location: None,
-                managed_by: None,
-                resource_group_name: None,
-                tags: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
 
-        // The cluster. `ManagedClusterArgs` requires `resourceGroupName`, so
-        // the generator does not derive `Default` for it and Rust needs
-        // every field named; the ones this program leaves alone are `None`.
+        // The cluster.
         let cluster = containerservice::ManagedCluster::new(
             &ctx,
             "aks-cluster",
             containerservice::ManagedClusterArgs {
-                resource_group_name: resource_group.name(),
+                resource_group_name: Some(resource_group.name()),
 
                 // A system-assigned managed identity is created and bound to
-                // the cluster by Azure. This is what lets the example skip
-                // the azuread provider entirely: with
-                // `servicePrincipalProfile` you would first have to create
-                // an application, a service principal and a password, then
-                // pass the client id and secret in here.
-                //
-                // `ManagedClusterIdentityArgs` is all-optional, so it does
-                // derive `Default` and the rest of its fields can be elided.
+                // the cluster by Azure. This is what lets the example skip the
+                // azuread provider entirely: with `servicePrincipalProfile`
+                // you would first have to create an application, a service
+                // principal and a password, then pass the client id and secret
+                // in here.
                 identity: Some(types::ContainerserviceManagedClusterIdentityArgs {
                     r#type: Some(pulumi::pv::string("SystemAssigned").cast()),
                     ..Default::default()
                 }),
 
-                // One agent pool. `ManagedClusterAgentPoolProfileArgs` has a
-                // required `name`, so it has no `Default` either and all
-                // fifty of its fields appear below.
+                // One agent pool.
                 agent_pool_profiles: Some(vec![
                     types::ContainerserviceManagedClusterAgentPoolProfileArgs {
                         // Pool names are lowercase alphanumeric, at most 12
                         // characters for a Linux pool.
-                        name: pulumi::pv::string("agentpool").cast(),
+                        name: Some(pulumi::pv::string("agentpool").cast()),
                         count: Some(node_count.cast()),
                         vm_size: Some(node_vm_size.cast()),
                         // `System` pools host cluster-critical pods such as
@@ -105,49 +90,7 @@ fn main() {
                         r#type: Some(pulumi::pv::string("VirtualMachineScaleSets").cast()),
                         max_pods: Some(pulumi::pv::number(110.0).cast()),
                         os_disk_size_gb: Some(pulumi::pv::number(30.0).cast()),
-
-                        availability_zones: None,
-                        capacity_reservation_group_id: None,
-                        creation_data: None,
-                        enable_auto_scaling: None,
-                        enable_encryption_at_host: None,
-                        enable_fips: None,
-                        enable_node_public_ip: None,
-                        enable_ultra_ssd: None,
-                        gateway_profile: None,
-                        gpu_instance_profile: None,
-                        gpu_profile: None,
-                        host_group_id: None,
-                        kubelet_config: None,
-                        kubelet_disk_type: None,
-                        linux_osconfig: None,
-                        local_dnsprofile: None,
-                        max_count: None,
-                        message_of_the_day: None,
-                        min_count: None,
-                        network_profile: None,
-                        node_labels: None,
-                        node_public_ipprefix_id: None,
-                        node_taints: None,
-                        orchestrator_version: None,
-                        os_disk_type: None,
-                        os_sku: None,
-                        pod_ipallocation_mode: None,
-                        pod_subnet_id: None,
-                        power_state: None,
-                        proximity_placement_group_id: None,
-                        scale_down_mode: None,
-                        scale_set_eviction_policy: None,
-                        scale_set_priority: None,
-                        security_profile: None,
-                        spot_max_price: None,
-                        tags: None,
-                        upgrade_settings: None,
-                        virtual_machine_nodes_status: None,
-                        virtual_machines_profile: None,
-                        vnet_subnet_id: None,
-                        windows_profile: None,
-                        workload_runtime: None,
+                        ..Default::default()
                     },
                 ]),
 
@@ -157,56 +100,7 @@ fn main() {
                 // keeps it unique per stack.
                 dns_prefix: Some(resource_group.name().cast()),
                 enable_rbac: Some(pulumi::pv::bool(true).cast()),
-
-                aad_profile: None,
-                addon_profiles: None,
-                ai_toolchain_operator_profile: None,
-                api_server_access_profile: None,
-                auto_scaler_profile: None,
-                auto_upgrade_profile: None,
-                azure_monitor_profile: None,
-                bootstrap_profile: None,
-                disable_local_accounts: None,
-                disk_encryption_set_id: None,
-                extended_location: None,
-                fqdn_subdomain: None,
-                http_proxy_config: None,
-                identity_profile: None,
-                ingress_profile: None,
-                kind: None,
-                // Unset, so Azure picks its current default Kubernetes
-                // version. Pin it here to control upgrades.
-                kubernetes_version: None,
-                // Unset, so the cluster gets no SSH login on its nodes. Set
-                // it to a
-                // `types::ContainerserviceContainerServiceLinuxProfileArgs`
-                // — admin username plus a public key — to allow node SSH.
-                linux_profile: None,
-                location: None,
-                metrics_profile: None,
-                network_profile: None,
-                node_provisioning_profile: None,
-                // Unset, so Azure names the auto-created `MC_*` group that
-                // holds the cluster's nodes, disks and load balancers.
-                node_resource_group: None,
-                node_resource_group_profile: None,
-                oidc_issuer_profile: None,
-                pod_identity_profile: None,
-                private_link_resources: None,
-                public_network_access: None,
-                resource_name: None,
-                security_profile: None,
-                service_mesh_profile: None,
-                // The alternative to `identity` above: a pre-created Entra
-                // ID application's client id and secret.
-                service_principal_profile: None,
-                sku: None,
-                storage_profile: None,
-                support_plan: None,
-                tags: None,
-                upgrade_settings: None,
-                windows_profile: None,
-                workload_auto_scaler_profile: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -228,10 +122,9 @@ fn main() {
         let credentials = containerservice::list_managed_cluster_user_credentials(
             &ctx,
             containerservice::ListManagedClusterUserCredentialsArgs {
-                resource_group_name: resource_group.name(),
-                resource_name: cluster.name(),
-                format: None,
-                server_fqdn: None,
+                resource_group_name: Some(resource_group.name()),
+                resource_name: Some(cluster.name()),
+                ..Default::default()
             },
             pulumi::InvokeOptions::default(),
         );

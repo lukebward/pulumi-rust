@@ -81,13 +81,10 @@ values are indicated with `***`.
     pulumi = { path = "../../../../../sdk/rust/pulumi" }
     ```
 
-    The version is pinned deliberately. `ContainerArgs`, `RemoteImageArgs`,
-    `ContainerPortArgs`, and `ContainerNetworksAdvancedArgs` each have at
-    least one required input (`image`, `name`, `internal`, and `name`
-    respectively), so the generator does not derive `Default` for any of them
-    and `src/main.rs` names every field explicitly — including the ones set
-    to `None`. A different provider version can add or remove inputs, in
-    which case `cargo` will name the fields to add or drop.
+    The version is pinned because the property names in `src/main.rs` were
+    checked against that schema. Every generated args struct derives
+    `Default`, so a provider version that adds an optional input will not
+    break this program; one that renames or removes an input still will.
 
 1.  Run `pulumi up` to preview and deploy changes. After the preview is shown
     you will be prompted whether to continue. The first run pulls both
@@ -189,13 +186,9 @@ module: `pulumi_docker::types::ContainerPortArgs`,
 
 Two details of that generated API shaped how `src/main.rs` is written:
 
-- **`ContainerArgs` has about seventy inputs and no `Default`**, because
-  `image` is required. Writing them all out twice would drown the program, so
-  the program names them once in a `container_defaults(image)` function and
-  writes `..container_defaults(image)` at each call site. Rust's
-  struct-update syntax does not actually require the `Default` trait — `..expr`
-  accepts any value of the same type — so this is exactly what
-  `..Default::default()` would do, for a struct that cannot have a `Default`.
+- **`ContainerArgs` has about seventy inputs**, and the program sets four
+  of them. Every generated args struct derives `Default`, so the rest are
+  elided with `..Default::default()` rather than written out.
 - **`ipv4Address` becomes `ipv4address`, not `ipv4_address`.** The
   generator's `snakeCase` inserts a separator before an uppercase letter only
   when the previous character was lowercase, and here it is a digit. The same

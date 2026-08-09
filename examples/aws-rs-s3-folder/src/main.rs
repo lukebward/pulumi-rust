@@ -19,8 +19,7 @@ const SITE_DIR: &str = "www";
 fn main() {
     pulumi::run(|ctx| async move {
         // The bucket, configured to serve `index.html` at the root of its
-        // website endpoint. Every input of `BucketArgs` is optional, so the
-        // generated struct derives `Default` and unset fields can be elided.
+        // website endpoint.
         let site_bucket = pulumi_aws::s3::Bucket::new(
             &ctx,
             "s3-website-bucket",
@@ -45,10 +44,6 @@ fn main() {
                 .into_owned();
             let file = path.to_string_lossy().into_owned();
 
-            // `BucketObjectArgs` has a required input (`bucket`), so the
-            // generator does not derive `Default` for it. Rust therefore
-            // needs every field named; the ones this program leaves alone
-            // are `None`.
             pulumi_aws::s3::BucketObject::new(
                 &ctx,
                 &key,
@@ -56,7 +51,7 @@ fn main() {
                     // Feeding the bucket's own output into the object makes
                     // the engine order the two registrations and records the
                     // dependency in state.
-                    bucket: site_bucket.bucket().cast(),
+                    bucket: Some(site_bucket.bucket().cast()),
                     key: Some(pulumi::pv::string(key.clone()).cast()),
                     // The file's bytes travel to the provider as an asset;
                     // the path is resolved relative to the project root.
@@ -66,27 +61,7 @@ fn main() {
                     // page instead of rendering it.
                     content_type: Some(pulumi::pv::string(content_type(&path)).cast()),
                     acl: Some(pulumi::pv::string("public-read").cast()),
-
-                    bucket_key_enabled: None,
-                    cache_control: None,
-                    content: None,
-                    content_base64: None,
-                    content_disposition: None,
-                    content_encoding: None,
-                    content_language: None,
-                    etag: None,
-                    force_destroy: None,
-                    kms_key_id: None,
-                    metadata: None,
-                    object_lock_legal_hold_status: None,
-                    object_lock_mode: None,
-                    object_lock_retain_until_date: None,
-                    region: None,
-                    server_side_encryption: None,
-                    source_hash: None,
-                    storage_class: None,
-                    tags: None,
-                    website_redirect: None,
+                    ..Default::default()
                 },
                 pulumi::ResourceOptions::default(),
             );

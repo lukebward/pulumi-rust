@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let target = pulumi_simple::Resource::new(&ctx, "target", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let replace_with = pulumi_simple::Resource::new(&ctx, "replaceWith", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { replace_with: vec![target.pulumi_resource().clone()], ..Default::default() });
-        let not_replace_with = pulumi_simple::Resource::new(&ctx, "notReplaceWith", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let target = pulumi_simple::Resource::new(&ctx, "target", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
+        let replace_with = pulumi_simple::Resource::new(&ctx, "replaceWith", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { replace_with: vec![target.pulumi_resource().clone()], ..Default::default() });
+        let not_replace_with = pulumi_simple::Resource::new(&ctx, "notReplaceWith", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

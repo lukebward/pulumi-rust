@@ -97,12 +97,10 @@ values are indicated with `***`.
     pulumi = { path = "../../../../../sdk/rust/pulumi" }
     ```
 
-    The version is pinned deliberately. `ClusterArgs`, `NodeGroupArgs` and
-    `RoleArgs` all have required inputs, so the generator does not derive
-    `Default` for them and `src/main.rs` names every field explicitly —
-    including the ones set to `None`. A different provider version can add
-    or remove inputs, in which case `cargo` will name the fields to add or
-    drop.
+    The version is pinned because the property names in `src/main.rs` were
+    checked against that schema. Every generated args struct derives
+    `Default`, so a provider version that adds an optional input will not
+    break this program; one that renames or removes an input still will.
 
 1.  Run `pulumi up` to preview and deploy changes. After the preview is
     shown you will be prompted whether to continue. Creating an EKS control
@@ -321,15 +319,11 @@ follows the package's schema modules:
   name folded into the type name: `types::EksClusterVpcConfigArgs`,
   `types::EksNodeGroupScalingConfigArgs`, `types::Ec2GetSubnetsFilterArgs`.
 
-An args struct only derives `Default` when every one of its fields is
-optional. `GetVpcArgs` and `GetSubnetsArgs` qualify, so they use
-`..Default::default()`. `ClusterArgs` (`roleArn`, `vpcConfig`),
-`NodeGroupArgs` (`clusterName`, `nodeRoleArn`, `scalingConfig`,
-`subnetIds`), `RoleArgs` (`assumeRolePolicy`),
-`RolePolicyAttachmentArgs` (`role`, `policyArn`),
-`EksClusterVpcConfigArgs` (`subnetIds`) and
-`EksNodeGroupScalingConfigArgs` (all three) do not, and spell out every
-field.
+Every generated args struct derives `Default` and every field is an
+`Option`, so a program names the inputs it sets and closes the literal with
+`..Default::default()`. Required inputs are not a compile-time constraint: a
+missing one is reported when the resource registers, the same as in the Go,
+C#, Java and Python SDKs.
 
 Nested object inputs are *not* wrapped in `Output`: `vpc_config` on
 `ClusterArgs` is a bare `types::EksClusterVpcConfigArgs`, and it is the

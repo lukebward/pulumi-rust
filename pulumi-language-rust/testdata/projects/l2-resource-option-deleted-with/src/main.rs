@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let target = pulumi_simple::Resource::new(&ctx, "target", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let deleted_with = pulumi_simple::Resource::new(&ctx, "deletedWith", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { deleted_with: Some(target.pulumi_resource().clone()), ..Default::default() });
-        let not_deleted_with = pulumi_simple::Resource::new(&ctx, "notDeletedWith", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let target = pulumi_simple::Resource::new(&ctx, "target", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
+        let deleted_with = pulumi_simple::Resource::new(&ctx, "deletedWith", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { deleted_with: Some(target.pulumi_resource().clone()), ..Default::default() });
+        let not_deleted_with = pulumi_simple::Resource::new(&ctx, "notDeletedWith", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

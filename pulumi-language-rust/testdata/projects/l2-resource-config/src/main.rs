@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let prov = pulumi_config::Provider::new(&ctx, "prov", pulumi_config::ProviderArgs { name: pulumi::ops::to_string(pulumi::pv::string("my config")).cast(), plugin_download_url: Some(pulumi::ops::to_string(pulumi::pv::string("not the same as the pulumi resource option")).cast()) }, pulumi::ResourceOptions::default());
-        let res = pulumi_config::Resource::new(&ctx, "res", pulumi_config::ResourceArgs { text: pulumi::ops::to_string(prov.version().cast::<pulumi::PropertyValue>()).cast() }, pulumi::ResourceOptions::default());
+        let prov = pulumi_config::Provider::new(&ctx, "prov", pulumi_config::ProviderArgs { name: Some(pulumi::ops::to_string(pulumi::pv::string("my config")).cast()), plugin_download_url: Some(pulumi::ops::to_string(pulumi::pv::string("not the same as the pulumi resource option")).cast()) }, pulumi::ResourceOptions::default());
+        let res = pulumi_config::Resource::new(&ctx, "res", pulumi_config::ResourceArgs { text: Some(pulumi::ops::to_string(prov.version().cast::<pulumi::PropertyValue>()).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("pluginDownloadURL", prov.plugin_download_url().cast::<pulumi::PropertyValue>());
         Ok(())
     });

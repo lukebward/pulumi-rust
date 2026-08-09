@@ -76,27 +76,19 @@ fn deploy_tier(ctx: &pulumi::Context, tier: &Tier) -> core_v1::Service {
     // onto every pod), the Deployment's selector, and the Service's selector.
     let labels = BTreeMap::from([("app".to_string(), tier.name.to_string())]);
 
-    // `CoreV1ContainerArgs` has a required `name`, so the generator does not
-    // derive `Default` for it and Rust needs every field named. The ones this
-    // program leaves alone are `None`.
     let container = types::CoreV1ContainerArgs {
-        name: pulumi::Output::known(tier.name.to_string()),
+        name: Some(pulumi::Output::known(tier.name.to_string())),
         image: Some(pulumi::Output::known(tier.image.to_string())),
         ports: Some(vec![types::CoreV1ContainerPortArgs {
-            container_port: pulumi::Output::known(tier.port),
-            name: None,
-            host_ip: None,
-            host_port: None,
-            protocol: None,
+            container_port: Some(pulumi::Output::known(tier.port)),
+            ..Default::default()
         }]),
-        // `CoreV1EnvVarArgs` requires `name` too, so it also names every
-        // field. The frontend and the follower both read `GET_HOSTS_FROM`:
-        // `dns` tells them to resolve `redis-leader` and `redis-follower`
-        // through the cluster's DNS service, which is why those two Services
-        // have fixed names below.
-        // A tier with no environment leaves the field unset rather than
-        // sending an empty list, so the manifest matches what `kubectl` would
-        // have applied.
+        // The frontend and the follower both read `GET_HOSTS_FROM`: `dns`
+        // tells them to resolve `redis-leader` and `redis-follower` through
+        // the cluster's DNS service, which is why those two Services have
+        // fixed names below. A tier with no environment leaves the field unset
+        // rather than sending an empty list, so the manifest matches what
+        // `kubectl` would have applied.
         env: if tier.env.is_empty() {
             None
         } else {
@@ -104,16 +96,14 @@ fn deploy_tier(ctx: &pulumi::Context, tier: &Tier) -> core_v1::Service {
                 tier.env
                     .iter()
                     .map(|(name, value)| types::CoreV1EnvVarArgs {
-                        name: pulumi::Output::known(name.to_string()),
+                        name: Some(pulumi::Output::known(name.to_string())),
                         value: Some(pulumi::Output::known(value.to_string())),
-                        value_from: None,
+                        ..Default::default()
                     })
                     .collect(),
             )
         },
         // Modest requests so all three tiers fit on a one-node cluster.
-        // `CoreV1ResourceRequirementsArgs` is all-optional, so it derives
-        // `Default`.
         resources: Some(types::CoreV1ResourceRequirementsArgs {
             requests: Some(pulumi::Output::known(BTreeMap::from([
                 ("cpu".to_string(), "100m".to_string()),
@@ -121,82 +111,18 @@ fn deploy_tier(ctx: &pulumi::Context, tier: &Tier) -> core_v1::Service {
             ]))),
             ..Default::default()
         }),
-
-        args: None,
-        command: None,
-        env_from: None,
-        image_pull_policy: None,
-        lifecycle: None,
-        liveness_probe: None,
-        readiness_probe: None,
-        resize_policy: None,
-        restart_policy: None,
-        restart_policy_rules: None,
-        security_context: None,
-        startup_probe: None,
-        stdin: None,
-        stdin_once: None,
-        termination_message_path: None,
-        termination_message_policy: None,
-        tty: None,
-        volume_devices: None,
-        volume_mounts: None,
-        working_dir: None,
+        ..Default::default()
     };
 
-    // `CoreV1PodSpecArgs` requires `containers`, so it too has no `Default`.
     // Pulling it out into its own binding keeps the Deployment literal below
     // readable.
     let pod_spec = types::CoreV1PodSpecArgs {
-        containers: vec![container],
-
-        active_deadline_seconds: None,
-        affinity: None,
-        automount_service_account_token: None,
-        dns_config: None,
-        dns_policy: None,
-        enable_service_links: None,
-        ephemeral_containers: None,
-        host_aliases: None,
-        host_ipc: None,
-        host_network: None,
-        host_pid: None,
-        host_users: None,
-        hostname: None,
-        hostname_override: None,
-        image_pull_secrets: None,
-        init_containers: None,
-        node_name: None,
-        node_selector: None,
-        os: None,
-        overhead: None,
-        preemption_policy: None,
-        priority: None,
-        priority_class_name: None,
-        readiness_gates: None,
-        resource_claims: None,
-        resources: None,
-        restart_policy: None,
-        runtime_class_name: None,
-        scheduler_name: None,
-        scheduling_gates: None,
-        scheduling_group: None,
-        security_context: None,
-        service_account: None,
-        service_account_name: None,
-        set_hostname_as_fqdn: None,
-        share_process_namespace: None,
-        subdomain: None,
-        termination_grace_period_seconds: None,
-        tolerations: None,
-        topology_spread_constraints: None,
-        volumes: None,
+        containers: Some(vec![container]),
+        ..Default::default()
     };
 
-    // `DeploymentArgs` is all-optional (`apiVersion` and `kind` are filled in
-    // by the provider from the resource token), so it derives `Default` and
-    // `..Default::default()` is legal here. `AppsV1DeploymentSpecArgs` is not
-    // — `selector` and `template` are required — so that one is spelled out.
+    // `AppsV1DeploymentSpecArgs` is not — `selector` and `template` are
+    // required — so that one is spelled out.
     let deployment = apps_v1::Deployment::new(
         ctx,
         tier.name,
@@ -204,11 +130,11 @@ fn deploy_tier(ctx: &pulumi::Context, tier: &Tier) -> core_v1::Service {
             spec: Some(types::AppsV1DeploymentSpecArgs {
                 replicas: Some(pulumi::Output::known(tier.replicas)),
                 // Which pods this Deployment owns.
-                selector: types::MetaV1LabelSelectorArgs {
+                selector: Some(types::MetaV1LabelSelectorArgs {
                     match_labels: Some(pulumi::Output::known(labels.clone())),
                     ..Default::default()
-                },
-                template: types::CoreV1PodTemplateSpecArgs {
+                }),
+                template: Some(types::CoreV1PodTemplateSpecArgs {
                     // The labels stamped onto each pod. They have to match the
                     // selector above or the API server rejects the Deployment.
                     metadata: Some(types::MetaV1ObjectMetaArgs {
@@ -216,21 +142,14 @@ fn deploy_tier(ctx: &pulumi::Context, tier: &Tier) -> core_v1::Service {
                         ..Default::default()
                     }),
                     spec: Some(pod_spec),
-                },
-
-                min_ready_seconds: None,
-                paused: None,
-                progress_deadline_seconds: None,
-                revision_history_limit: None,
-                strategy: None,
+                }),
+                ..Default::default()
             }),
             ..Default::default()
         },
         pulumi::ResourceOptions::default(),
     );
 
-    // `ServiceArgs`, `MetaV1ObjectMetaArgs`, and `CoreV1ServiceSpecArgs` are
-    // all-optional, so only the interesting fields appear.
     core_v1::Service::new(
         ctx,
         tier.name,
@@ -251,16 +170,13 @@ fn deploy_tier(ctx: &pulumi::Context, tier: &Tier) -> core_v1::Service {
                 // `type` is a union in the schema and a Rust keyword, so it
                 // arrives as `r#type: Option<Output<PropertyValue>>`.
                 r#type: Some(pulumi::pv::string(tier.service_type).cast()),
-                // `CoreV1ServicePortArgs` requires `port`, so every field is
-                // named. `targetPort` is Kubernetes' int-or-string union;
+                // `targetPort` is Kubernetes' int-or-string union;
                 // `pv::number` builds the dynamic value.
                 ports: Some(vec![types::CoreV1ServicePortArgs {
-                    port: pulumi::Output::known(tier.port),
+                    port: Some(pulumi::Output::known(tier.port)),
                     target_port: Some(pulumi::pv::number(f64::from(tier.port)).cast()),
-                    name: None,
                     protocol: Some(pulumi::Output::known("TCP".to_string())),
-                    app_protocol: None,
-                    node_port: None,
+                    ..Default::default()
                 }]),
                 ..Default::default()
             }),

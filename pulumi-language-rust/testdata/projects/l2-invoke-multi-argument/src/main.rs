@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        ctx.export("both", pulumi_multi_argument_invoke::multi_argument_invoke(&ctx, pulumi_multi_argument_invoke::MultiArgumentInvokeArgs { first: pulumi::pv::string("hello").cast(), second: Some(pulumi::pv::string("world").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result"));
-        ctx.export("onlyRequired", pulumi_multi_argument_invoke::multi_argument_invoke(&ctx, pulumi_multi_argument_invoke::MultiArgumentInvokeArgs { first: pulumi::pv::string("hello").cast(), second: None }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result"));
+        ctx.export("both", pulumi_multi_argument_invoke::multi_argument_invoke(&ctx, pulumi_multi_argument_invoke::MultiArgumentInvokeArgs { first: Some(pulumi::pv::string("hello").cast()), second: Some(pulumi::pv::string("world").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result"));
+        ctx.export("onlyRequired", pulumi_multi_argument_invoke::multi_argument_invoke(&ctx, pulumi_multi_argument_invoke::MultiArgumentInvokeArgs { first: Some(pulumi::pv::string("hello").cast()), ..Default::default() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result"));
         Ok(())
     });
 }

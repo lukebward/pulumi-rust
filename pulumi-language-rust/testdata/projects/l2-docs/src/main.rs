@@ -4,7 +4,7 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let enum_res = pulumi_enum::Res::new(&ctx, "enumRes", pulumi_enum::ResArgs { int_enum: Some(pulumi::pv::number(1.0).cast()), string_enum: Some(pulumi::pv::string("one").cast()) }, pulumi::ResourceOptions::default());
-        let res = pulumi_docs::Resource::new(&ctx, "res", pulumi_docs::ResourceArgs { external_enum: pulumi::pv::string("one").cast(), r#in: pulumi::ops::to_bool(pulumi_docs::fun(&ctx, pulumi_docs::FunArgs { r#in: pulumi::pv::bool(false).cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("out")).cast() }, pulumi::ResourceOptions::default());
+        let res = pulumi_docs::Resource::new(&ctx, "res", pulumi_docs::ResourceArgs { external_enum: Some(pulumi::pv::string("one").cast()), r#in: Some(pulumi::ops::to_bool(pulumi_docs::fun(&ctx, pulumi_docs::FunArgs { r#in: Some(pulumi::pv::bool(false).cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("out")).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

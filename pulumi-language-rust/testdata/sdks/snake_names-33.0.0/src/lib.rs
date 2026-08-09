@@ -52,16 +52,15 @@ impl Provider {
 }
 
 pub mod cool_module {
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Default)]
     pub struct AnotherResourceArgs {
-        pub the_input: pulumi::Output<std::string::String>,
+        pub the_input: Option<pulumi::Output<std::string::String>>,
     }
 
     impl AnotherResourceArgs {
         pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
             let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-            {
-                let v = self.the_input;
+            if let Some(v) = self.the_input {
                 inputs.push(("the_input".to_string(), v.cast()));
             }
             inputs
@@ -111,21 +110,19 @@ pub mod cool_module {
         }
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Default)]
     pub struct SomeResourceArgs {
-        pub nested: crate::types::CoolModuleNestedInputArgs,
-        pub the_input: pulumi::Output<bool>,
+        pub nested: Option<crate::types::CoolModuleNestedInputArgs>,
+        pub the_input: Option<pulumi::Output<bool>>,
     }
 
     impl SomeResourceArgs {
         pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
             let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-            {
-                let v = self.nested;
+            if let Some(v) = self.nested {
                 inputs.push(("nested".to_string(), v.into_output()));
             }
-            {
-                let v = self.the_input;
+            if let Some(v) = self.the_input {
                 inputs.push(("the_input".to_string(), v.cast()));
             }
             inputs
@@ -175,21 +172,19 @@ pub mod cool_module {
         }
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Default)]
     pub struct SomeDataArgs {
-        pub nested: std::vec::Vec<crate::types::CoolModuleEntryArgs>,
-        pub the_input: pulumi::Output<std::string::String>,
+        pub nested: Option<std::vec::Vec<crate::types::CoolModuleEntryArgs>>,
+        pub the_input: Option<pulumi::Output<std::string::String>>,
     }
 
     impl SomeDataArgs {
         pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
             let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-            {
-                let v = self.nested;
+            if let Some(v) = self.nested {
                 inputs.push(("nested".to_string(), pulumi::output::all(v.into_iter().map(|e| e.into_output()).collect()).cast()));
             }
-            {
-                let v = self.the_input;
+            if let Some(v) = self.the_input {
                 inputs.push(("the_input".to_string(), v.cast()));
             }
             inputs
@@ -210,16 +205,15 @@ pub mod cool_module {
 }
 
 pub mod types {
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Default)]
     pub struct CoolModuleEntryArgs {
-        pub value: pulumi::Output<std::string::String>,
+        pub value: Option<pulumi::Output<std::string::String>>,
     }
 
     impl CoolModuleEntryArgs {
         pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
             let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-            {
-                let v = self.value;
+            if let Some(v) = self.value {
                 inputs.push(("value".to_string(), v.cast()));
             }
             inputs
@@ -230,16 +224,15 @@ pub mod types {
         }
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Default)]
     pub struct CoolModuleNestedInputArgs {
-        pub nested_value: pulumi::Output<std::string::String>,
+        pub nested_value: Option<pulumi::Output<std::string::String>>,
     }
 
     impl CoolModuleNestedInputArgs {
         pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
             let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-            {
-                let v = self.nested_value;
+            if let Some(v) = self.nested_value {
                 inputs.push(("nested_value".to_string(), v.cast()));
             }
             inputs

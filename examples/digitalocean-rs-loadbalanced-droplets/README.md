@@ -110,14 +110,10 @@ values are indicated with `***`.
     $ pulumi package gen-sdk digitalocean@4.78.1 --language rust --out ./sdks/digitalocean
     ```
 
-    The version is pinned deliberately. `DropletArgs` has required inputs
-    (`image` and `size`), and so do the nested
-    `LoadBalancerForwardingRuleArgs` (`entryPort`, `entryProtocol`,
-    `targetPort`, `targetProtocol`) and `LoadBalancerHealthcheckArgs` (`port`,
-    `protocol`), so the generator does not derive `Default` for any of them and
-    `src/main.rs` names every field explicitly — including the ones set to
-    `None`. A different provider version can add or remove inputs, in which
-    case `cargo` will name the fields to add or drop.
+    The version is pinned because the property names in `src/main.rs` were
+    checked against that schema. Every generated args struct derives
+    `Default`, so a provider version that adds an optional input will not
+    break this program; one that renames or removes an input still will.
 
     The generated crate's own `Cargo.toml` declares `pulumi = "0.1"`, which is
     not published to crates.io yet, so repoint it at this repository's copy of

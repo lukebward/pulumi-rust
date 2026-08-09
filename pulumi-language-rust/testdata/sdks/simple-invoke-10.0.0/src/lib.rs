@@ -51,16 +51,15 @@ impl Provider {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct StringResourceArgs {
-    pub text: pulumi::Output<std::string::String>,
+    pub text: Option<pulumi::Output<std::string::String>>,
 }
 
 impl StringResourceArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.text;
+        if let Some(v) = self.text {
             inputs.push(("text".to_string(), v.cast()));
         }
         inputs
@@ -110,16 +109,15 @@ impl StringResource {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct GetTextArgs {
-    pub text: pulumi::Output<std::string::String>,
+    pub text: Option<pulumi::Output<std::string::String>>,
 }
 
 impl GetTextArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.text;
+        if let Some(v) = self.text {
             inputs.push(("text".to_string(), v.cast()));
         }
         inputs
@@ -138,16 +136,15 @@ pub fn get_text(ctx: &pulumi::Context, args: GetTextArgs, options: pulumi::Invok
     ctx.invoke("simple-invoke:index:getText", args.into_inputs(), options).cast()
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MyInvokeArgs {
-    pub value: pulumi::Output<std::string::String>,
+    pub value: Option<pulumi::Output<std::string::String>>,
 }
 
 impl MyInvokeArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.value;
+        if let Some(v) = self.value {
             inputs.push(("value".to_string(), v.cast()));
         }
         inputs
@@ -166,21 +163,19 @@ pub fn my_invoke(ctx: &pulumi::Context, args: MyInvokeArgs, options: pulumi::Inv
     ctx.invoke("simple-invoke:index:myInvoke", args.into_inputs(), options).cast()
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SecretInvokeArgs {
-    pub secret_response: pulumi::Output<bool>,
-    pub value: pulumi::Output<std::string::String>,
+    pub secret_response: Option<pulumi::Output<bool>>,
+    pub value: Option<pulumi::Output<std::string::String>>,
 }
 
 impl SecretInvokeArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.secret_response;
+        if let Some(v) = self.secret_response {
             inputs.push(("secretResponse".to_string(), v.cast()));
         }
-        {
-            let v = self.value;
+        if let Some(v) = self.value {
             inputs.push(("value".to_string(), v.cast()));
         }
         inputs

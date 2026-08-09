@@ -51,16 +51,15 @@ impl Provider {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct EnumOutputArgs {
-    pub name: pulumi::Output<std::string::String>,
+    pub name: Option<pulumi::Output<std::string::String>>,
 }
 
 impl EnumOutputArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.name;
+        if let Some(v) = self.name {
             inputs.push(("name".to_string(), v.cast()));
         }
         inputs

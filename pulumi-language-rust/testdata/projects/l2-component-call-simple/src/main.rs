@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let component1 = pulumi_component::ComponentCallable::new(&ctx, "component1", pulumi_component::ComponentCallableArgs { value: pulumi::ops::to_string(pulumi::pv::string("bar")).cast() }, pulumi::ResourceOptions::default());
+        let component1 = pulumi_component::ComponentCallable::new(&ctx, "component1", pulumi_component::ComponentCallableArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("bar")).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("from_identity", ctx.call("component:index:ComponentCallable/identity", component1.pulumi_resource(), vec![]).index("result"));
         ctx.export("from_prefixed", ctx.call("component:index:ComponentCallable/prefixed", component1.pulumi_resource(), vec![("prefix".to_string(), pulumi::pv::string("foo-"))]).index("result"));
         Ok(())

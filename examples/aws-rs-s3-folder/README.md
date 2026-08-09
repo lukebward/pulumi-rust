@@ -62,11 +62,10 @@ values are indicated with `***`.
     pulumi = { path = "../../../../../sdk/rust/pulumi" }
     ```
 
-    The version is pinned deliberately. `BucketObjectArgs` has a required
-    input (`bucket`), so the generator does not derive `Default` for it and
-    `src/main.rs` names every field explicitly — including the ones set to
-    `None`. A different provider version can add or remove inputs, in which
-    case `cargo` will name the fields to add or drop.
+    The version is pinned because the property names in `src/main.rs` were
+    checked against that schema. Every generated args struct derives
+    `Default`, so a provider version that adds an optional input will not
+    break this program; one that renames or removes an input still will.
 
 1.  Run `pulumi up` to preview and deploy changes. After the preview is shown
     you will be prompted whether to continue.
@@ -140,5 +139,4 @@ The upstream TypeScript, Python, and Go versions of this example handle that
 by adding an `aws:s3:BucketPublicAccessBlock` with `blockPublicAcls = false`,
 or by dropping ACLs entirely in favour of an `aws:s3:BucketPolicy` that
 grants `s3:GetObject` to everyone. Either is a small addition to
-`src/main.rs`; both of those resources also have a required `bucket` input,
-so their args structs likewise need every field named.
+`src/main.rs`.

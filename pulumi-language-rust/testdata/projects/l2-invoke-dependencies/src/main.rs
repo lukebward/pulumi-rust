@@ -3,11 +3,11 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let first = pulumi_simple::Resource::new(&ctx, "first", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(false)).cast() }, pulumi::ResourceOptions::default());
-        let second = pulumi_simple::Resource::new(&ctx, "second", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi_simple_invoke::secret_invoke(&ctx, pulumi_simple_invoke::SecretInvokeArgs { secret_response: pulumi::ops::to_bool(first.value().cast::<pulumi::PropertyValue>()).cast(), value: pulumi::ops::to_string(pulumi::pv::string("hello")).cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("secret")).cast() }, pulumi::ResourceOptions::default());
-        let third = pulumi_simple_invoke::StringResource::new(&ctx, "third", pulumi_simple_invoke::StringResourceArgs { text: pulumi::ops::to_string(pulumi::pv::string("third")).cast() }, pulumi::ResourceOptions::default());
-        let data = pulumi_simple_invoke::get_text(&ctx, pulumi_simple_invoke::GetTextArgs { text: pulumi::ops::to_string(third.text().cast::<pulumi::PropertyValue>()).cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>();
-        let fourth = pulumi_simple_invoke::StringResource::new(&ctx, "fourth", pulumi_simple_invoke::StringResourceArgs { text: pulumi::ops::to_string(data.clone().index("result")).cast() }, pulumi::ResourceOptions::default());
+        let first = pulumi_simple::Resource::new(&ctx, "first", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(false)).cast()) }, pulumi::ResourceOptions::default());
+        let second = pulumi_simple::Resource::new(&ctx, "second", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi_simple_invoke::secret_invoke(&ctx, pulumi_simple_invoke::SecretInvokeArgs { secret_response: Some(pulumi::ops::to_bool(first.value().cast::<pulumi::PropertyValue>()).cast()), value: Some(pulumi::ops::to_string(pulumi::pv::string("hello")).cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("secret")).cast()) }, pulumi::ResourceOptions::default());
+        let third = pulumi_simple_invoke::StringResource::new(&ctx, "third", pulumi_simple_invoke::StringResourceArgs { text: Some(pulumi::ops::to_string(pulumi::pv::string("third")).cast()) }, pulumi::ResourceOptions::default());
+        let data = pulumi_simple_invoke::get_text(&ctx, pulumi_simple_invoke::GetTextArgs { text: Some(pulumi::ops::to_string(third.text().cast::<pulumi::PropertyValue>()).cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>();
+        let fourth = pulumi_simple_invoke::StringResource::new(&ctx, "fourth", pulumi_simple_invoke::StringResourceArgs { text: Some(pulumi::ops::to_string(data.clone().index("result")).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

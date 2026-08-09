@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let no_depends_on = pulumi_simple::Resource::new(&ctx, "noDependsOn", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let with_depends_on = pulumi_simple::Resource::new(&ctx, "withDependsOn", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(false)).cast() }, pulumi::ResourceOptions { depends_on: vec![no_depends_on.pulumi_resource().clone()], ..Default::default() });
+        let no_depends_on = pulumi_simple::Resource::new(&ctx, "noDependsOn", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
+        let with_depends_on = pulumi_simple::Resource::new(&ctx, "withDependsOn", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(false)).cast()) }, pulumi::ResourceOptions { depends_on: vec![no_depends_on.pulumi_resource().clone()], ..Default::default() });
         Ok(())
     });
 }

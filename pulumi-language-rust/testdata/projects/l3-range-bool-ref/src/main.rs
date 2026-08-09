@@ -8,11 +8,11 @@ fn main() {
         let mut __instance = None;
         for __range in pulumi::range_entries(create_bool.clone()).await {
         let __range_scope = pulumi::pv::object(vec![("key".to_string(), pulumi::Output::from_value(__range.key.clone())), ("value".to_string(), pulumi::Output::from_value(__range.value.clone()))]);
-        __instance = Some(pulumi_nestedobject::Target::new(&ctx, &__range.name("boolResource"), pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(pulumi::pv::string("bool-resource")).cast() }, pulumi::ResourceOptions::default()));
+        __instance = Some(pulumi_nestedobject::Target::new(&ctx, &__range.name("boolResource"), pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(pulumi::pv::string("bool-resource")).cast()) }, pulumi::ResourceOptions::default()));
         }
         __instance
         };
-        let bool_target = pulumi_nestedobject::Target::new(&ctx, "boolTarget", pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(pulumi::pv::concat(vec![bool_resource.as_ref().expect("bool_resource was not created").name().cast::<pulumi::PropertyValue>(), pulumi::pv::string("+")])).cast() }, pulumi::ResourceOptions::default());
+        let bool_target = pulumi_nestedobject::Target::new(&ctx, "boolTarget", pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(pulumi::pv::concat(vec![bool_resource.as_ref().expect("bool_resource was not created").name().cast::<pulumi::PropertyValue>(), pulumi::pv::string("+")])).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

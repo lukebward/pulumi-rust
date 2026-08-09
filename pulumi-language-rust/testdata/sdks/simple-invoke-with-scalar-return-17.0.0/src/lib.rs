@@ -51,16 +51,15 @@ impl Provider {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct StringResourceArgs {
-    pub text: pulumi::Output<std::string::String>,
+    pub text: Option<pulumi::Output<std::string::String>>,
 }
 
 impl StringResourceArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.text;
+        if let Some(v) = self.text {
             inputs.push(("text".to_string(), v.cast()));
         }
         inputs
@@ -110,16 +109,15 @@ impl StringResource {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MyInvokeScalarArgs {
-    pub value: pulumi::Output<std::string::String>,
+    pub value: Option<pulumi::Output<std::string::String>>,
 }
 
 impl MyInvokeScalarArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.value;
+        if let Some(v) = self.value {
             inputs.push(("value".to_string(), v.cast()));
         }
         inputs

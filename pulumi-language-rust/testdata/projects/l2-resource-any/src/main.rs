@@ -3,12 +3,12 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let a_string = pulumi_any_handled::Resource::new(&ctx, "aString", pulumi_any_handled::ResourceArgs { value: pulumi::pv::string("a string").cast() }, pulumi::ResourceOptions::default());
-        let a_boolean = pulumi_any_handled::Resource::new(&ctx, "aBoolean", pulumi_any_handled::ResourceArgs { value: pulumi::pv::bool(true).cast() }, pulumi::ResourceOptions::default());
-        let a_number = pulumi_any_handled::Resource::new(&ctx, "aNumber", pulumi_any_handled::ResourceArgs { value: pulumi::pv::number(42.0).cast() }, pulumi::ResourceOptions::default());
-        let a_list = pulumi_any_handled::Resource::new(&ctx, "aList", pulumi_any_handled::ResourceArgs { value: pulumi::pv::array(vec![pulumi::pv::number(1.0), pulumi::pv::bool(true), pulumi::pv::string("three")]).cast() }, pulumi::ResourceOptions::default());
-        let an_object = pulumi_any_handled::Resource::new(&ctx, "anObject", pulumi_any_handled::ResourceArgs { value: pulumi::pv::object(vec![("key".to_string(), pulumi::pv::string("value")), ("nested".to_string(), pulumi::pv::object(vec![("count".to_string(), pulumi::pv::number(1.0))]))]).cast() }, pulumi::ResourceOptions::default());
-        let an_asset = pulumi_any_handled::Resource::new(&ctx, "anAsset", pulumi_any_handled::ResourceArgs { value: pulumi::pv::string_asset(pulumi::pv::string("the asset contents")).cast() }, pulumi::ResourceOptions::default());
+        let a_string = pulumi_any_handled::Resource::new(&ctx, "aString", pulumi_any_handled::ResourceArgs { value: Some(pulumi::pv::string("a string").cast()) }, pulumi::ResourceOptions::default());
+        let a_boolean = pulumi_any_handled::Resource::new(&ctx, "aBoolean", pulumi_any_handled::ResourceArgs { value: Some(pulumi::pv::bool(true).cast()) }, pulumi::ResourceOptions::default());
+        let a_number = pulumi_any_handled::Resource::new(&ctx, "aNumber", pulumi_any_handled::ResourceArgs { value: Some(pulumi::pv::number(42.0).cast()) }, pulumi::ResourceOptions::default());
+        let a_list = pulumi_any_handled::Resource::new(&ctx, "aList", pulumi_any_handled::ResourceArgs { value: Some(pulumi::pv::array(vec![pulumi::pv::number(1.0), pulumi::pv::bool(true), pulumi::pv::string("three")]).cast()) }, pulumi::ResourceOptions::default());
+        let an_object = pulumi_any_handled::Resource::new(&ctx, "anObject", pulumi_any_handled::ResourceArgs { value: Some(pulumi::pv::object(vec![("key".to_string(), pulumi::pv::string("value")), ("nested".to_string(), pulumi::pv::object(vec![("count".to_string(), pulumi::pv::number(1.0))]))]).cast()) }, pulumi::ResourceOptions::default());
+        let an_asset = pulumi_any_handled::Resource::new(&ctx, "anAsset", pulumi_any_handled::ResourceArgs { value: Some(pulumi::pv::string_asset(pulumi::pv::string("the asset contents")).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

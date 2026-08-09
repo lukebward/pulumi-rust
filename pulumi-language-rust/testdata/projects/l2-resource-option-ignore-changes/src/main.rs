@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let receiver_ignore = pulumi_nestedobject::Receiver::new(&ctx, "receiverIgnore", pulumi_nestedobject::ReceiverArgs { details: vec![pulumi_nestedobject::types::DetailArgs { key: pulumi::ops::to_string(pulumi::pv::string("a")).cast(), value: pulumi::ops::to_string(pulumi::pv::string("b")).cast() }] }, pulumi::ResourceOptions { ignore_changes: vec!["details[0].key".to_string()], ..Default::default() });
-        let map_ignore = pulumi_nestedobject::MapContainer::new(&ctx, "mapIgnore", pulumi_nestedobject::MapContainerArgs { tags: pulumi::pv::object(vec![("env".to_string(), pulumi::ops::to_string(pulumi::pv::string("prod")))]).cast() }, pulumi::ResourceOptions { ignore_changes: vec!["tags.env".to_string(), "tags[\"with.dot\"]".to_string(), "tags[\"with escaped \\\"\"]".to_string()], ..Default::default() });
-        let no_ignore = pulumi_nestedobject::Target::new(&ctx, "noIgnore", pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(pulumi::pv::string("nothing")).cast() }, pulumi::ResourceOptions::default());
+        let receiver_ignore = pulumi_nestedobject::Receiver::new(&ctx, "receiverIgnore", pulumi_nestedobject::ReceiverArgs { details: Some(vec![pulumi_nestedobject::types::DetailArgs { key: Some(pulumi::ops::to_string(pulumi::pv::string("a")).cast()), value: Some(pulumi::ops::to_string(pulumi::pv::string("b")).cast()) }]) }, pulumi::ResourceOptions { ignore_changes: vec!["details[0].key".to_string()], ..Default::default() });
+        let map_ignore = pulumi_nestedobject::MapContainer::new(&ctx, "mapIgnore", pulumi_nestedobject::MapContainerArgs { tags: Some(pulumi::pv::object(vec![("env".to_string(), pulumi::ops::to_string(pulumi::pv::string("prod")))]).cast()) }, pulumi::ResourceOptions { ignore_changes: vec!["tags.env".to_string(), "tags[\"with.dot\"]".to_string(), "tags[\"with escaped \\\"\"]".to_string()], ..Default::default() });
+        let no_ignore = pulumi_nestedobject::Target::new(&ctx, "noIgnore", pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(pulumi::pv::string("nothing")).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

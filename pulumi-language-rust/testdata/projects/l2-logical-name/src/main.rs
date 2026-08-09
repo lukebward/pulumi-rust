@@ -4,7 +4,7 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let config_lexical_name = ctx.config().require_bool("cC-Charlie_charlie.😃⁉️")?;
-        let resource_lexical_name = pulumi_simple::Resource::new(&ctx, "aA-Alpha_alpha.🤯⁉️", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(config_lexical_name.clone()).cast() }, pulumi::ResourceOptions::default());
+        let resource_lexical_name = pulumi_simple::Resource::new(&ctx, "aA-Alpha_alpha.🤯⁉️", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(config_lexical_name.clone()).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("bB-Beta_beta.💜⁉", resource_lexical_name.value().cast::<pulumi::PropertyValue>());
         ctx.export("dD-Delta_delta.🔥⁉", resource_lexical_name.value().cast::<pulumi::PropertyValue>());
         Ok(())

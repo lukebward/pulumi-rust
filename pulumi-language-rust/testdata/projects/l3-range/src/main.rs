@@ -11,7 +11,7 @@ fn main() {
         let mut __instances = std::collections::BTreeMap::new();
         for __range in pulumi::range_entries(num_items.clone()).await {
         let __range_scope = pulumi::pv::object(vec![("key".to_string(), pulumi::Output::from_value(__range.key.clone())), ("value".to_string(), pulumi::Output::from_value(__range.value.clone()))]);
-        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("numResource"), pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(pulumi::pv::concat(vec![pulumi::pv::string("num-"), __range_scope.clone().index("value")])).cast() }, pulumi::ResourceOptions::default()));
+        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("numResource"), pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(pulumi::pv::concat(vec![pulumi::pv::string("num-"), __range_scope.clone().index("value")])).cast()) }, pulumi::ResourceOptions::default()));
         }
         __instances
         };
@@ -19,7 +19,7 @@ fn main() {
         let mut __instances = std::collections::BTreeMap::new();
         for __range in pulumi::range_entries(item_list.clone()).await {
         let __range_scope = pulumi::pv::object(vec![("key".to_string(), pulumi::Output::from_value(__range.key.clone())), ("value".to_string(), pulumi::Output::from_value(__range.value.clone()))]);
-        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("listResource"), pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(pulumi::pv::concat(vec![__range_scope.clone().index("key"), pulumi::pv::string(":"), __range_scope.clone().index("value")])).cast() }, pulumi::ResourceOptions::default()));
+        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("listResource"), pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(pulumi::pv::concat(vec![__range_scope.clone().index("key"), pulumi::pv::string(":"), __range_scope.clone().index("value")])).cast()) }, pulumi::ResourceOptions::default()));
         }
         __instances
         };
@@ -27,7 +27,7 @@ fn main() {
         let mut __instances = std::collections::BTreeMap::new();
         for __range in pulumi::range_entries(item_map.clone()).await {
         let __range_scope = pulumi::pv::object(vec![("key".to_string(), pulumi::Output::from_value(__range.key.clone())), ("value".to_string(), pulumi::Output::from_value(__range.value.clone()))]);
-        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("mapResource"), pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(pulumi::pv::concat(vec![__range_scope.clone().index("key"), pulumi::pv::string("="), __range_scope.clone().index("value")])).cast() }, pulumi::ResourceOptions::default()));
+        __instances.insert(__range.key_string(), pulumi_nestedobject::Target::new(&ctx, &__range.name("mapResource"), pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(pulumi::pv::concat(vec![__range_scope.clone().index("key"), pulumi::pv::string("="), __range_scope.clone().index("value")])).cast()) }, pulumi::ResourceOptions::default()));
         }
         __instances
         };
@@ -35,7 +35,7 @@ fn main() {
         let mut __instance = None;
         for __range in pulumi::range_entries(create_bool.clone()).await {
         let __range_scope = pulumi::pv::object(vec![("key".to_string(), pulumi::Output::from_value(__range.key.clone())), ("value".to_string(), pulumi::Output::from_value(__range.value.clone()))]);
-        __instance = Some(pulumi_nestedobject::Target::new(&ctx, &__range.name("boolResource"), pulumi_nestedobject::TargetArgs { name: pulumi::ops::to_string(pulumi::pv::string("bool-resource")).cast() }, pulumi::ResourceOptions::default()));
+        __instance = Some(pulumi_nestedobject::Target::new(&ctx, &__range.name("boolResource"), pulumi_nestedobject::TargetArgs { name: Some(pulumi::ops::to_string(pulumi::pv::string("bool-resource")).cast()) }, pulumi::ResourceOptions::default()));
         }
         __instance
         };

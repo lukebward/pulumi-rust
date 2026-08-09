@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        ctx.export("inv", pulumi_simple_invoke::my_invoke(&ctx, pulumi_simple_invoke::MyInvokeArgs { value: pulumi::pv::string("test").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result"));
+        let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
+        ctx.export("inv", pulumi_simple_invoke::my_invoke(&ctx, pulumi_simple_invoke::MyInvokeArgs { value: Some(pulumi::pv::string("test").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result"));
         Ok(())
     });
 }

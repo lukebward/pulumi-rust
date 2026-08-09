@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let target_only = pulumi_simple::Resource::new(&ctx, "targetOnly", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let dep = pulumi_simple::Resource::new(&ctx, "dep", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let unrelated = pulumi_simple::Resource::new(&ctx, "unrelated", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { depends_on: vec![dep.pulumi_resource().clone()], ..Default::default() });
+        let target_only = pulumi_simple::Resource::new(&ctx, "targetOnly", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
+        let dep = pulumi_simple::Resource::new(&ctx, "dep", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
+        let unrelated = pulumi_simple::Resource::new(&ctx, "unrelated", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { depends_on: vec![dep.pulumi_resource().clone()], ..Default::default() });
         Ok(())
     });
 }

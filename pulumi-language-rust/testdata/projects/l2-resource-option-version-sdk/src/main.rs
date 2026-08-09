@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let with_v2 = pulumi_simple::Resource::new(&ctx, "withV2", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { version: "2.0.0".to_string(), ..Default::default() });
+        let with_v2 = pulumi_simple::Resource::new(&ctx, "withV2", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { version: "2.0.0".to_string(), ..Default::default() });
         Ok(())
     });
 }

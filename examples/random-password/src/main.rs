@@ -17,7 +17,7 @@ fn main() {
             &ctx,
             "password",
             pulumi_random::RandomPasswordArgs {
-                length: length.cast(),
+                length: Some(length.cast()),
                 special: Some(pulumi::pv::bool(true).cast()),
                 ..Default::default()
             },
@@ -30,7 +30,7 @@ fn main() {
             &ctx,
             "pet",
             pulumi_random::RandomPetArgs {
-                length: pulumi::pv::number(2.0).cast(),
+                length: Some(pulumi::pv::number(2.0).cast()),
                 ..Default::default()
             },
             pulumi::ResourceOptions {

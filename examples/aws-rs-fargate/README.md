@@ -80,12 +80,10 @@ values are indicated with `***`.
     pulumi = { path = "../../../../../sdk/rust/pulumi" }
     ```
 
-    The version is pinned deliberately. `RoleArgs`, `ListenerArgs` and
-    `TaskDefinitionArgs` all have required inputs, so the generator does not
-    derive `Default` for them and `src/main.rs` names every field
-    explicitly — including the ones set to `None`. A different provider
-    version can add or remove inputs, in which case `cargo` will name the
-    fields to add or drop.
+    The version is pinned because the property names in `src/main.rs` were
+    checked against that schema. Every generated args struct derives
+    `Default`, so a provider version that adds an optional input will not
+    break this program; one that renames or removes an input still will.
 
 1.  Run `pulumi up` to preview and deploy changes. After the preview is shown
     you will be prompted whether to continue. Creating the load balancer and
@@ -180,9 +178,8 @@ values are indicated with `***`.
 - **The service waits on the listener.** Registering targets fails until the
   target group is attached to a load balancer, and nothing in the service's
   inputs refers to the listener — hence the explicit `depends_on`.
-- Every input of `aws:ecs:Service` and `aws:ecs:Cluster` is optional in
-  provider version 7.41.0, so those args structs *do* derive `Default` and
-  the program elides the fields it does not set. The nested
-  `ServiceNetworkConfigurationArgs` (`subnets` required) and
-  `ServiceLoadBalancerArgs` (`container_name`, `container_port`) do not, so
-  those are written out in full.
+- `aws:ecs:Service` requires nothing at all in provider version 7.41.0,
+  while its nested `ServiceNetworkConfigurationArgs` needs `subnets` and
+  `ServiceLoadBalancerArgs` needs `container_name` and `container_port`.
+  Nothing in the Rust makes that distinction visible — every field is an
+  `Option` — so a missing one surfaces as an AWS error at deploy time.

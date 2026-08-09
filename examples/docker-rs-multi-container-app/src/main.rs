@@ -46,8 +46,7 @@ fn main() {
             .config()
             .get_int_or("hostPort", PropertyValue::Number(DEFAULT_HOST_PORT));
 
-        // A user-defined bridge network. `NetworkArgs` is all-optional, so it
-        // derives `Default` and only the interesting fields appear.
+        // A user-defined bridge network.
         let network = Network::new(
             &ctx,
             "app-net",
@@ -58,25 +57,18 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        // `RemoteImageArgs` requires `name`, so the generator does not derive
-        // `Default` for it and Rust needs every field named. A `RemoteImage`
-        // is a pull, not a build: it makes the image present on the daemon
-        // and hands back the digest it resolved to.
+        // A `RemoteImage` is a pull, not a build: it makes the image present
+        // on the daemon and hands back the digest it resolved to.
         let backend_image = RemoteImage::new(
             &ctx,
             "backend-image",
             RemoteImageArgs {
-                name: pulumi::pv::string(BACKEND_IMAGE).cast(),
+                name: Some(pulumi::pv::string(BACKEND_IMAGE).cast()),
                 // Leave the pulled image in the local cache on destroy, so
                 // tearing the stack down and bringing it back up does not
                 // re-download it.
                 keep_locally: Some(pulumi::pv::bool(true).cast()),
-
-                build: None,
-                force_remove: None,
-                platform: None,
-                pull_triggers: None,
-                triggers: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -85,14 +77,9 @@ fn main() {
             &ctx,
             "frontend-image",
             RemoteImageArgs {
-                name: pulumi::pv::string(FRONTEND_IMAGE).cast(),
+                name: Some(pulumi::pv::string(FRONTEND_IMAGE).cast()),
                 keep_locally: Some(pulumi::pv::bool(true).cast()),
-
-                build: None,
-                force_remove: None,
-                platform: None,
-                pull_triggers: None,
-                triggers: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -111,7 +98,8 @@ fn main() {
                     Some(BACKEND_ALIAS),
                 )]),
 
-                ..container_defaults(backend_image.repo_digest().cast())
+                image: Some(backend_image.repo_digest().cast()),
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -123,11 +111,9 @@ fn main() {
             "frontend",
             ContainerArgs {
                 ports: Some(vec![types::ContainerPortArgs {
-                    internal: pulumi::pv::number(FRONTEND_PORT).cast(),
+                    internal: Some(pulumi::pv::number(FRONTEND_PORT).cast()),
                     external: Some(host_port.clone().cast()),
-
-                    ip: None,
-                    protocol: None,
+                    ..Default::default()
                 }]),
                 networks_advanced: Some(vec![network_attachment(
                     network.name().cast(),
@@ -148,7 +134,8 @@ fn main() {
                     .cast(),
                 ),
 
-                ..container_defaults(frontend_image.repo_digest().cast())
+                image: Some(frontend_image.repo_digest().cast()),
+                ..Default::default()
             },
             pulumi::ResourceOptions {
                 // Nothing in the frontend's inputs refers to the backend, so
@@ -179,10 +166,6 @@ fn main() {
 
 /// Attach a container to a network, optionally under a DNS alias.
 ///
-/// `ContainerNetworksAdvancedArgs` requires `name`, so it has no `Default`
-/// and every field has to be named — which is worth doing once here rather
-/// than twice inline.
-///
 /// The odd-looking `ipv4address` / `ipv6address` fields are not typos: the
 /// schema names them `ipv4Address` and `ipv6Address`, and the generator's
 /// `snakeCase` does not insert a separator between a digit and the uppercase
@@ -192,108 +175,8 @@ fn network_attachment(
     alias: Option<&str>,
 ) -> types::ContainerNetworksAdvancedArgs {
     types::ContainerNetworksAdvancedArgs {
-        name,
+        name: Some(name),
         aliases: alias.map(|a| pulumi::pv::array(vec![pulumi::pv::string(a)]).cast()),
-
-        driver_opts: None,
-        gw_priority: None,
-        ipv4address: None,
-        ipv6address: None,
-        link_local_ips: None,
-        mac_address: None,
-    }
-}
-
-/// A `ContainerArgs` with `image` set and every other input left alone.
-///
-/// `ContainerArgs` has a required input (`image`), so the generator does not
-/// derive `Default` for it — which normally means every one of its
-/// seventy-odd fields has to appear at every call site. Rust's struct-update
-/// syntax does not actually require `Default`, though: `..expr` accepts any
-/// value of the same type. Naming the fields once here and writing
-/// `..container_defaults(image)` at the two call sites is the same thing
-/// `..Default::default()` would do, for a struct that cannot have a
-/// `Default`.
-///
-/// This list tracks one schema version — the program is written against
-/// **docker 5.1.0**. A different provider version may add or drop optional
-/// inputs, in which case `cargo` will name the fields to add or drop, and
-/// this is the only place to fix them.
-fn container_defaults(image: Output<std::string::String>) -> ContainerArgs {
-    ContainerArgs {
-        image,
-
-        attach: None,
-        capabilities: None,
-        cgroup_parent: None,
-        cgroupns_mode: None,
-        command: None,
-        container_read_refresh_timeout_milliseconds: None,
-        cpu_period: None,
-        cpu_quota: None,
-        cpu_set: None,
-        cpu_shares: None,
-        cpus: None,
-        destroy_grace_seconds: None,
-        device_read_bps: None,
-        device_read_iops: None,
-        device_requests: None,
-        device_write_bps: None,
-        device_write_iops: None,
-        devices: None,
-        dns: None,
-        dns_opts: None,
-        dns_searches: None,
-        domainname: None,
-        entrypoints: None,
-        envs: None,
-        gpus: None,
-        group_adds: None,
-        healthcheck: None,
-        hostname: None,
-        hosts: None,
-        init: None,
-        ipc_mode: None,
-        labels: None,
-        log_driver: None,
-        log_opts: None,
-        logs: None,
-        max_retry_count: None,
-        memory: None,
-        memory_reservation: None,
-        memory_swap: None,
-        mounts: None,
-        must_run: None,
-        name: None,
-        network_mode: None,
-        networks_advanced: None,
-        pid_mode: None,
-        platform: None,
-        ports: None,
-        privileged: None,
-        publish_all_ports: None,
-        read_only: None,
-        remove_volumes: None,
-        restart: None,
-        rm: None,
-        runtime: None,
-        security_opts: None,
-        shm_size: None,
-        start: None,
-        stdin_open: None,
-        stop_signal: None,
-        stop_timeout: None,
-        storage_opts: None,
-        sysctls: None,
-        tmpfs: None,
-        tty: None,
-        ulimits: None,
-        uploads: None,
-        user: None,
-        userns_mode: None,
-        volumes: None,
-        wait: None,
-        wait_timeout: None,
-        working_dir: None,
+        ..Default::default()
     }
 }

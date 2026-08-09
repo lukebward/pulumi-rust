@@ -56,12 +56,10 @@ fn main() {
             .config()
             .get_string_or("region", pulumi::PropertyValue::String(DEFAULT_REGION.into()));
 
-        // The tag that ties the fleet together. `name` is the only input a
-        // Tag has, and it is optional, so `TagArgs` derives `Default` and an
-        // empty literal says everything this program needs to say. Leaving
-        // the name unset hands it to Pulumi's auto-naming, which suffixes the
-        // resource name with random characters — DigitalOcean tag names are
-        // account-wide, so that is what keeps two stacks from colliding.
+        // The tag that ties the fleet together. Leaving the name unset hands
+        // it to Pulumi's auto-naming, which suffixes the resource name with
+        // random characters — DigitalOcean tag names are account-wide, so that
+        // is what keeps two stacks from colliding.
         let web_tag = pulumi_digitalocean::Tag::new(
             &ctx,
             "web",
@@ -76,20 +74,16 @@ fn main() {
         let mut droplet_resources: Vec<pulumi::Resource> = Vec::with_capacity(droplet_count);
 
         for i in 0..droplet_count {
-            // `DropletArgs` has required inputs (`image` and `size`), so the
-            // generator does not derive `Default` for it. Rust therefore
-            // needs every field named; the ones this program leaves alone
-            // are `None`.
             let droplet = pulumi_digitalocean::Droplet::new(
                 &ctx,
                 &format!("web-{i}"),
                 pulumi_digitalocean::DropletArgs {
-                    image: pulumi::pv::string(IMAGE).cast(),
+                    image: Some(pulumi::pv::string(IMAGE).cast()),
                     // `size` and `region` are unions in the schema (a plain
                     // string or one of the provider's slug enums), so they
                     // surface as `Output<PropertyValue>`. A bare `.cast()`
                     // works either way.
-                    size: pulumi::pv::string(DROPLET_SIZE).cast(),
+                    size: Some(pulumi::pv::string(DROPLET_SIZE).cast()),
                     region: Some(region.cast()),
                     // Changing this replaces the Droplet: cloud-init only
                     // runs on first boot, so the provider marks `userData`
@@ -99,27 +93,7 @@ fn main() {
                     // create the tag first and records the dependency in
                     // state. A DigitalOcean tag is referenced by its name.
                     tags: Some(web_tag.name().map(|t: String| vec![t])),
-
-                    backup_policy: None,
-                    backups: None,
-                    droplet_agent: None,
-                    gpu_partition_mode: None,
-                    graceful_shutdown: None,
-                    ipv6: None,
-                    // `ipv6Address` folds to `ipv6address`: a digit resets the
-                    // word boundary, so the `A` does not start a new word.
-                    ipv6address: None,
-                    monitoring: None,
-                    // Left unset so Pulumi auto-names the Droplet from the
-                    // resource name above; the generated names come back as
-                    // the `dropletNames` stack output.
-                    name: None,
-                    private_networking: None,
-                    public_networking: None,
-                    resize_disk: None,
-                    ssh_keys: None,
-                    volume_ids: None,
-                    vpc_uuid: None,
+                    ..Default::default()
                 },
                 pulumi::ResourceOptions::default(),
             );
@@ -128,8 +102,6 @@ fn main() {
             droplet_resources.push(droplet.pulumi_resource().clone());
         }
 
-        // Every input of `LoadBalancerArgs` is optional, so it derives
-        // `Default` and only the interesting fields appear.
         let load_balancer = pulumi_digitalocean::LoadBalancer::new(
             &ctx,
             "web",
@@ -140,18 +112,13 @@ fn main() {
                 // `Droplet::id()` is a string, so the tag is both the simpler
                 // and the better-typed edge here.
                 droplet_tag: Some(web_tag.name().cast()),
-                // `LoadBalancerForwardingRuleArgs` has four required fields,
-                // so it has no `Default` and every field is written out.
                 forwarding_rules: Some(vec![
                     pulumi_digitalocean::types::LoadBalancerForwardingRuleArgs {
-                        entry_port: pulumi::Output::known(80),
-                        entry_protocol: pulumi::pv::string("http").cast(),
-                        target_port: pulumi::Output::known(80),
-                        target_protocol: pulumi::pv::string("http").cast(),
-
-                        certificate_id: None,
-                        certificate_name: None,
-                        tls_passthrough: None,
+                        entry_port: Some(pulumi::Output::known(80)),
+                        entry_protocol: Some(pulumi::pv::string("http").cast()),
+                        target_port: Some(pulumi::Output::known(80)),
+                        target_protocol: Some(pulumi::pv::string("http").cast()),
+                        ..Default::default()
                     },
                 ]),
                 // Likewise `LoadBalancerHealthcheckArgs`: `port` and
@@ -159,14 +126,10 @@ fn main() {
                 // Balancer would keep sending traffic to a Droplet whose
                 // nginx has not finished installing.
                 healthcheck: Some(pulumi_digitalocean::types::LoadBalancerHealthcheckArgs {
-                    port: pulumi::Output::known(80),
-                    protocol: pulumi::pv::string("http").cast(),
+                    port: Some(pulumi::Output::known(80)),
+                    protocol: Some(pulumi::pv::string("http").cast()),
                     path: Some(pulumi::pv::string("/").cast()),
-
-                    check_interval_seconds: None,
-                    healthy_threshold: None,
-                    response_timeout_seconds: None,
-                    unhealthy_threshold: None,
+                    ..Default::default()
                 }),
                 ..Default::default()
             },

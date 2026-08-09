@@ -24,44 +24,19 @@ const BUCKET_LOCATION: &str = "US";
 
 fn main() {
     pulumi::run(|ctx| async move {
-        // A bucket to stage the function's source zip in. `location` is the
-        // one required input of `BucketArgs`, so the generator does not
-        // derive `Default` for it and Rust needs every field named — the
-        // ones this program leaves alone are `None`.
+        // A bucket to stage the function's source zip in.
         let source_bucket = pulumi_gcp::storage::Bucket::new(
             &ctx,
             "function-source",
             pulumi_gcp::storage::BucketArgs {
-                location: pulumi::pv::string(BUCKET_LOCATION).cast(),
+                location: Some(pulumi::pv::string(BUCKET_LOCATION).cast()),
                 // Let `pulumi destroy` remove the bucket even though the
                 // source object is still in it.
                 force_destroy: Some(pulumi::pv::bool(true).cast()),
                 // Objects here are only ever read by Cloud Build, so keep
                 // the legacy per-object ACLs switched off.
                 uniform_bucket_level_access: Some(pulumi::pv::bool(true).cast()),
-
-                autoclass: None,
-                cors: None,
-                custom_placement_config: None,
-                default_event_based_hold: None,
-                deletion_policy: None,
-                enable_object_retention: None,
-                encryption: None,
-                hierarchical_namespace: None,
-                ip_filter: None,
-                labels: None,
-                lifecycle_rules: None,
-                logging: None,
-                name: None,
-                project: None,
-                public_access_prevention: None,
-                requester_pays: None,
-                retention_policy: None,
-                rpo: None,
-                soft_delete_policy: None,
-                storage_class: None,
-                versioning: None,
-                website: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -93,7 +68,7 @@ fn main() {
                 // Feeding the bucket's own output into the object makes the
                 // engine order the two registrations and records the
                 // dependency in state.
-                bucket: source_bucket.name().cast(),
+                bucket: Some(source_bucket.name().cast()),
                 name: Some(
                     pulumi::pv::concat(vec![
                         pulumi::pv::string("function-source-"),
@@ -105,38 +80,18 @@ fn main() {
                 source: Some(
                     pulumi::pv::file_archive(pulumi::pv::string(FUNCTION_DIR)).cast(),
                 ),
-
-                cache_control: None,
-                content: None,
-                content_disposition: None,
-                content_encoding: None,
-                content_language: None,
-                content_type: None,
-                contexts: None,
-                customer_encryption: None,
-                deletion_policy: None,
-                detect_md5hash: None,
-                event_based_hold: None,
-                force_empty_content_type: None,
-                kms_key_name: None,
-                metadata: None,
-                retention: None,
-                source_md5hash: None,
-                storage_class: None,
-                temporary_hold: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
 
-        // The function. `runtime` is the only required input, but the args
-        // struct therefore has no `Default`, so again every field is named.
-        // `project` and `region` are left unset and come from the provider's
-        // `gcp:project` / `gcp:region` configuration.
+        // The function. `project` and `region` are left unset and come from
+        // the provider's `gcp:project` / `gcp:region` configuration.
         let greeting = pulumi_gcp::cloudfunctions::Function::new(
             &ctx,
             "greeting",
             pulumi_gcp::cloudfunctions::FunctionArgs {
-                runtime: pulumi::pv::string("nodejs20").cast(),
+                runtime: Some(pulumi::pv::string("nodejs20").cast()),
                 // The name of the exported member in `function/index.js`.
                 entry_point: Some(pulumi::pv::string("handler").cast()),
                 trigger_http: Some(pulumi::pv::bool(true).cast()),
@@ -146,36 +101,7 @@ fn main() {
                 description: Some(
                     pulumi::pv::string("An HTTP function deployed from Rust.").cast(),
                 ),
-
-                automatic_update_policy: None,
-                build_environment_variables: None,
-                build_service_account: None,
-                build_worker_pool: None,
-                deletion_policy: None,
-                docker_registry: None,
-                docker_repository: None,
-                environment_variables: None,
-                // Unset because this is an HTTP function; an event-driven
-                // function sets `event_trigger` instead of `trigger_http`.
-                event_trigger: None,
-                https_trigger_security_level: None,
-                https_trigger_url: None,
-                ingress_settings: None,
-                kms_key_name: None,
-                labels: None,
-                max_instances: None,
-                min_instances: None,
-                name: None,
-                on_deploy_update_policy: None,
-                project: None,
-                region: None,
-                secret_environment_variables: None,
-                secret_volumes: None,
-                service_account_email: None,
-                source_repository: None,
-                timeout: None,
-                vpc_connector: None,
-                vpc_connector_egress_settings: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -188,13 +114,12 @@ fn main() {
             &ctx,
             "invoker",
             pulumi_gcp::cloudfunctions::FunctionIamMemberArgs {
-                cloud_function: greeting.name().cast(),
-                role: pulumi::pv::string("roles/cloudfunctions.invoker").cast(),
-                member: pulumi::pv::string("allUsers").cast(),
+                cloud_function: Some(greeting.name().cast()),
+                role: Some(pulumi::pv::string("roles/cloudfunctions.invoker").cast()),
+                member: Some(pulumi::pv::string("allUsers").cast()),
                 project: Some(greeting.project().cast()),
                 region: Some(greeting.region().cast()),
-
-                condition: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );

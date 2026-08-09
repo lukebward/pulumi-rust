@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        ctx.export("parameterValue", pulumi_subpackage::do_hello_world(&ctx, pulumi_subpackage::DoHelloWorldArgs { input: pulumi::pv::string("goodbye").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("output"));
+        ctx.export("parameterValue", pulumi_subpackage::do_hello_world(&ctx, pulumi_subpackage::DoHelloWorldArgs { input: Some(pulumi::pv::string("goodbye").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("output"));
         Ok(())
     });
 }

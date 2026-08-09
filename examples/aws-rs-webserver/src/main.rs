@@ -28,8 +28,9 @@ fn main() {
                 most_recent: Some(pulumi::Output::known(true)),
                 owners: Some(pulumi::Output::known(vec!["amazon".to_string()])),
                 filters: Some(vec![pulumi_aws::types::Ec2GetAmiFilterArgs {
-                    name: pulumi::Output::known("name".to_string()),
-                    values: pulumi::Output::known(vec!["al2023-ami-2023.*-x86_64".to_string()]),
+                    name: Some(pulumi::Output::known("name".to_string())),
+                    values: Some(pulumi::Output::known(vec!["al2023-ami-2023.*-x86_64".to_string()])),
+                    ..Default::default()
                 }]),
                 ..Default::default()
             },
@@ -37,9 +38,6 @@ fn main() {
         );
 
         // Open port 80 to the world, and let the instance talk out.
-        //
-        // `Ec2SecurityGroupIngressArgs` has required fields, so the generated
-        // struct has no `Default` — every field is listed.
         let group = pulumi_aws::ec2::SecurityGroup::new(
             &ctx,
             "web-secgrp",
@@ -47,26 +45,20 @@ fn main() {
                 description: Some(pulumi::Output::known("Enable HTTP access".to_string())),
                 ingress: Some(vec![pulumi_aws::types::Ec2SecurityGroupIngressArgs {
                     description: Some(pulumi::Output::known("HTTP from anywhere".to_string())),
-                    protocol: pulumi::Output::known("tcp".to_string()),
-                    from_port: pulumi::Output::known(80),
-                    to_port: pulumi::Output::known(80),
+                    protocol: Some(pulumi::Output::known("tcp".to_string())),
+                    from_port: Some(pulumi::Output::known(80)),
+                    to_port: Some(pulumi::Output::known(80)),
                     cidr_blocks: Some(pulumi::Output::known(vec!["0.0.0.0/0".to_string()])),
-                    ipv6cidr_blocks: None,
-                    prefix_list_ids: None,
-                    security_groups: None,
-                    self_: None,
+                    ..Default::default()
                 }]),
                 egress: Some(vec![pulumi_aws::types::Ec2SecurityGroupEgressArgs {
                     description: Some(pulumi::Output::known("Allow all outbound".to_string())),
                     // "-1" is every protocol, which requires a 0-0 port range.
-                    protocol: pulumi::Output::known("-1".to_string()),
-                    from_port: pulumi::Output::known(0),
-                    to_port: pulumi::Output::known(0),
+                    protocol: Some(pulumi::Output::known("-1".to_string())),
+                    from_port: Some(pulumi::Output::known(0)),
+                    to_port: Some(pulumi::Output::known(0)),
                     cidr_blocks: Some(pulumi::Output::known(vec!["0.0.0.0/0".to_string()])),
-                    ipv6cidr_blocks: None,
-                    prefix_list_ids: None,
-                    security_groups: None,
-                    self_: None,
+                    ..Default::default()
                 }]),
                 ..Default::default()
             },

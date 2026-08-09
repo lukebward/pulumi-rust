@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let first = pulumi_constant::Resource::new(&ctx, "first", pulumi_constant::ResourceArgs { kind: pulumi::pv::string("Constant").cast() }, pulumi::ResourceOptions::default());
+        let first = pulumi_constant::Resource::new(&ctx, "first", pulumi_constant::ResourceArgs { kind: Some(pulumi::pv::string("Constant").cast()) }, pulumi::ResourceOptions::default());
         ctx.export("kind", first.kind().cast::<pulumi::PropertyValue>());
         Ok(())
     });

@@ -114,13 +114,10 @@ values are indicated with `***`.
     pulumi = { path = "../../../../../sdk/rust/pulumi" }
     ```
 
-    The version is pinned deliberately. `StorageAccountArgs`, `BlobArgs`,
-    `BlobContainerArgs`, `AppServicePlanArgs`, `ServerArgs`,
-    `FirewallRuleArgs`, `DatabaseArgs` and `WebAppArgs` all have required
-    inputs, so the generator does not derive `Default` for them and
-    `src/main.rs` names every field explicitly — including the ones set to
-    `None`. A different provider version can add or remove inputs, in which
-    case `cargo` will name the fields to add or drop.
+    The version is pinned because the property names in `src/main.rs` were
+    checked against that schema. Every generated args struct derives
+    `Default`, so a provider version that adds an optional input will not
+    break this program; one that renames or removes an input still will.
 
 1.  Run `pulumi up` to preview and deploy changes. Creating the SQL server
     and database takes a few minutes. After the preview is shown you will be

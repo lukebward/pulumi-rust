@@ -7,8 +7,8 @@ fn main() {
         let names_ = ctx.config().get_bool_or("Names", pulumi::PropertyValue::Bool(true));
         let r#mod = ctx.config().get_string_or("mod", pulumi::PropertyValue::String("module".to_string()));
         let r#mod_ = ctx.config().get_string_or("Mod", pulumi::PropertyValue::String("format".to_string()));
-        let names_resource = pulumi_names::r#mod::Res::new(&ctx, "namesResource", pulumi_names::r#mod::ResArgs { value: pulumi::ops::to_bool(names.clone()).cast() }, pulumi::ResourceOptions::default());
-        let mod_resource = pulumi_module_format::r#mod::Resource::new(&ctx, "modResource", pulumi_module_format::r#mod::ResourceArgs { text: pulumi::ops::to_string(pulumi::pv::concat(vec![r#mod.clone(), pulumi::pv::string("-"), r#mod_.clone()])).cast() }, pulumi::ResourceOptions::default());
+        let names_resource = pulumi_names::r#mod::Res::new(&ctx, "namesResource", pulumi_names::r#mod::ResArgs { value: Some(pulumi::ops::to_bool(names.clone()).cast()) }, pulumi::ResourceOptions::default());
+        let mod_resource = pulumi_module_format::r#mod::Resource::new(&ctx, "modResource", pulumi_module_format::r#mod::ResourceArgs { text: Some(pulumi::ops::to_string(pulumi::pv::concat(vec![r#mod.clone(), pulumi::pv::string("-"), r#mod_.clone()])).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("namesResourceVal", names_resource.value().cast::<pulumi::PropertyValue>());
         ctx.export("modResourceText", mod_resource.text().cast::<pulumi::PropertyValue>());
         ctx.export("nameVariables", pulumi::ops::and(names.clone(), names_.clone()));

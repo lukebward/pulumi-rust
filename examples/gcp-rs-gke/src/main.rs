@@ -75,11 +75,8 @@ fn main() {
             PropertyValue::String(DEFAULT_MACHINE_TYPE.to_string()),
         );
 
-        // Every input on `ClusterArgs` is optional in the GCP schema, so the
-        // generator derives `Default` for it and `..Default::default()` is
-        // legal — a rarity for a resource this large. `location` is among the
-        // optional ones: left unset it comes from the provider's `gcp:zone`
-        // (or `gcp:region`, for a regional cluster).
+        // `location` is among the optional ones: left unset it comes from the
+        // provider's `gcp:zone` (or `gcp:region`, for a regional cluster).
         let cluster = container::Cluster::new(
             &ctx,
             "gke-cluster",
@@ -107,10 +104,6 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        // `NodePoolArgs` requires `cluster`, so the generator does not derive
-        // `Default` for it and Rust needs every field named. The ones this
-        // program leaves alone are `None`.
-        //
         // Feeding the cluster's own outputs in — rather than restating the
         // zone — makes the engine order the two registrations and records the
         // dependency in state, so `pulumi destroy` removes the pool first.
@@ -118,12 +111,10 @@ fn main() {
             &ctx,
             "gke-nodepool",
             container::NodePoolArgs {
-                cluster: cluster.name().cast(),
+                cluster: Some(cluster.name().cast()),
                 location: Some(cluster.location().cast()),
                 project: Some(cluster.project().cast()),
                 node_count: Some(node_count.cast()),
-                // `ContainerNodePoolNodeConfigArgs` is all-optional, so it
-                // derives `Default` and only the interesting fields appear.
                 node_config: Some(types::ContainerNodePoolNodeConfigArgs {
                     machine_type: Some(machine_type.cast()),
                     oauth_scopes: Some(
@@ -131,30 +122,13 @@ fn main() {
                     ),
                     ..Default::default()
                 }),
-                // Also all-optional; both fields are written out because
-                // there are only two and both matter.
+                // Both fields are written out because there are only two
+                // and both matter.
                 management: Some(types::ContainerNodePoolManagementArgs {
                     auto_repair: Some(pulumi::pv::bool(true).cast()),
                     auto_upgrade: Some(pulumi::pv::bool(true).cast()),
                 }),
-
-                autoscaling: None,
-                deletion_policy: None,
-                ignore_node_count_changes: None,
-                // Unset because `node_count` above fixes the size; the two
-                // are mutually exclusive.
-                initial_node_count: None,
-                maintenance_policies: None,
-                max_pods_per_node: None,
-                name: None,
-                name_prefix: None,
-                network_config: None,
-                node_drain_configs: None,
-                node_locations: None,
-                placement_policy: None,
-                queued_provisioning: None,
-                upgrade_settings: None,
-                version: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );

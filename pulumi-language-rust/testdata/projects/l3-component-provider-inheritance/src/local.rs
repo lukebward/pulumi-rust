@@ -40,7 +40,7 @@ impl Local {
             deferred_inputs: __deferred,
         });
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
-        let mlc = pulumi_component::ComponentForeignChild::new(&ctx, &format!("{}-mlc", name), pulumi_component::ComponentForeignChildArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, __options.clone());
+        let mlc = pulumi_component::ComponentForeignChild::new(&ctx, &format!("{}-mlc", name), pulumi_component::ComponentForeignChildArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, __options.clone());
         let __out_0 = mlc.value().cast::<pulumi::PropertyValue>();
         ctx.register_resource_outputs(&__component, vec![("result".to_string(), __out_0.clone())]);
         Ok(Local {

@@ -159,16 +159,15 @@ impl Provider {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct DoHelloWorldArgs {
-    pub input: pulumi::Output<std::string::String>,
+    pub input: Option<pulumi::Output<std::string::String>>,
 }
 
 impl DoHelloWorldArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.input;
+        if let Some(v) = self.input {
             inputs.push(("input".to_string(), v.cast()));
         }
         inputs

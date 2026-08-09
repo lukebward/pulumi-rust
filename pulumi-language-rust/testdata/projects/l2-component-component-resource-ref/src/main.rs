@@ -3,10 +3,10 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let component1 = pulumi_component::ComponentCustomRefOutput::new(&ctx, "component1", pulumi_component::ComponentCustomRefOutputArgs { value: pulumi::ops::to_string(pulumi::pv::string("foo-bar-baz")).cast() }, pulumi::ResourceOptions::default());
-        let component2 = pulumi_component::ComponentCustomRefInputOutput::new(&ctx, "component2", pulumi_component::ComponentCustomRefInputOutputArgs { input_ref: component1.r#ref().cast::<pulumi::PropertyValue>().cast() }, pulumi::ResourceOptions::default());
-        let custom1 = pulumi_component::Custom::new(&ctx, "custom1", pulumi_component::CustomArgs { value: pulumi::ops::to_string(component2.input_ref().cast::<pulumi::PropertyValue>().index("value")).cast() }, pulumi::ResourceOptions::default());
-        let custom2 = pulumi_component::Custom::new(&ctx, "custom2", pulumi_component::CustomArgs { value: pulumi::ops::to_string(component2.output_ref().cast::<pulumi::PropertyValue>().index("value")).cast() }, pulumi::ResourceOptions::default());
+        let component1 = pulumi_component::ComponentCustomRefOutput::new(&ctx, "component1", pulumi_component::ComponentCustomRefOutputArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("foo-bar-baz")).cast()) }, pulumi::ResourceOptions::default());
+        let component2 = pulumi_component::ComponentCustomRefInputOutput::new(&ctx, "component2", pulumi_component::ComponentCustomRefInputOutputArgs { input_ref: Some(component1.r#ref().cast::<pulumi::PropertyValue>().cast()) }, pulumi::ResourceOptions::default());
+        let custom1 = pulumi_component::Custom::new(&ctx, "custom1", pulumi_component::CustomArgs { value: Some(pulumi::ops::to_string(component2.input_ref().cast::<pulumi::PropertyValue>().index("value")).cast()) }, pulumi::ResourceOptions::default());
+        let custom2 = pulumi_component::Custom::new(&ctx, "custom2", pulumi_component::CustomArgs { value: Some(pulumi::ops::to_string(component2.output_ref().cast::<pulumi::PropertyValue>().index("value")).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

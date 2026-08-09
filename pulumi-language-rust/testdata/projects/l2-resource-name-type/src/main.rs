@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let res1 = pulumi_simple::Resource::new(&ctx, "res1", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let res1 = pulumi_simple::Resource::new(&ctx, "res1", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("name", pulumi::pv::urn_name(res1.urn().cast::<pulumi::PropertyValue>()));
         ctx.export("type", pulumi::pv::urn_type(res1.urn().cast::<pulumi::PropertyValue>()));
         Ok(())

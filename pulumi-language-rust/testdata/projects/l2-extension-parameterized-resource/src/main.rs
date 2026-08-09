@@ -7,7 +7,7 @@ fn main() {
         let greeting_comp = pulumi_myext::GreetingComponent::new(&ctx, "greetingComp", pulumi_myext::GreetingComponentArgs {  }, pulumi::ResourceOptions::default());
         ctx.export("parameterValue", greeting.parameter_value().cast::<pulumi::PropertyValue>());
         ctx.export("parameterValueFromComponent", greeting_comp.parameter_value().cast::<pulumi::PropertyValue>());
-        ctx.export("invokeGreeting", pulumi_myext::greet(&ctx, pulumi_myext::GreetArgs { name: pulumi::pv::string("Pulumi").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("greeting"));
+        ctx.export("invokeGreeting", pulumi_myext::greet(&ctx, pulumi_myext::GreetArgs { name: Some(pulumi::pv::string("Pulumi").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("greeting"));
         Ok(())
     });
 }

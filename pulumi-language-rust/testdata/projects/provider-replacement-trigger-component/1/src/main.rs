@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let res = pulumi_conformance_component::Simple::new(&ctx, "res", pulumi_conformance_component::SimpleArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { replacement_trigger: Some(pulumi::pv::string("trigger-value-updated")), ..Default::default() });
-        let simple_resource = pulumi_simple::Resource::new(&ctx, "simpleResource", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(false)).cast() }, pulumi::ResourceOptions::default());
+        let res = pulumi_conformance_component::Simple::new(&ctx, "res", pulumi_conformance_component::SimpleArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { replacement_trigger: Some(pulumi::pv::string("trigger-value-updated")), ..Default::default() });
+        let simple_resource = pulumi_simple::Resource::new(&ctx, "simpleResource", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(false)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

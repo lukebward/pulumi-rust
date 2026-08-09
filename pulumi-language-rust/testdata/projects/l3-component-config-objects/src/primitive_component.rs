@@ -47,7 +47,7 @@ impl PrimitiveComponent {
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
         let number_array = args.number_array.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));
         let boolean_map = args.boolean_map.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));
-        let res = pulumi_primitive::Resource::new(&ctx, &format!("{}-res", name), pulumi_primitive::ResourceArgs { boolean: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast(), boolean_map: boolean_map.clone().cast(), float: pulumi::ops::to_number(pulumi::pv::number(3.5)).cast(), integer: pulumi::ops::to_int(pulumi::pv::number(3.0)).cast(), number_array: number_array.clone().cast(), string: pulumi::ops::to_string(pulumi::pv::string("plain")).cast() }, __options.clone());
+        let res = pulumi_primitive::Resource::new(&ctx, &format!("{}-res", name), pulumi_primitive::ResourceArgs { boolean: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()), boolean_map: Some(boolean_map.clone().cast()), float: Some(pulumi::ops::to_number(pulumi::pv::number(3.5)).cast()), integer: Some(pulumi::ops::to_int(pulumi::pv::number(3.0)).cast()), number_array: Some(number_array.clone().cast()), string: Some(pulumi::ops::to_string(pulumi::pv::string("plain")).cast()) }, __options.clone());
         ctx.register_resource_outputs(&__component, vec![]);
         Ok(PrimitiveComponent {
             resource: __component,

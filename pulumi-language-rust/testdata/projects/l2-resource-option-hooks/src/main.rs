@@ -7,7 +7,7 @@ fn main() {
         let hook_preview_file = ctx.config().require_string("hookPreviewFile")?;
         let create_hook = ctx.register_resource_hook("createHook", false, false, { let hook_test_file = hook_test_file.clone(); move |__args| { pulumi::pv::array(vec![pulumi::pv::string("touch"), hook_test_file.clone()]) } }).await?;
         let preview_hook = ctx.register_resource_hook("previewHook", true, false, { let hook_preview_file = hook_preview_file.clone(); move |__args| { pulumi::pv::array(vec![pulumi::pv::string("touch"), pulumi::pv::concat(vec![hook_preview_file.clone(), pulumi::pv::string("_"), __args.clone().index("name")])]) } }).await?;
-        let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { hooks: pulumi::ResourceHookBinding { before_create: vec![create_hook.clone(), preview_hook.clone()], ..Default::default() }, ..Default::default() });
+        let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { hooks: pulumi::ResourceHookBinding { before_create: vec![create_hook.clone(), preview_hook.clone()], ..Default::default() }, ..Default::default() });
         Ok(())
     });
 }

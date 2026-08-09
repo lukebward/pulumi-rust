@@ -41,10 +41,9 @@ fn main() {
             .get_string_or("machineType", pulumi::PropertyValue::String("e2-micro".into()));
 
         // A network of this stack's own rather than the project's `default`
-        // network: the firewall rule below opens ports on whatever network
-        // it names, and doing that to `default` would affect every other VM
-        // in the project. Every input of `NetworkArgs` is optional, so the
-        // generated struct derives `Default` and unset fields can be elided.
+        // network: the firewall rule below opens ports on whatever network it
+        // names, and doing that to `default` would affect every other VM in
+        // the project.
         let network = pulumi_gcp::compute::Network::new(
             &ctx,
             "webserver-network",
@@ -61,10 +60,7 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        // Open SSH and HTTP to the world. `network` is a required input, so
-        // the generator does not derive `Default` for `FirewallArgs` and
-        // Rust needs every field named — the ones this program leaves alone
-        // are `None`.
+        // Open SSH and HTTP to the world.
         let firewall = pulumi_gcp::compute::Firewall::new(
             &ctx,
             "webserver-firewall",
@@ -72,51 +68,32 @@ fn main() {
                 // Passing the network's own output here makes the engine
                 // create the network first and records the dependency in
                 // state.
-                network: network.self_link().cast(),
+                network: Some(network.self_link().cast()),
                 // `ComputeFirewallAllowArgs` has a required `protocol`, so
                 // it too spells out all of its fields.
                 allows: Some(vec![pulumi_gcp::types::ComputeFirewallAllowArgs {
-                    protocol: pulumi::pv::string("tcp").cast(),
+                    protocol: Some(pulumi::pv::string("tcp").cast()),
                     ports: Some(pulumi::Output::known(vec![
                         "22".to_string(),
                         "80".to_string(),
                     ])),
+                    ..Default::default()
                 }]),
                 source_ranges: Some(pulumi::Output::known(vec!["0.0.0.0/0".to_string()])),
                 description: Some(
                     pulumi::pv::string("Allow SSH and HTTP from anywhere").cast(),
                 ),
-
-                deletion_policy: None,
-                denies: None,
-                destination_ranges: None,
-                // Unset means `INGRESS`, which is what an inbound rule wants.
-                direction: None,
-                disabled: None,
-                enable_logging: None,
-                log_config: None,
-                name: None,
-                params: None,
-                priority: None,
-                project: None,
-                source_service_accounts: None,
-                source_tags: None,
-                target_service_accounts: None,
-                // Unset means the rule applies to every instance on the
-                // network. Restricting it would set `target_tags` here and
-                // the matching `tags` on the instance below.
-                target_tags: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
 
-        // The VM. `boot_disk`, `machine_type`, and `network_interfaces` are
-        // all required, so `InstanceArgs` has no `Default` either.
+        // The VM.
         let server = pulumi_gcp::compute::Instance::new(
             &ctx,
             "webserver",
             pulumi_gcp::compute::InstanceArgs {
-                machine_type: machine_type.cast(),
+                machine_type: Some(machine_type.cast()),
                 zone: Some(zone.cast()),
                 metadata_startup_script: Some(pulumi::pv::string(STARTUP_SCRIPT).cast()),
                 description: Some(
@@ -126,11 +103,7 @@ fn main() {
                 // VM stopped; without this the update fails instead.
                 allow_stopping_for_update: Some(pulumi::pv::bool(true).cast()),
 
-                // Every field of `ComputeInstanceBootDiskArgs` and of
-                // `ComputeInstanceBootDiskInitializeParamsArgs` is optional,
-                // so both derive `Default` and `..Default::default()` is
-                // legal on them.
-                boot_disk: pulumi_gcp::types::ComputeInstanceBootDiskArgs {
+                boot_disk: Some(pulumi_gcp::types::ComputeInstanceBootDiskArgs {
                     initialize_params: Some(
                         pulumi_gcp::types::ComputeInstanceBootDiskInitializeParamsArgs {
                             image: Some(pulumi::pv::string(BOOT_IMAGE).cast()),
@@ -138,9 +111,9 @@ fn main() {
                         },
                     ),
                     ..Default::default()
-                },
+                }),
 
-                network_interfaces: vec![
+                network_interfaces: Some(vec![
                     pulumi_gcp::types::ComputeInstanceNetworkInterfaceArgs {
                         network: Some(network.self_link().cast()),
                         // One access config with nothing set in it asks GCE
@@ -154,40 +127,8 @@ fn main() {
                         ]),
                         ..Default::default()
                     },
-                ],
-
-                advanced_machine_features: None,
-                attached_disks: None,
-                can_ip_forward: None,
-                confidential_instance_config: None,
-                deletion_policy: None,
-                deletion_protection: None,
-                desired_status: None,
-                enable_display: None,
-                erase_windows_vss_signature: None,
-                guest_accelerators: None,
-                hostname: None,
-                instance_encryption_key: None,
-                key_revocation_action_type: None,
-                labels: None,
-                // The startup script is set through its own input rather
-                // than as a `startup-script` entry here; setting both would
-                // conflict.
-                metadata: None,
-                min_cpu_platform: None,
-                name: None,
-                network_performance_config: None,
-                params: None,
-                partner_metadata: None,
-                project: None,
-                reservation_affinity: None,
-                resource_policies: None,
-                scheduling: None,
-                scratch_disks: None,
-                service_account: None,
-                shielded_instance_config: None,
-                tags: None,
-                workload_identity_config: None,
+                ]),
+                ..Default::default()
             },
             pulumi::ResourceOptions {
                 // The firewall rule is not an input to the instance, so

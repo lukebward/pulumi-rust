@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let first_resource = pulumi_camelnames::cool_module::SomeResource::new(&ctx, "firstResource", pulumi_camelnames::cool_module::SomeResourceArgs { resource_name: None, the_input: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
-        let second_resource = pulumi_camelnames::cool_module::SomeResource::new(&ctx, "secondResource", pulumi_camelnames::cool_module::SomeResourceArgs { resource_name: None, the_input: pulumi::ops::to_bool(first_resource.the_output().cast::<pulumi::PropertyValue>()).cast() }, pulumi::ResourceOptions::default());
-        let third_resource = pulumi_camelnames::cool_module::SomeResource::new(&ctx, "thirdResource", pulumi_camelnames::cool_module::SomeResourceArgs { resource_name: Some(pulumi::ops::to_string(pulumi::pv::string("my-cluster")).cast()), the_input: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let first_resource = pulumi_camelnames::cool_module::SomeResource::new(&ctx, "firstResource", pulumi_camelnames::cool_module::SomeResourceArgs { the_input: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()), ..Default::default() }, pulumi::ResourceOptions::default());
+        let second_resource = pulumi_camelnames::cool_module::SomeResource::new(&ctx, "secondResource", pulumi_camelnames::cool_module::SomeResourceArgs { the_input: Some(pulumi::ops::to_bool(first_resource.the_output().cast::<pulumi::PropertyValue>()).cast()), ..Default::default() }, pulumi::ResourceOptions::default());
+        let third_resource = pulumi_camelnames::cool_module::SomeResource::new(&ctx, "thirdResource", pulumi_camelnames::cool_module::SomeResourceArgs { resource_name: Some(pulumi::ops::to_string(pulumi::pv::string("my-cluster")).cast()), the_input: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

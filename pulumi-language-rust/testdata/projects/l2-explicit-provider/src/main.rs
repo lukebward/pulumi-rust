@@ -4,7 +4,7 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let prov = pulumi_simple::Provider::new(&ctx, "prov", pulumi_simple::ProviderArgs {  }, pulumi::ResourceOptions::default());
-        let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { provider: Some(prov.pulumi_resource().clone()), ..Default::default() });
+        let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { provider: Some(prov.pulumi_resource().clone()), ..Default::default() });
         Ok(())
     });
 }

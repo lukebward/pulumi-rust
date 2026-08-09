@@ -5,7 +5,7 @@ mod invoke_component;
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let prov = pulumi_config::Provider::new(&ctx, "prov", pulumi_config::ProviderArgs { name: pulumi::ops::to_string(pulumi::pv::string("my config")).cast(), plugin_download_url: None }, pulumi::ResourceOptions::default());
+        let prov = pulumi_config::Provider::new(&ctx, "prov", pulumi_config::ProviderArgs { name: Some(pulumi::ops::to_string(pulumi::pv::string("my config")).cast()), ..Default::default() }, pulumi::ResourceOptions::default());
         let my_component = crate::invoke_component::InvokeComponent::new(&ctx, "myComponent", crate::invoke_component::InvokeComponentArgs { ..Default::default() }, pulumi::ResourceOptions { providers: vec![("config".to_string(), prov.pulumi_resource().clone())], ..Default::default() }).await?;
         Ok(())
     });

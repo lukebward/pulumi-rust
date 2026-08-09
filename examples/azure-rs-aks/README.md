@@ -96,12 +96,10 @@ values are indicated with `***`.
     pulumi = { path = "../../../../../sdk/rust/pulumi" }
     ```
 
-    The version is pinned deliberately. `ManagedClusterArgs` requires
-    `resourceGroupName` and `ManagedClusterAgentPoolProfileArgs` requires
-    `name`, so the generator does not derive `Default` for either and
-    `src/main.rs` names every field explicitly — including the ones set to
-    `None`. A different provider version can add or remove inputs, in which
-    case `cargo` will name the fields to add or drop.
+    The version is pinned because the property names in `src/main.rs` were
+    checked against that schema. Every generated args struct derives
+    `Default`, so a provider version that adds an optional input will not
+    break this program; one that renames or removes an input still will.
 
 1.  Run `pulumi up` to preview and deploy changes. Creating a cluster takes
     several minutes. After the preview is shown you will be prompted whether
@@ -193,9 +191,9 @@ values are indicated with `***`.
   entirely, and is what Azure recommends for new clusters.
 - **SSH access to the nodes** is not configured. Setting `linux_profile` to
   a `types::ContainerserviceContainerServiceLinuxProfileArgs` turns it on;
-  both of its fields — `admin_username` and `ssh` — are required, so it has
-  no `Default` either. Generating the key it wants is what pulls the `tls`
-  provider into the TypeScript version.
+  both of its fields — `admin_username` and `ssh` — are required by the
+  schema. Generating the key it wants is what pulls the `tls` provider into
+  the TypeScript version.
 - `kubernetes_version` is left unset, so Azure picks its current default.
   Pin it if you want upgrades to be an explicit change to the program.
 - The agent pool is a `System` pool: it hosts cluster-critical pods such as
@@ -225,10 +223,11 @@ whose layout follows the package's schema modules:
   folded into the type name:
   `types::ContainerserviceManagedClusterAgentPoolProfileArgs`.
 
-An args struct only derives `Default` when every one of its fields is
-optional. `ManagedClusterIdentityArgs` qualifies, so it uses
-`..Default::default()`; `ManagedClusterArgs` and
-`ManagedClusterAgentPoolProfileArgs` do not, and spell out every field.
+Every generated args struct derives `Default` and every field is an
+`Option`, so a program names the inputs it sets and closes the literal with
+`..Default::default()`. Required inputs are not a compile-time constraint: a
+missing one is reported when the resource registers, the same as in the Go,
+C#, Java and Python SDKs.
 
 The generator snake_cases property names but does not insert a separator
 inside a run of capitals or after a digit, which produces some names worth

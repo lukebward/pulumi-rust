@@ -78,11 +78,12 @@ pulumi = { path = "../../../../../sdk/rust/pulumi" }
 ```
 
 Every cloud example **pins a provider version**, and its `Cargo.toml`
-carries the exact `gen-sdk` line to run. The pin is load-bearing: the
-generator derives `Default` only when every field of an args struct is
-optional, so any struct with a required input has to be written out in
-full, and a provider version that adds or drops an optional input will
-break the literal.
+carries the exact `gen-sdk` line to run. The pin is what makes the
+property names in each program checkable. Every generated args struct
+derives `Default` and every field is an `Option`, so a program names the
+inputs it sets and closes the literal with `..Default::default()`: a
+provider version that adds an optional input will not break an example,
+though one that renames or removes an input still will.
 
 ## What is and isn't verified
 

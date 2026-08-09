@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let res1 = pulumi_index_mod::index_mine::Resource::new(&ctx, "res1", pulumi_index_mod::index_mine::ResourceArgs { text: pulumi::ops::to_string(pulumi_index_mod::index_mine::concat_world(&ctx, pulumi_index_mod::index_mine::ConcatWorldArgs { value: pulumi::pv::string("hello").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result")).cast() }, pulumi::ResourceOptions::default());
+        let res1 = pulumi_index_mod::index_mine::Resource::new(&ctx, "res1", pulumi_index_mod::index_mine::ResourceArgs { text: Some(pulumi::ops::to_string(pulumi_index_mod::index_mine::concat_world(&ctx, pulumi_index_mod::index_mine::ConcatWorldArgs { value: Some(pulumi::pv::string("hello").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result")).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("out1", ctx.call("index-mod:indexMine:Resource/call", res1.pulumi_resource(), vec![("input".to_string(), pulumi::pv::string("x"))]).index("output"));
-        let res2 = pulumi_index_mod::index_mine_nested::Resource::new(&ctx, "res2", pulumi_index_mod::index_mine_nested::ResourceArgs { text: pulumi::ops::to_string(pulumi_index_mod::index_mine_nested::concat_world(&ctx, pulumi_index_mod::index_mine_nested::ConcatWorldArgs { value: pulumi::pv::string("goodbye").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result")).cast() }, pulumi::ResourceOptions::default());
+        let res2 = pulumi_index_mod::index_mine_nested::Resource::new(&ctx, "res2", pulumi_index_mod::index_mine_nested::ResourceArgs { text: Some(pulumi::ops::to_string(pulumi_index_mod::index_mine_nested::concat_world(&ctx, pulumi_index_mod::index_mine_nested::ConcatWorldArgs { value: Some(pulumi::pv::string("goodbye").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>().index("result")).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("out2", ctx.call("index-mod:indexMine/nested:Resource/call", res2.pulumi_resource(), vec![("input".to_string(), pulumi::pv::string("xx"))]).index("output"));
         Ok(())
     });

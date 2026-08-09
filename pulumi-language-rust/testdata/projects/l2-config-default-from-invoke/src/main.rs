@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let my_invoke_result = pulumi_simple_invoke::my_invoke(&ctx, pulumi_simple_invoke::MyInvokeArgs { value: pulumi::pv::string("hello").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>();
+        let my_invoke_result = pulumi_simple_invoke::my_invoke(&ctx, pulumi_simple_invoke::MyInvokeArgs { value: Some(pulumi::pv::string("hello").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>();
         let default_from_invoke = match ctx.config().get_string_opt("defaultFromInvoke") { Some(v) => v, None => pulumi::ops::to_string(my_invoke_result.clone().index("result")) };
         ctx.export("result", default_from_invoke.clone());
         Ok(())

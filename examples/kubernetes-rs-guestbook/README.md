@@ -91,11 +91,10 @@ values are indicated with `***`.
     $ pulumi package gen-sdk kubernetes@4.33.0 --language rust --out ./sdks/kubernetes
     ```
 
-    The version is pinned deliberately. `CoreV1ContainerArgs` and
-    `CoreV1PodSpecArgs` have required inputs, so the generator does not derive
-    `Default` for them and `src/main.rs` names every field explicitly —
-    including the ones set to `None`. A different provider version can add or
-    remove inputs, in which case `cargo` will name the fields to add or drop.
+    The version is pinned because the property names in `src/main.rs` were
+    checked against that schema. Every generated args struct derives
+    `Default`, so a provider version that adds an optional input will not
+    break this program; one that renames or removes an input still will.
 
     The `pulumi` crate is not published to crates.io yet, so edit the
     dependency in the generated `sdks/kubernetes/rust/Cargo.toml` to point at
@@ -208,19 +207,11 @@ appears here; the two places it does reach for `pv` are the Service's `type`
 and `targetPort`, which are unions in the schema (`targetPort` is Kubernetes'
 int-or-string) and so arrive as `Output<PropertyValue>`.
 
-An args struct only derives `Default` when every one of its fields is
-optional. `DeploymentArgs`, `ServiceArgs`, `MetaV1ObjectMetaArgs`,
-`MetaV1LabelSelectorArgs`, `CoreV1PodTemplateSpecArgs`,
-`CoreV1ServiceSpecArgs`, and `CoreV1ResourceRequirementsArgs` all qualify, so
-`..Default::default()` works for them. `AppsV1DeploymentSpecArgs` (`selector`,
-`template`), `CoreV1PodSpecArgs` (`containers`), `CoreV1ContainerArgs`
-(`name`), `CoreV1EnvVarArgs` (`name`), `CoreV1ContainerPortArgs`
-(`containerPort`), and `CoreV1ServicePortArgs` (`port`) have required fields,
-so they name every field and leave the unused ones `None` — which is why
-`CoreV1PodSpecArgs` in `src/main.rs` is a long list. Those lists track one
-schema version: this program is written against **kubernetes 4.33.0**, and a
-different provider version may add or drop optional fields on exactly those
-structs. Regenerate and recheck them if you pin something else.
+Every generated args struct derives `Default` and every field is an
+`Option`, so a program names the inputs it sets and closes the literal with
+`..Default::default()`. Required inputs are not a compile-time constraint: a
+missing one is reported when the resource registers, the same as in the Go,
+C#, Java and Python SDKs.
 
 Output-side properties are only wrapped in `Option` when the schema marks them
 optional. A Service's `spec` and `metadata` are required outputs, so

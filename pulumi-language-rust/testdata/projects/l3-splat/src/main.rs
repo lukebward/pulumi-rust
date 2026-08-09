@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let source = pulumi_nestedobject::Container::new(&ctx, "source", pulumi_nestedobject::ContainerArgs { inputs: pulumi::pv::array(vec![pulumi::ops::to_string(pulumi::pv::string("a")), pulumi::ops::to_string(pulumi::pv::string("b"))]).cast() }, pulumi::ResourceOptions::default());
-        let sink = pulumi_nestedobject::Container::new(&ctx, "sink", pulumi_nestedobject::ContainerArgs { inputs: pulumi::ops::for_array(source.details().cast::<pulumi::PropertyValue>(), {  move |__k0: pulumi::Output<pulumi::PropertyValue>, __v0: pulumi::Output<pulumi::PropertyValue>| pulumi::pv::bool(true) }, {  move |__k0: pulumi::Output<pulumi::PropertyValue>, __v0: pulumi::Output<pulumi::PropertyValue>| __v0.clone().index("value") }).cast() }, pulumi::ResourceOptions::default());
+        let source = pulumi_nestedobject::Container::new(&ctx, "source", pulumi_nestedobject::ContainerArgs { inputs: Some(pulumi::pv::array(vec![pulumi::ops::to_string(pulumi::pv::string("a")), pulumi::ops::to_string(pulumi::pv::string("b"))]).cast()) }, pulumi::ResourceOptions::default());
+        let sink = pulumi_nestedobject::Container::new(&ctx, "sink", pulumi_nestedobject::ContainerArgs { inputs: Some(pulumi::ops::for_array(source.details().cast::<pulumi::PropertyValue>(), {  move |__k0: pulumi::Output<pulumi::PropertyValue>, __v0: pulumi::Output<pulumi::PropertyValue>| pulumi::pv::bool(true) }, {  move |__k0: pulumi::Output<pulumi::PropertyValue>, __v0: pulumi::Output<pulumi::PropertyValue>| __v0.clone().index("value") }).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

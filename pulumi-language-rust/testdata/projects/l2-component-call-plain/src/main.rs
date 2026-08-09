@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let configurer = pulumi_configurer::Configurer::new(&ctx, "configurer", pulumi_configurer::ConfigurerArgs { provider_config: pulumi::ops::to_string(pulumi::pv::string("propagated")).cast() }, pulumi::ResourceOptions::default());
-        let custom_from_plain_provider = pulumi_configurer::Custom::new(&ctx, "customFromPlainProvider", pulumi_configurer::CustomArgs { value: pulumi::ops::to_string(pulumi::pv::string("from-plain-provider")).cast() }, pulumi::ResourceOptions { provider_value: Some(ctx.call("configurer:index:Configurer/plainProvider", configurer.pulumi_resource(), vec![]).index("res")), ..Default::default() });
-        let custom_from_nested_plain_provider = pulumi_configurer::Custom::new(&ctx, "customFromNestedPlainProvider", pulumi_configurer::CustomArgs { value: pulumi::ops::to_string(pulumi::pv::string("from-nested-plain-provider")).cast() }, pulumi::ResourceOptions { provider_value: Some(ctx.call("configurer:index:Configurer/nestedPlainProvider", configurer.pulumi_resource(), vec![]).index("provider")), ..Default::default() });
+        let configurer = pulumi_configurer::Configurer::new(&ctx, "configurer", pulumi_configurer::ConfigurerArgs { provider_config: Some(pulumi::ops::to_string(pulumi::pv::string("propagated")).cast()) }, pulumi::ResourceOptions::default());
+        let custom_from_plain_provider = pulumi_configurer::Custom::new(&ctx, "customFromPlainProvider", pulumi_configurer::CustomArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("from-plain-provider")).cast()) }, pulumi::ResourceOptions { provider_value: Some(ctx.call("configurer:index:Configurer/plainProvider", configurer.pulumi_resource(), vec![]).index("res")), ..Default::default() });
+        let custom_from_nested_plain_provider = pulumi_configurer::Custom::new(&ctx, "customFromNestedPlainProvider", pulumi_configurer::CustomArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("from-nested-plain-provider")).cast()) }, pulumi::ResourceOptions { provider_value: Some(ctx.call("configurer:index:Configurer/nestedPlainProvider", configurer.pulumi_resource(), vec![]).index("provider")), ..Default::default() });
         ctx.export("plainValue", ctx.call("configurer:index:Configurer/plainValue", configurer.pulumi_resource(), vec![]).index("res"));
         ctx.export("nestedPlainValue", ctx.call("configurer:index:Configurer/nestedPlainProvider", configurer.pulumi_resource(), vec![]).index("value"));
         Ok(())

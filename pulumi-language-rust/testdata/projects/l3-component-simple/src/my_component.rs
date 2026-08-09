@@ -44,7 +44,7 @@ impl MyComponent {
         });
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
         let input = args.input.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));
-        let res = pulumi_simple::Resource::new(&ctx, &format!("{}-res", name), pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(input.clone()).cast() }, __options.clone());
+        let res = pulumi_simple::Resource::new(&ctx, &format!("{}-res", name), pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(input.clone()).cast()) }, __options.clone());
         let __out_0 = res.value().cast::<pulumi::PropertyValue>();
         ctx.register_resource_outputs(&__component, vec![("output".to_string(), __out_0.clone())]);
         Ok(MyComponent {

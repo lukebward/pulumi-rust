@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let target = pulumi_component::ComponentCustomRefOutput::new(&ctx, "target", pulumi_component::ComponentCustomRefOutputArgs { value: pulumi::ops::to_string(pulumi::pv::string("checked")).cast() }, pulumi::ResourceOptions::default());
-        let data = pulumi_component::identity(&ctx, pulumi_component::IdentityArgs { input: pulumi::pv::string("reachable").cast() }, pulumi::InvokeOptions { depends_on: vec![target.pulumi_resource().clone()], ..Default::default() }).cast::<pulumi::PropertyValue>();
+        let target = pulumi_component::ComponentCustomRefOutput::new(&ctx, "target", pulumi_component::ComponentCustomRefOutputArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("checked")).cast()) }, pulumi::ResourceOptions::default());
+        let data = pulumi_component::identity(&ctx, pulumi_component::IdentityArgs { input: Some(pulumi::pv::string("reachable").cast()) }, pulumi::InvokeOptions { depends_on: vec![target.pulumi_resource().clone()], ..Default::default() }).cast::<pulumi::PropertyValue>();
         ctx.export("echoed", data.clone().index("result"));
         Ok(())
     });

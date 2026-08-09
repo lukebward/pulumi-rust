@@ -40,8 +40,8 @@ impl InvokeComponent {
             deferred_inputs: __deferred,
         });
         let __options = pulumi::ResourceOptions { parent: Some(__component.clone()), ..Default::default() };
-        let greeting = pulumi_multi_argument_invoke::multi_argument_invoke(&ctx, pulumi_multi_argument_invoke::MultiArgumentInvokeArgs { first: pulumi::pv::string("hello").cast(), second: None }, pulumi::InvokeOptions { parent: Some(__component.clone()), ..Default::default() }).cast::<pulumi::PropertyValue>();
-        let provider_config = pulumi_config::get_config(&ctx, pulumi_config::GetConfigArgs { text: pulumi::ops::to_string(greeting.clone().index("result")).cast() }, pulumi::InvokeOptions { parent: Some(__component.clone()), ..Default::default() }).cast::<pulumi::PropertyValue>();
+        let greeting = pulumi_multi_argument_invoke::multi_argument_invoke(&ctx, pulumi_multi_argument_invoke::MultiArgumentInvokeArgs { first: Some(pulumi::pv::string("hello").cast()), ..Default::default() }, pulumi::InvokeOptions { parent: Some(__component.clone()), ..Default::default() }).cast::<pulumi::PropertyValue>();
+        let provider_config = pulumi_config::get_config(&ctx, pulumi_config::GetConfigArgs { text: Some(pulumi::ops::to_string(greeting.clone().index("result")).cast()) }, pulumi::InvokeOptions { parent: Some(__component.clone()), ..Default::default() }).cast::<pulumi::PropertyValue>();
         let __out_0 = provider_config.clone().index("text");
         ctx.register_resource_outputs(&__component, vec![("result".to_string(), __out_0.clone())]);
         Ok(InvokeComponent {

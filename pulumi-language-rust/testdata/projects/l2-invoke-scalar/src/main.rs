@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        ctx.export("scalar", pulumi_simple_invoke_with_scalar_return::my_invoke_scalar(&ctx, pulumi_simple_invoke_with_scalar_return::MyInvokeScalarArgs { value: pulumi::pv::string("goodbye").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
+        ctx.export("scalar", pulumi_simple_invoke_with_scalar_return::my_invoke_scalar(&ctx, pulumi_simple_invoke_with_scalar_return::MyInvokeScalarArgs { value: Some(pulumi::pv::string("goodbye").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
         Ok(())
     });
 }

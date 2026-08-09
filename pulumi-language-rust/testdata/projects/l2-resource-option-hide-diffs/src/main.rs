@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let hide_diffs = pulumi_simple::Resource::new(&ctx, "hideDiffs", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { hide_diffs: vec!["value".to_string()], ..Default::default() });
-        let not_hide_diffs = pulumi_simple::Resource::new(&ctx, "notHideDiffs", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let hide_diffs = pulumi_simple::Resource::new(&ctx, "hideDiffs", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { hide_diffs: vec!["value".to_string()], ..Default::default() });
+        let not_hide_diffs = pulumi_simple::Resource::new(&ctx, "notHideDiffs", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

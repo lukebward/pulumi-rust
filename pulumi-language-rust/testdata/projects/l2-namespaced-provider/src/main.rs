@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let component_res = pulumi_component::ComponentCustomRefOutput::new(&ctx, "componentRes", pulumi_component::ComponentCustomRefOutputArgs { value: pulumi::ops::to_string(pulumi::pv::string("foo-bar-baz")).cast() }, pulumi::ResourceOptions::default());
-        let res = pulumi_namespaced::Resource::new(&ctx, "res", pulumi_namespaced::ResourceArgs { resource_ref: Some(component_res.r#ref().cast::<pulumi::PropertyValue>().cast()), value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let component_res = pulumi_component::ComponentCustomRefOutput::new(&ctx, "componentRes", pulumi_component::ComponentCustomRefOutputArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("foo-bar-baz")).cast()) }, pulumi::ResourceOptions::default());
+        let res = pulumi_namespaced::Resource::new(&ctx, "res", pulumi_namespaced::ResourceArgs { resource_ref: Some(component_res.r#ref().cast::<pulumi::PropertyValue>().cast()), value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

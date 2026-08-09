@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let my_component = pulumi_plaincomponent::Component::new(&ctx, "myComponent", pulumi_plaincomponent::ComponentArgs { name: "my-resource".to_string(), settings: pulumi_plaincomponent::types::SettingsArgs { enabled: true, tags: std::collections::BTreeMap::from([("env".to_string(), "test".to_string())]) } }, pulumi::ResourceOptions::default());
+        let my_component = pulumi_plaincomponent::Component::new(&ctx, "myComponent", pulumi_plaincomponent::ComponentArgs { name: Some("my-resource".to_string()), settings: Some(pulumi_plaincomponent::types::SettingsArgs { enabled: Some(true), tags: Some(std::collections::BTreeMap::from([("env".to_string(), "test".to_string())])) }) }, pulumi::ResourceOptions::default());
         ctx.export("label", my_component.label().cast::<pulumi::PropertyValue>());
         Ok(())
     });

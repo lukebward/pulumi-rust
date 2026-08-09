@@ -3,9 +3,9 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let retain_on_delete = pulumi_simple::Resource::new(&ctx, "retainOnDelete", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { retain_on_delete: Some(true), ..Default::default() });
-        let not_retain_on_delete = pulumi_simple::Resource::new(&ctx, "notRetainOnDelete", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions { retain_on_delete: Some(false), ..Default::default() });
-        let defaulted = pulumi_simple::Resource::new(&ctx, "defaulted", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let retain_on_delete = pulumi_simple::Resource::new(&ctx, "retainOnDelete", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { retain_on_delete: Some(true), ..Default::default() });
+        let not_retain_on_delete = pulumi_simple::Resource::new(&ctx, "notRetainOnDelete", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions { retain_on_delete: Some(false), ..Default::default() });
+        let defaulted = pulumi_simple::Resource::new(&ctx, "defaulted", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

@@ -5,7 +5,7 @@ mod my_component;
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let input = pulumi_simple::Resource::new(&ctx, "input", pulumi_simple::ResourceArgs { value: pulumi::ops::to_bool(pulumi::pv::bool(true)).cast() }, pulumi::ResourceOptions::default());
+        let input = pulumi_simple::Resource::new(&ctx, "input", pulumi_simple::ResourceArgs { value: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
         let some_component = crate::my_component::MyComponent::new(&ctx, "someComponent", crate::my_component::MyComponentArgs { input: Some(input.value().cast::<pulumi::PropertyValue>()), ..Default::default() }, pulumi::ResourceOptions::default()).await?;
         ctx.export("result", some_component.output());
         Ok(())

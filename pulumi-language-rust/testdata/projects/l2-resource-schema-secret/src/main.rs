@@ -4,9 +4,9 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let prov_elided = pulumi_output::Provider::new(&ctx, "provElided", pulumi_output::ProviderArgs { elide_unknowns: Some(pulumi::ops::to_bool(pulumi::pv::bool(true)).cast()) }, pulumi::ResourceOptions::default());
-        let prov_not_elided = pulumi_output::Provider::new(&ctx, "provNotElided", pulumi_output::ProviderArgs { elide_unknowns: None }, pulumi::ResourceOptions::default());
-        let top_level_elided = pulumi_output::Resource::new(&ctx, "topLevelElided", pulumi_output::ResourceArgs { value: pulumi::ops::to_number(pulumi::pv::number(1.0)).cast() }, pulumi::ResourceOptions { provider: Some(prov_elided.pulumi_resource().clone()), ..Default::default() });
-        let top_level_not_elided = pulumi_output::Resource::new(&ctx, "topLevelNotElided", pulumi_output::ResourceArgs { value: pulumi::ops::to_number(pulumi::pv::number(1.0)).cast() }, pulumi::ResourceOptions { provider: Some(prov_not_elided.pulumi_resource().clone()), ..Default::default() });
+        let prov_not_elided = pulumi_output::Provider::new(&ctx, "provNotElided", pulumi_output::ProviderArgs { ..Default::default() }, pulumi::ResourceOptions::default());
+        let top_level_elided = pulumi_output::Resource::new(&ctx, "topLevelElided", pulumi_output::ResourceArgs { value: Some(pulumi::ops::to_number(pulumi::pv::number(1.0)).cast()) }, pulumi::ResourceOptions { provider: Some(prov_elided.pulumi_resource().clone()), ..Default::default() });
+        let top_level_not_elided = pulumi_output::Resource::new(&ctx, "topLevelNotElided", pulumi_output::ResourceArgs { value: Some(pulumi::ops::to_number(pulumi::pv::number(1.0)).cast()) }, pulumi::ResourceOptions { provider: Some(prov_not_elided.pulumi_resource().clone()), ..Default::default() });
         ctx.export("topLevelElided", top_level_elided.secret_output().cast::<pulumi::PropertyValue>());
         ctx.export("topLevelNotElided", top_level_not_elided.secret_output().cast::<pulumi::PropertyValue>());
         Ok(())

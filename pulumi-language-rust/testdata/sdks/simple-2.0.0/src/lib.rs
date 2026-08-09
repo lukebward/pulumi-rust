@@ -51,16 +51,15 @@ impl Provider {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ResourceArgs {
-    pub value: pulumi::Output<bool>,
+    pub value: Option<pulumi::Output<bool>>,
 }
 
 impl ResourceArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.value;
+        if let Some(v) = self.value {
             inputs.push(("value".to_string(), v.cast()));
         }
         inputs

@@ -52,10 +52,10 @@ impl Provider {
 }
 
 pub mod cool_module {
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Default)]
     pub struct SomeResourceArgs {
         pub resource_name: Option<pulumi::Output<std::string::String>>,
-        pub the_input: pulumi::Output<bool>,
+        pub the_input: Option<pulumi::Output<bool>>,
     }
 
     impl SomeResourceArgs {
@@ -64,8 +64,7 @@ pub mod cool_module {
             if let Some(v) = self.resource_name {
                 inputs.push(("resourceName".to_string(), v.cast()));
             }
-            {
-                let v = self.the_input;
+            if let Some(v) = self.the_input {
                 inputs.push(("theInput".to_string(), v.cast()));
             }
             inputs

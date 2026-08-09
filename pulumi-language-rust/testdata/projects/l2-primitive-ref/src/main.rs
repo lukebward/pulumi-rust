@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let res = pulumi_primitive_ref::Resource::new(&ctx, "res", pulumi_primitive_ref::ResourceArgs { data: pulumi_primitive_ref::types::DataArgs { bool_array: pulumi::pv::array(vec![pulumi::ops::to_bool(pulumi::pv::bool(false)), pulumi::ops::to_bool(pulumi::pv::bool(true))]).cast(), boolean: pulumi::ops::to_bool(pulumi::pv::bool(false)).cast(), float: pulumi::ops::to_number(pulumi::pv::number(2.17)).cast(), integer: pulumi::ops::to_int(pulumi::pv::number(-12.0)).cast(), string: pulumi::ops::to_string(pulumi::pv::string("Goodbye")).cast(), string_map: pulumi::pv::object(vec![("two".to_string(), pulumi::ops::to_string(pulumi::pv::string("turtle doves"))), ("three".to_string(), pulumi::ops::to_string(pulumi::pv::string("french hens")))]).cast() } }, pulumi::ResourceOptions::default());
+        let res = pulumi_primitive_ref::Resource::new(&ctx, "res", pulumi_primitive_ref::ResourceArgs { data: Some(pulumi_primitive_ref::types::DataArgs { bool_array: Some(pulumi::pv::array(vec![pulumi::ops::to_bool(pulumi::pv::bool(false)), pulumi::ops::to_bool(pulumi::pv::bool(true))]).cast()), boolean: Some(pulumi::ops::to_bool(pulumi::pv::bool(false)).cast()), float: Some(pulumi::ops::to_number(pulumi::pv::number(2.17)).cast()), integer: Some(pulumi::ops::to_int(pulumi::pv::number(-12.0)).cast()), string: Some(pulumi::ops::to_string(pulumi::pv::string("Goodbye")).cast()), string_map: Some(pulumi::pv::object(vec![("two".to_string(), pulumi::ops::to_string(pulumi::pv::string("turtle doves"))), ("three".to_string(), pulumi::ops::to_string(pulumi::pv::string("french hens")))]).cast()) }) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

@@ -44,103 +44,31 @@ fn main() {
         // the generated structs rather than `pulumi::pv::object(..)`. The two
         // places it does reach for `pv` are the Service's `type` and
         // `targetPort` below, which are unions in the schema (`targetPort` is
-        // Kubernetes' int-or-string) and so surface as `Output<PropertyValue>`.
-        //
-        // `CoreV1ContainerArgs` has a required `name`, so the generator does
-        // not derive `Default` for it and Rust needs every field named. The
-        // ones this program leaves alone are `None`.
+        // Kubernetes' int-or-string) and so surface as
+        // `Output<PropertyValue>`.
         let container = types::CoreV1ContainerArgs {
-            name: pulumi::Output::known(APP_NAME.to_string()),
+            name: Some(pulumi::Output::known(APP_NAME.to_string())),
             image: Some(pulumi::Output::known(IMAGE.to_string())),
             // The port nginx listens on inside the pod. This is documentation
             // for humans and for `kubectl`; it is the Service that actually
             // routes traffic here.
             ports: Some(vec![types::CoreV1ContainerPortArgs {
-                container_port: pulumi::Output::known(80),
+                container_port: Some(pulumi::Output::known(80)),
                 name: Some(pulumi::Output::known("http".to_string())),
-                host_ip: None,
-                host_port: None,
-                protocol: None,
+                ..Default::default()
             }]),
-
-            args: None,
-            command: None,
-            env: None,
-            env_from: None,
-            image_pull_policy: None,
-            lifecycle: None,
-            liveness_probe: None,
-            readiness_probe: None,
-            resize_policy: None,
-            resources: None,
-            restart_policy: None,
-            restart_policy_rules: None,
-            security_context: None,
-            startup_probe: None,
-            stdin: None,
-            stdin_once: None,
-            termination_message_path: None,
-            termination_message_policy: None,
-            tty: None,
-            volume_devices: None,
-            volume_mounts: None,
-            working_dir: None,
+            ..Default::default()
         };
 
-        // `CoreV1PodSpecArgs` requires `containers`, so it too has no
-        // `Default`. Pulling it out into its own binding keeps the Deployment
-        // literal below readable.
+        // Pulling it out into its own binding keeps the Deployment literal
+        // below readable.
         let pod_spec = types::CoreV1PodSpecArgs {
-            containers: vec![container],
-
-            active_deadline_seconds: None,
-            affinity: None,
-            automount_service_account_token: None,
-            dns_config: None,
-            dns_policy: None,
-            enable_service_links: None,
-            ephemeral_containers: None,
-            host_aliases: None,
-            host_ipc: None,
-            host_network: None,
-            host_pid: None,
-            host_users: None,
-            hostname: None,
-            hostname_override: None,
-            image_pull_secrets: None,
-            init_containers: None,
-            node_name: None,
-            node_selector: None,
-            os: None,
-            overhead: None,
-            preemption_policy: None,
-            priority: None,
-            priority_class_name: None,
-            readiness_gates: None,
-            resource_claims: None,
-            resources: None,
-            restart_policy: None,
-            runtime_class_name: None,
-            scheduler_name: None,
-            scheduling_gates: None,
-            scheduling_group: None,
-            security_context: None,
-            service_account: None,
-            service_account_name: None,
-            set_hostname_as_fqdn: None,
-            share_process_namespace: None,
-            subdomain: None,
-            termination_grace_period_seconds: None,
-            tolerations: None,
-            topology_spread_constraints: None,
-            volumes: None,
+            containers: Some(vec![container]),
+            ..Default::default()
         };
 
-        // `DeploymentArgs` is all-optional (`apiVersion` and `kind` are filled
-        // in by the provider from the resource token), so it derives `Default`
-        // and `..Default::default()` is legal here. `DeploymentSpecArgs` is
-        // not — `selector` and `template` are required — so that one is spelled
-        // out in full.
+        // `DeploymentSpecArgs` is not — `selector` and `template` are required
+        // — so that one is spelled out in full.
         let deployment = apps_v1::Deployment::new(
             &ctx,
             APP_NAME,
@@ -148,11 +76,11 @@ fn main() {
                 spec: Some(types::AppsV1DeploymentSpecArgs {
                     replicas: Some(replicas.cast()),
                     // Which pods this Deployment owns.
-                    selector: types::MetaV1LabelSelectorArgs {
+                    selector: Some(types::MetaV1LabelSelectorArgs {
                         match_labels: Some(pulumi::Output::known(app_labels())),
                         ..Default::default()
-                    },
-                    template: types::CoreV1PodTemplateSpecArgs {
+                    }),
+                    template: Some(types::CoreV1PodTemplateSpecArgs {
                         // The labels stamped onto each pod. They have to match
                         // the selector above or the API server rejects the
                         // Deployment.
@@ -161,26 +89,19 @@ fn main() {
                             ..Default::default()
                         }),
                         spec: Some(pod_spec),
-                    },
-
-                    min_ready_seconds: None,
-                    paused: None,
-                    progress_deadline_seconds: None,
-                    revision_history_limit: None,
-                    strategy: None,
+                    }),
+                    ..Default::default()
                 }),
                 ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
 
-        // A stable in-cluster address for the pods. `ServiceSpecArgs` is
-        // all-optional, so only the interesting fields appear.
-        //
-        // `ClusterIP` keeps this example runnable on any cluster, including a
-        // local minikube or kind. Switch `type` to `LoadBalancer` on a cloud
-        // cluster to get an external address instead — the cluster IP is still
-        // allocated either way.
+        // A stable in-cluster address for the pods. `ClusterIP` keeps this
+        // example runnable on any cluster, including a local minikube or kind.
+        // Switch `type` to `LoadBalancer` on a cloud cluster to get an
+        // external address instead — the cluster IP is still allocated either
+        // way.
         let service = core_v1::Service::new(
             &ctx,
             APP_NAME,
@@ -196,14 +117,13 @@ fn main() {
                     // arrives as `r#type: Option<Output<PropertyValue>>`.
                     r#type: Some(pulumi::pv::string("ClusterIP").cast()),
                     ports: Some(vec![types::CoreV1ServicePortArgs {
-                        port: pulumi::Output::known(80),
+                        port: Some(pulumi::Output::known(80)),
                         // Kubernetes' int-or-string: a port number or the
                         // container port's name. `pv` builds the dynamic value.
                         target_port: Some(pulumi::pv::string("http").cast()),
                         name: Some(pulumi::Output::known("http".to_string())),
                         protocol: Some(pulumi::Output::known("TCP".to_string())),
-                        app_protocol: None,
-                        node_port: None,
+                        ..Default::default()
                     }]),
                     ..Default::default()
                 }),

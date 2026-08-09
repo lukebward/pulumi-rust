@@ -423,12 +423,16 @@ func (g *pkgGenerator) plainFieldType(owner string, t schema.Type, qualify strin
 type inputField struct {
 	rustName string
 	wireName string
-	typ      string // Rust type of the field (without Option wrapper)
-	optional bool
+	typ      string // Rust type of the field (without the Option wrapper)
+	// required records what the SCHEMA says, not how the field is declared:
+	// every generated field is an Option so the struct can derive Default and
+	// callers can elide what they do not set. Required-ness is reported at
+	// registration time instead, the way the Go, C#, Java and Python SDKs do.
+	required bool
 	secret   bool
 	conv     string // template converting expression %s to Output<PropertyValue>
 	// defaultValue, when non-empty, is a PropertyValue expression used when
-	// an optional input is unset (schema default).
+	// the input is unset (schema default).
 	defaultValue string
 }
 
@@ -479,8 +483,9 @@ func (g *pkgGenerator) inputFieldFor(owner string, p *schema.Property, qualify s
 	}
 	t := p.Type
 	if opt, ok := t.(*schema.OptionalType); ok {
-		f.optional = true
 		t = opt.ElementType
+	} else {
+		f.required = true
 	}
 	if in, ok := t.(*schema.InputType); ok {
 		t = in.ElementType
@@ -560,27 +565,23 @@ func (g *pkgGenerator) writeArgsStruct(
 ) {
 	names := fieldNamesFor(props)
 	fields := make([]inputField, len(props))
-	allOptional := true
 	for i, p := range props {
 		fields[i] = g.inputFieldFor(owner, p, qualify)
 		fields[i].rustName = names[p.Name]
-		if !fields[i].optional {
-			allOptional = false
-		}
 	}
 
-	if allOptional {
-		fmt.Fprintf(w, "#[derive(Clone, Debug, Default)]\n")
-	} else {
-		fmt.Fprintf(w, "#[derive(Clone, Debug)]\n")
-	}
+	// Every field is an Option and every struct derives Default, so a caller
+	// names only the inputs it sets and elides the rest with
+	// `..Default::default()`. Rust struct literals have no way to omit a
+	// field, so declaring required inputs as bare types — the obvious
+	// encoding — forced a caller to write out all 44 fields of a struct like
+	// Azure's WebAppArgs to set one. Required-ness is reported when the
+	// resource registers instead, which is where Go, C#, Java and Python
+	// report it too.
+	fmt.Fprintf(w, "#[derive(Clone, Debug, Default)]\n")
 	fmt.Fprintf(w, "pub struct %s {\n", name)
 	for _, f := range fields {
-		if f.optional {
-			fmt.Fprintf(w, "    pub %s: Option<%s>,\n", f.rustName, f.typ)
-		} else {
-			fmt.Fprintf(w, "    pub %s: %s,\n", f.rustName, f.typ)
-		}
+		fmt.Fprintf(w, "    pub %s: Option<%s>,\n", f.rustName, f.typ)
 	}
 	fmt.Fprintf(w, "}\n\n")
 
@@ -593,24 +594,17 @@ func (g *pkgGenerator) writeArgsStruct(
 			// Schema-secret properties always marshal as secrets.
 			conv = "pulumi::pv::secret(" + conv + ")"
 		}
-		if f.optional {
-			fmt.Fprintf(w, "        if let Some(v) = self.%s {\n", f.rustName)
-			fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, conv)
-			if f.defaultValue != "" {
-				fmt.Fprintf(w, "        } else {\n")
-				def := fmt.Sprintf("pulumi::Output::from_value(%s)", f.defaultValue)
-				if f.secret && wrapSecrets {
-					def = "pulumi::pv::secret(" + def + ")"
-				}
-				fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, def)
+		fmt.Fprintf(w, "        if let Some(v) = self.%s {\n", f.rustName)
+		fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, conv)
+		if f.defaultValue != "" {
+			fmt.Fprintf(w, "        } else {\n")
+			def := fmt.Sprintf("pulumi::Output::from_value(%s)", f.defaultValue)
+			if f.secret && wrapSecrets {
+				def = "pulumi::pv::secret(" + def + ")"
 			}
-			fmt.Fprintf(w, "        }\n")
-		} else {
-			fmt.Fprintf(w, "        {\n")
-			fmt.Fprintf(w, "            let v = self.%s;\n", f.rustName)
-			fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, conv)
-			fmt.Fprintf(w, "        }\n")
+			fmt.Fprintf(w, "            inputs.push((%q.to_string(), %s));\n", f.wireName, def)
 		}
+		fmt.Fprintf(w, "        }\n")
 	}
 	fmt.Fprintf(w, "        inputs\n")
 	fmt.Fprintf(w, "    }\n\n")

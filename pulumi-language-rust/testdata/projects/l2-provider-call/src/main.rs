@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let default_res = pulumi_call::Custom::new(&ctx, "defaultRes", pulumi_call::CustomArgs { value: pulumi::ops::to_string(pulumi::pv::string("defaultValue")).cast() }, pulumi::ResourceOptions::default());
+        let default_res = pulumi_call::Custom::new(&ctx, "defaultRes", pulumi_call::CustomArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("defaultValue")).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("defaultProviderValue", ctx.call("call:index:Custom/providerValue", default_res.pulumi_resource(), vec![]).index("result"));
         Ok(())
     });

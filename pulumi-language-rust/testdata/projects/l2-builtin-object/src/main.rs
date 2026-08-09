@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let res = pulumi_output::ComplexResource::new(&ctx, "res", pulumi_output::ComplexResourceArgs { value: pulumi::ops::to_number(pulumi::pv::number(1.0)).cast() }, pulumi::ResourceOptions::default());
+        let res = pulumi_output::ComplexResource::new(&ctx, "res", pulumi_output::ComplexResourceArgs { value: Some(pulumi::ops::to_number(pulumi::pv::number(1.0)).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("entriesOutput", pulumi::pv::entries(res.output_map().cast::<pulumi::PropertyValue>()));
         ctx.export("lookupOutput", pulumi::pv::lookup(res.output_map().cast::<pulumi::PropertyValue>(), pulumi::pv::string("x"), pulumi::pv::string("default")));
         ctx.export("lookupOutputDefault", pulumi::pv::lookup(res.output_map().cast::<pulumi::PropertyValue>(), pulumi::pv::string("y"), pulumi::pv::string("default")));

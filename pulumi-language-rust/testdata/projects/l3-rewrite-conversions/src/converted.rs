@@ -63,7 +63,7 @@ impl Converted {
         let string = args.string.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));
         let number_array = args.number_array.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));
         let boolean_map = args.boolean_map.clone().unwrap_or_else(|| pulumi::Output::from_value(pulumi::PropertyValue::Null));
-        let res = pulumi_primitive::Resource::new(&ctx, &format!("{}-res", name), pulumi_primitive::ResourceArgs { boolean: pulumi::ops::to_bool(boolean.clone()).cast(), boolean_map: boolean_map.clone().cast(), float: pulumi::ops::to_number(float.clone()).cast(), integer: pulumi::ops::to_int(integer.clone()).cast(), number_array: number_array.clone().cast(), string: pulumi::ops::to_string(string.clone()).cast() }, __options.clone());
+        let res = pulumi_primitive::Resource::new(&ctx, &format!("{}-res", name), pulumi_primitive::ResourceArgs { boolean: Some(pulumi::ops::to_bool(boolean.clone()).cast()), boolean_map: Some(boolean_map.clone().cast()), float: Some(pulumi::ops::to_number(float.clone()).cast()), integer: Some(pulumi::ops::to_int(integer.clone()).cast()), number_array: Some(number_array.clone().cast()), string: Some(pulumi::ops::to_string(string.clone()).cast()) }, __options.clone());
         ctx.register_resource_outputs(&__component, vec![]);
         Ok(Converted {
             resource: __component,

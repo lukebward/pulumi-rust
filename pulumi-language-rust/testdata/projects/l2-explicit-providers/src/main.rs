@@ -4,8 +4,8 @@
 fn main() {
     pulumi::run(|ctx| async move {
         let explicit = pulumi_component::Provider::new(&ctx, "explicit", pulumi_component::ProviderArgs {  }, pulumi::ResourceOptions::default());
-        let list = pulumi_component::ComponentCallable::new(&ctx, "list", pulumi_component::ComponentCallableArgs { value: pulumi::ops::to_string(pulumi::pv::string("value")).cast() }, pulumi::ResourceOptions { providers: vec![("component".to_string(), explicit.pulumi_resource().clone())], ..Default::default() });
-        let map = pulumi_component::ComponentCallable::new(&ctx, "map", pulumi_component::ComponentCallableArgs { value: pulumi::ops::to_string(pulumi::pv::string("value")).cast() }, pulumi::ResourceOptions { providers: vec![("component".to_string(), explicit.pulumi_resource().clone())], ..Default::default() });
+        let list = pulumi_component::ComponentCallable::new(&ctx, "list", pulumi_component::ComponentCallableArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("value")).cast()) }, pulumi::ResourceOptions { providers: vec![("component".to_string(), explicit.pulumi_resource().clone())], ..Default::default() });
+        let map = pulumi_component::ComponentCallable::new(&ctx, "map", pulumi_component::ComponentCallableArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("value")).cast()) }, pulumi::ResourceOptions { providers: vec![("component".to_string(), explicit.pulumi_resource().clone())], ..Default::default() });
         Ok(())
     });
 }

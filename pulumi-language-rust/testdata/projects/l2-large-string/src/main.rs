@@ -3,7 +3,7 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let res = pulumi_large::String::new(&ctx, "res", pulumi_large::StringArgs { value: pulumi::ops::to_string(pulumi::pv::string("hello world")).cast() }, pulumi::ResourceOptions::default());
+        let res = pulumi_large::String::new(&ctx, "res", pulumi_large::StringArgs { value: Some(pulumi::ops::to_string(pulumi::pv::string("hello world")).cast()) }, pulumi::ResourceOptions::default());
         ctx.export("output", res.value().cast::<pulumi::PropertyValue>());
         Ok(())
     });

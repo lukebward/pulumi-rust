@@ -47,8 +47,6 @@ fn main() {
             .get_int_or("desiredCount", pulumi::PropertyValue::Number(2.0));
 
         // The default VPC and its subnets, looked up instead of created.
-        // Both args structs have only optional inputs, so they derive
-        // `Default` and the unset fields can be elided.
         let vpc = pulumi_aws::ec2::get_vpc(
             &ctx,
             pulumi_aws::ec2::GetVpcArgs {
@@ -64,8 +62,9 @@ fn main() {
             &ctx,
             pulumi_aws::ec2::GetSubnetsArgs {
                 filters: Some(vec![pulumi_aws::types::Ec2GetSubnetsFilterArgs {
-                    name: pulumi::pv::string("vpc-id").cast(),
-                    values: vpc.map(|v: pulumi_aws::types::Ec2GetVpcResult| vec![v.id]),
+                    name: Some(pulumi::pv::string("vpc-id").cast()),
+                    values: Some(vpc.map(|v: pulumi_aws::types::Ec2GetVpcResult| vec![v.id])),
+                    ..Default::default()
                 }]),
                 ..Default::default()
             },
@@ -75,9 +74,6 @@ fn main() {
         // Both the load balancer and the tasks sit in this group: the world
         // may reach port 80, and anything inside may talk out — which the
         // tasks need in order to pull the image from Docker Hub.
-        //
-        // `Ec2SecurityGroupIngressArgs` has required fields, so the
-        // generated struct has no `Default` and every field is listed.
         let security_group = pulumi_aws::ec2::SecurityGroup::new(
             &ctx,
             "web-secgrp",
@@ -86,26 +82,20 @@ fn main() {
                 vpc_id: Some(vpc.map(|v: pulumi_aws::types::Ec2GetVpcResult| v.id)),
                 ingress: Some(vec![pulumi_aws::types::Ec2SecurityGroupIngressArgs {
                     description: Some(pulumi::Output::known("HTTP from anywhere".to_string())),
-                    protocol: pulumi::Output::known("tcp".to_string()),
-                    from_port: pulumi::Output::known(CONTAINER_PORT),
-                    to_port: pulumi::Output::known(CONTAINER_PORT),
+                    protocol: Some(pulumi::Output::known("tcp".to_string())),
+                    from_port: Some(pulumi::Output::known(CONTAINER_PORT)),
+                    to_port: Some(pulumi::Output::known(CONTAINER_PORT)),
                     cidr_blocks: Some(pulumi::Output::known(vec!["0.0.0.0/0".to_string()])),
-                    ipv6cidr_blocks: None,
-                    prefix_list_ids: None,
-                    security_groups: None,
-                    self_: None,
+                    ..Default::default()
                 }]),
                 egress: Some(vec![pulumi_aws::types::Ec2SecurityGroupEgressArgs {
                     description: Some(pulumi::Output::known("Allow all outbound".to_string())),
                     // "-1" is every protocol, which requires a 0-0 port range.
-                    protocol: pulumi::Output::known("-1".to_string()),
-                    from_port: pulumi::Output::known(0),
-                    to_port: pulumi::Output::known(0),
+                    protocol: Some(pulumi::Output::known("-1".to_string())),
+                    from_port: Some(pulumi::Output::known(0)),
+                    to_port: Some(pulumi::Output::known(0)),
                     cidr_blocks: Some(pulumi::Output::known(vec!["0.0.0.0/0".to_string()])),
-                    ipv6cidr_blocks: None,
-                    prefix_list_ids: None,
-                    security_groups: None,
-                    self_: None,
+                    ..Default::default()
                 }]),
                 ..Default::default()
             },
@@ -121,29 +111,16 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        // The task execution role. `assume_role_policy` is required, so
-        // `RoleArgs` has no `Default` and every field is named.
+        // The task execution role.
         let execution_role = pulumi_aws::iam::Role::new(
             &ctx,
             "task-execution-role",
             pulumi_aws::iam::RoleArgs {
-                assume_role_policy: pulumi::pv::string(ASSUME_ROLE_POLICY).cast(),
+                assume_role_policy: Some(pulumi::pv::string(ASSUME_ROLE_POLICY).cast()),
                 description: Some(
                     pulumi::pv::string("Lets the ECS agent pull images and write logs").cast(),
                 ),
-
-                force_detach_policies: None,
-                // Attached below as its own resource rather than listed
-                // here: `managed_policy_arns` is exclusive, and setting it
-                // detaches anything attached out of band.
-                inline_policies: None,
-                managed_policy_arns: None,
-                max_session_duration: None,
-                name: None,
-                name_prefix: None,
-                path: None,
-                permissions_boundary: None,
-                tags: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -152,8 +129,9 @@ fn main() {
             &ctx,
             "task-execution-policy",
             pulumi_aws::iam::RolePolicyAttachmentArgs {
-                role: execution_role.name().cast(),
-                policy_arn: pulumi::pv::string(TASK_EXECUTION_POLICY_ARN).cast(),
+                role: Some(execution_role.name().cast()),
+                policy_arn: Some(pulumi::pv::string(TASK_EXECUTION_POLICY_ARN).cast()),
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -189,60 +167,20 @@ fn main() {
         );
 
         // The listener ties the two together: everything arriving on port 80
-        // is forwarded to the target group. `default_actions` and
-        // `load_balancer_arn` are required, so `ListenerArgs` has no
-        // `Default` — and neither does `ListenerDefaultActionArgs`, whose
-        // `type` is required and, being a Rust keyword, is spelled
-        // `r#type`.
+        // is forwarded to the target group.
         let listener = pulumi_aws::lb::Listener::new(
             &ctx,
             "web-listener",
             pulumi_aws::lb::ListenerArgs {
-                load_balancer_arn: load_balancer.arn().cast(),
-                default_actions: vec![pulumi_aws::types::LbListenerDefaultActionArgs {
-                    r#type: pulumi::pv::string("forward").cast(),
+                load_balancer_arn: Some(load_balancer.arn().cast()),
+                default_actions: Some(vec![pulumi_aws::types::LbListenerDefaultActionArgs {
+                    r#type: Some(pulumi::pv::string("forward").cast()),
                     target_group_arn: Some(target_group.arn().cast()),
-
-                    authenticate_cognito: None,
-                    authenticate_oidc: None,
-                    fixed_response: None,
-                    // The `forward` block is for weighted multi-target-group
-                    // forwarding; a single group goes in `target_group_arn`.
-                    forward: None,
-                    jwt_validation: None,
-                    order: None,
-                    redirect: None,
-                }],
+                    ..Default::default()
+                }]),
                 port: Some(pulumi::Output::known(CONTAINER_PORT)),
                 protocol: Some(pulumi::pv::string("HTTP").cast()),
-
-                alpn_policy: None,
-                certificate_arn: None,
-                mutual_authentication: None,
-                region: None,
-                routing_http_request_xamzn_mtls_clientcert_header_name: None,
-                routing_http_request_xamzn_mtls_clientcert_issuer_header_name: None,
-                routing_http_request_xamzn_mtls_clientcert_leaf_header_name: None,
-                routing_http_request_xamzn_mtls_clientcert_serial_number_header_name: None,
-                routing_http_request_xamzn_mtls_clientcert_subject_header_name: None,
-                routing_http_request_xamzn_mtls_clientcert_validity_header_name: None,
-                routing_http_request_xamzn_tls_cipher_suite_header_name: None,
-                routing_http_request_xamzn_tls_version_header_name: None,
-                routing_http_response_access_control_allow_credentials_header_value: None,
-                routing_http_response_access_control_allow_headers_header_value: None,
-                routing_http_response_access_control_allow_methods_header_value: None,
-                routing_http_response_access_control_allow_origin_header_value: None,
-                routing_http_response_access_control_expose_headers_header_value: None,
-                routing_http_response_access_control_max_age_header_value: None,
-                routing_http_response_content_security_policy_header_value: None,
-                routing_http_response_server_enabled: None,
-                routing_http_response_strict_transport_security_header_value: None,
-                routing_http_response_xcontent_type_options_header_value: None,
-                routing_http_response_xframe_options_header_value: None,
-                // Only meaningful for HTTPS listeners.
-                ssl_policy: None,
-                tags: None,
-                tcp_idle_timeout_seconds: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
@@ -273,50 +211,28 @@ fn main() {
             port = CONTAINER_PORT,
         );
 
-        // What to run. `container_definitions` and `family` are required, so
-        // `TaskDefinitionArgs` has no `Default` and every field is named.
-        //
-        // `cpu` and `memory` are strings, and Fargate only accepts certain
-        // pairs: 256 CPU units (a quarter vCPU) goes with 512, 1024 or 2048
-        // MiB.
+        // What to run. `cpu` and `memory` are strings, and Fargate only
+        // accepts certain pairs: 256 CPU units (a quarter vCPU) goes with 512,
+        // 1024 or 2048 MiB.
         let task_definition = pulumi_aws::ecs::TaskDefinition::new(
             &ctx,
             "app-task",
             pulumi_aws::ecs::TaskDefinitionArgs {
-                container_definitions: pulumi::pv::string(container_definitions).cast(),
-                family: pulumi::pv::string("aws-rs-fargate-nginx").cast(),
+                container_definitions: Some(pulumi::pv::string(container_definitions).cast()),
+                family: Some(pulumi::pv::string("aws-rs-fargate-nginx").cast()),
                 cpu: Some(pulumi::pv::string("256").cast()),
                 memory: Some(pulumi::pv::string("512").cast()),
                 // Fargate requires both of these.
                 network_mode: Some(pulumi::pv::string("awsvpc").cast()),
                 requires_compatibilities: Some(pulumi::Output::known(vec!["FARGATE".to_string()])),
                 execution_role_arn: Some(execution_role.arn().cast()),
-
-                enable_fault_injection: None,
-                ephemeral_storage: None,
-                ipc_mode: None,
-                pid_mode: None,
-                placement_constraints: None,
-                proxy_configuration: None,
-                region: None,
-                runtime_platform: None,
-                skip_destroy: None,
-                tags: None,
-                // The role the *container* assumes, for calls it makes to
-                // other AWS services. nginx makes none.
-                task_role_arn: None,
-                track_latest: None,
-                volumes: None,
+                ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
 
         // The service keeps `desired_count` copies of the task running and
-        // registers each one with the target group. Every input of
-        // `ServiceArgs` is optional in this provider version, so the struct
-        // derives `Default` and the unset fields can be elided — the nested
-        // `ServiceNetworkConfigurationArgs` and `ServiceLoadBalancerArgs`
-        // both have required fields, so those are written out in full.
+        // registers each one with the target group.
         pulumi_aws::ecs::Service::new(
             &ctx,
             "app-service",
@@ -327,24 +243,22 @@ fn main() {
                 launch_type: Some(pulumi::pv::string("FARGATE").cast()),
                 network_configuration: Some(
                     pulumi_aws::types::EcsServiceNetworkConfigurationArgs {
-                        subnets: subnets.map(|s: pulumi_aws::types::Ec2GetSubnetsResult| s.ids),
+                        subnets: Some(subnets.map(|s: pulumi_aws::types::Ec2GetSubnetsResult| s.ids)),
                         security_groups: Some(security_group.id().map(|id: String| vec![id])),
                         // The default VPC's subnets are public and have no
                         // NAT gateway, so without a public IP the task
                         // cannot reach Docker Hub to pull the image.
                         assign_public_ip: Some(pulumi::pv::bool(true).cast()),
+                        ..Default::default()
                     },
                 ),
                 load_balancers: Some(vec![pulumi_aws::types::EcsServiceLoadBalancerArgs {
                     // Which container in the task definition to register —
                     // matched by name, hence the shared constant.
-                    container_name: pulumi::pv::string(CONTAINER_NAME).cast(),
-                    container_port: pulumi::Output::known(CONTAINER_PORT),
+                    container_name: Some(pulumi::pv::string(CONTAINER_NAME).cast()),
+                    container_port: Some(pulumi::Output::known(CONTAINER_PORT)),
                     target_group_arn: Some(target_group.arn().cast()),
-
-                    advanced_configuration: None,
-                    // The Classic Load Balancer field; unused with an ALB.
-                    elb_name: None,
+                    ..Default::default()
                 }]),
                 ..Default::default()
             },

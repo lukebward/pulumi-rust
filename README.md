@@ -100,7 +100,8 @@ the generator emits
 fn main() {
     pulumi::run(|ctx| async move {
         let res = pulumi_simple::Resource::new(&ctx, "res", pulumi_simple::ResourceArgs {
-            value: pulumi::pv::bool(true).cast(),
+            value: Some(pulumi::pv::bool(true).cast()),
+            ..Default::default()
         }, pulumi::ResourceOptions::default());
         Ok(())
     });
@@ -109,7 +110,11 @@ fn main() {
 
 against a generated `pulumi_simple` crate whose `Resource::new` registers
 the resource with the engine and exposes typed `Output` accessors for its
-properties.
+properties. Every field of a generated args struct is an `Option` and every
+struct derives `Default`, so a program names the inputs it sets and elides
+the rest — the same bargain C#, Go, Java and Python make, since a Rust
+struct literal otherwise has to name all forty-four fields of something
+like Azure's `WebAppArgs` to set one.
 
 ## Design notes
 

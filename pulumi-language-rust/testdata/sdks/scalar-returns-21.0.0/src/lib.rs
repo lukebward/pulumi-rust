@@ -51,16 +51,15 @@ impl Provider {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct InvokeArrayArgs {
-    pub value: pulumi::Output<std::string::String>,
+    pub value: Option<pulumi::Output<std::string::String>>,
 }
 
 impl InvokeArrayArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.value;
+        if let Some(v) = self.value {
             inputs.push(("value".to_string(), v.cast()));
         }
         inputs
@@ -79,16 +78,15 @@ pub fn invoke_array(ctx: &pulumi::Context, args: InvokeArrayArgs, options: pulum
     pulumi::pv::single_value(ctx.invoke("scalar-returns:index:invokeArray", args.into_inputs(), options)).cast()
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct InvokeMapArgs {
-    pub value: pulumi::Output<std::string::String>,
+    pub value: Option<pulumi::Output<std::string::String>>,
 }
 
 impl InvokeMapArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.value;
+        if let Some(v) = self.value {
             inputs.push(("value".to_string(), v.cast()));
         }
         inputs
@@ -107,16 +105,15 @@ pub fn invoke_map(ctx: &pulumi::Context, args: InvokeMapArgs, options: pulumi::I
     pulumi::pv::single_value(ctx.invoke("scalar-returns:index:invokeMap", args.into_inputs(), options)).cast()
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct InvokeSecretArgs {
-    pub value: pulumi::Output<std::string::String>,
+    pub value: Option<pulumi::Output<std::string::String>>,
 }
 
 impl InvokeSecretArgs {
     pub fn into_inputs(self) -> std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> {
         let mut inputs: std::vec::Vec<(std::string::String, pulumi::Output<pulumi::PropertyValue>)> = std::vec::Vec::new();
-        {
-            let v = self.value;
+        if let Some(v) = self.value {
             inputs.push(("value".to_string(), v.cast()));
         }
         inputs

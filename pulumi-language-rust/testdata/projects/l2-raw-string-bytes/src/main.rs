@@ -3,8 +3,8 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        let source = pulumi_bytesource::Resource::new(&ctx, "source", pulumi_bytesource::ResourceArgs { base64: pulumi::ops::to_string(pulumi::pv::string("AGhlbGxvIID+/yB3b3JsZPAo")).cast() }, pulumi::ResourceOptions::default());
-        let sink = pulumi_bytesink::Resource::new(&ctx, "sink", pulumi_bytesink::ResourceArgs { bytes: pulumi::ops::to_string(source.bytes().cast::<pulumi::PropertyValue>()).cast(), expect_base64: pulumi::ops::to_string(source.base64().cast::<pulumi::PropertyValue>()).cast() }, pulumi::ResourceOptions::default());
+        let source = pulumi_bytesource::Resource::new(&ctx, "source", pulumi_bytesource::ResourceArgs { base64: Some(pulumi::ops::to_string(pulumi::pv::string("AGhlbGxvIID+/yB3b3JsZPAo")).cast()) }, pulumi::ResourceOptions::default());
+        let sink = pulumi_bytesink::Resource::new(&ctx, "sink", pulumi_bytesink::ResourceArgs { bytes: Some(pulumi::ops::to_string(source.bytes().cast::<pulumi::PropertyValue>()).cast()), expect_base64: Some(pulumi::ops::to_string(source.base64().cast::<pulumi::PropertyValue>()).cast()) }, pulumi::ResourceOptions::default());
         Ok(())
     });
 }

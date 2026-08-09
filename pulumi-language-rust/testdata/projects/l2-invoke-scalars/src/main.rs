@@ -3,10 +3,10 @@
 
 fn main() {
     pulumi::run(|ctx| async move {
-        ctx.export("secret", pulumi_scalar_returns::invoke_secret(&ctx, pulumi_scalar_returns::InvokeSecretArgs { value: pulumi::pv::string("goodbye").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
-        ctx.export("array", pulumi_scalar_returns::invoke_array(&ctx, pulumi_scalar_returns::InvokeArrayArgs { value: pulumi::pv::string("the word").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
-        ctx.export("map", pulumi_scalar_returns::invoke_map(&ctx, pulumi_scalar_returns::InvokeMapArgs { value: pulumi::pv::string("hello").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
-        ctx.export("secretMap", pulumi_scalar_returns::invoke_map(&ctx, pulumi_scalar_returns::InvokeMapArgs { value: pulumi::pv::string("secret").cast() }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
+        ctx.export("secret", pulumi_scalar_returns::invoke_secret(&ctx, pulumi_scalar_returns::InvokeSecretArgs { value: Some(pulumi::pv::string("goodbye").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
+        ctx.export("array", pulumi_scalar_returns::invoke_array(&ctx, pulumi_scalar_returns::InvokeArrayArgs { value: Some(pulumi::pv::string("the word").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
+        ctx.export("map", pulumi_scalar_returns::invoke_map(&ctx, pulumi_scalar_returns::InvokeMapArgs { value: Some(pulumi::pv::string("hello").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
+        ctx.export("secretMap", pulumi_scalar_returns::invoke_map(&ctx, pulumi_scalar_returns::InvokeMapArgs { value: Some(pulumi::pv::string("secret").cast()) }, pulumi::InvokeOptions::default()).cast::<pulumi::PropertyValue>());
         Ok(())
     });
 }
