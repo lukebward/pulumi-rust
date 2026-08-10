@@ -81,7 +81,11 @@ fn main() {
                 // `<file>.<exported member>` — `app/index.js` exports
                 // `handler`.
                 handler: Some(pulumi::pv::string("index.handler").cast()),
-                runtime: Some(pulumi::pv::string("nodejs20.x").cast()),
+                // Runtimes expire. AWS blocked `CreateFunction` on
+                // `nodejs20.x` on 1 June 2026 and blocked updates a month
+                // later, so a program pinning it simply stopped deploying —
+                // and neither the schema nor the compiler says a word.
+                runtime: Some(pulumi::pv::string("nodejs22.x").cast()),
                 memory_size: Some(pulumi::pv::number(128.0).cast()),
                 timeout: Some(pulumi::pv::number(10.0).cast()),
                 description: Some(

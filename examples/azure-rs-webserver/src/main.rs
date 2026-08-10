@@ -128,16 +128,24 @@ fn main() {
                 .and_then(|s| s.id)
         });
 
-        // A dynamically allocated address: Azure does not pick the actual IP
-        // until the VM it is attached to boots, which is why the export at
-        // the bottom of this program looks the address up after the fact
-        // rather than reading `public_ip.ip_address()`.
+        // Standard SKU, statically allocated. Not a preference: leaving
+        // `sku` unset asks for Basic, and Azure stopped allowing new Basic
+        // public IPs on 31 March 2025 and retired the SKU on 30 September
+        // 2025. Standard supports only `Static` allocation, so the two go
+        // together.
+        //
+        // Standard is also deny-by-default for inbound traffic, which makes
+        // the security group below load-bearing rather than belt-and-braces.
         let public_ip = network::PublicIPAddress::new(
             &ctx,
             "server-ip",
             network::PublicIPAddressArgs {
                 resource_group_name: Some(resource_group.name()),
-                public_ip_allocation_method: Some(pulumi::pv::string("Dynamic").cast()),
+                sku: Some(types::NetworkPublicIPAddressSkuArgs {
+                    name: Some(pulumi::pv::string("Standard")),
+                    ..Default::default()
+                }),
+                public_ip_allocation_method: Some(pulumi::pv::string("Static").cast()),
                 ..Default::default()
             },
             pulumi::ResourceOptions::default(),
@@ -257,30 +265,15 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        // A Dynamic public IP has no address until something is attached to
-        // it and running, so `public_ip.ip_address()` is still empty when
-        // the address resource itself finishes creating. Reading it back
-        // with the `getPublicIPAddress` invoke, sequenced after the VM with
-        // `depends_on`, is what the TypeScript and Python versions do with
-        // `vm.id.apply(...)`. The invoke reports `unknown` during a preview.
-        let looked_up = network::get_public_ip_address(
-            &ctx,
-            network::GetPublicIPAddressArgs {
-                resource_group_name: Some(resource_group.name()),
-                public_ip_address_name: Some(public_ip.name()),
-                ..Default::default()
-            },
-            pulumi::InvokeOptions {
-                depends_on: vec![vm.pulumi_resource().clone()],
-                ..Default::default()
-            },
-        );
-
+        // A statically allocated address is assigned when the address
+        // resource is created, so this reads straight off the resource. It
+        // used to go through the `getPublicIPAddress` invoke, sequenced
+        // after the VM with `depends_on`, because a *Dynamic* address has no
+        // value until something is attached to it and running — that
+        // indirection went away with the SKU.
         ctx.export(
             "publicIp",
-            looked_up
-                .map(|ip| ip.ip_address)
-                .cast::<pulumi::PropertyValue>(),
+            public_ip.ip_address().cast::<pulumi::PropertyValue>(),
         );
         ctx.export("vmName", vm.name().cast::<pulumi::PropertyValue>());
 

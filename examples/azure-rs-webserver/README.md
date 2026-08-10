@@ -3,7 +3,7 @@
 # Web Server Using an Azure Virtual Machine
 
 Starts a tiny HTTP server on a single Azure Linux VM. The program creates a
-resource group, a virtual network with one subnet, a dynamically allocated
+resource group, a virtual network with one subnet, a Standard-SKU static
 public IP, a network security group that opens ports 80 and 22, and a network
 interface binding those three to an Ubuntu 22.04 VM. The VM's `os_profile`
 takes an administrator username and password from stack configuration and
@@ -143,75 +143,40 @@ values are indicated with `***`.
     $ pulumi stack rm dev
     ```
 
-## The Dynamic public IP, and why `publicIp` is looked up
+## The public IP is Standard and Static, and why that matters
 
-`server-ip` is created with `publicIPAllocationMethod = "Dynamic"`, which is
-Azure's cheapest option and what the TypeScript and Python versions of this
-example use. A Dynamic address is not chosen when the `PublicIPAddress`
-resource is created — Azure only binds one once a running VM claims it
-through a NIC. Reading `public_ip.ip_address()` right after creating the
-address therefore yields nothing, which is why the classic version of this
-example calls `vm.id.apply(...)` and looks the address up again afterwards.
-
-The Rust program does the same thing with an invoke sequenced behind the VM:
+`server-ip` sets `sku.name = "Standard"` and
+`publicIPAllocationMethod = "Static"`. Neither is a preference:
 
 ```rust
-let looked_up = network::get_public_ip_address(
-    &ctx,
-    network::GetPublicIPAddressArgs {
-        resource_group_name: resource_group.name(),
-        public_ip_address_name: public_ip.name(),
-        expand: None,
-    },
-    pulumi::InvokeOptions {
-        depends_on: vec![vm.pulumi_resource().clone()],
-        ..Default::default()
-    },
-);
-```
-
-`InvokeOptions::depends_on` makes the SDK wait for the VM's registration to
-complete before calling `azure-native:network:getPublicIPAddress`, so the
-value read back is the address Azure assigned. During a `pulumi preview` the
-invoke reports `unknown`, and `publicIp` shows as `output<string>`.
-
-If `publicIp` still comes back empty on a first `pulumi up` — the VM can
-finish provisioning a moment before the address is attached — you have two
-ways to get it:
-
-```bash
-# Re-run the program; the invoke runs again and picks up the address.
-$ pulumi up
-
-# Or ask Azure directly, without touching the stack. Pulumi auto-names the
-# address `server-ip` plus a random suffix, so match on the prefix.
-$ az network public-ip list \
-    --query "[?starts_with(name, 'server-ip')].ipAddress" -o tsv
-***
-```
-
-The durable fix is a Static address: set `public_ip_allocation_method` to
-`"Static"` in `src/main.rs` and the address is allocated up front, so
-`public_ip.ip_address()` is populated as soon as the resource exists and the
-invoke becomes unnecessary.
-
-That is also where Azure is heading. Dynamic allocation only exists on
-Basic-SKU public IP addresses, and Microsoft has published a retirement for
-the Basic SKU; Standard-SKU addresses are static-only. If `pulumi up` fails
-on `server-ip` complaining about the SKU or the allocation method, your
-subscription or region has moved on, and the fix is:
-
-```rust
-public_ip_allocation_method: Some(pulumi::pv::string("Static").cast()),
 sku: Some(types::NetworkPublicIPAddressSkuArgs {
-    name: Some(pulumi::pv::string("Standard").cast()),
+    name: Some(pulumi::pv::string("Standard")),
     ..Default::default()
 }),
+public_ip_allocation_method: Some(pulumi::pv::string("Static").cast()),
 ```
 
-A Standard-SKU address denies all inbound traffic unless a security group
-allows it — which is exactly what `server-nsg` already does — so nothing else
-in the program has to change.
+Leaving `sku` unset asks for the **Basic** SKU. Azure stopped allowing new
+Basic public IP addresses on **31 March 2025** and retired the SKU on
+**30 September 2025**, so the older shape of this example — no `sku`, and
+`"Dynamic"` allocation, which only Basic supports — cannot be deployed at
+all any more. It fails on `server-ip`, before the VM is ever reached.
+
+Two consequences worth knowing:
+
+- **Standard is deny-by-default for inbound traffic.** `server-nsg` is not
+  belt-and-braces; without it the VM is unreachable on 80 and 22 even though
+  it has a public address.
+- **A Static address is assigned when the address resource is created**,
+  not when a VM attaches to it, so `publicIp` is exported by reading
+  `public_ip.ip_address()` directly.
+
+That second point used to be the interesting part of this example. A
+*Dynamic* address has no value until a running VM claims it through a NIC,
+so the TypeScript and Python versions call `vm.id.apply(...)` and look the
+address up afterwards, and this program did the same with an invoke
+sequenced behind the VM by `InvokeOptions::depends_on`. Static allocation
+removes the problem, and the indirection went with it.
 
 ## Notes on the generated API
 
@@ -248,7 +213,7 @@ Three things about this provider are worth knowing before reading
   written once rather than twice.
 - **Enum-valued inputs arrive as dynamic values.** azure-native declares them
   as a union of `string` and the enum type, which the generator renders as
-  `Output<PropertyValue>` — hence `pulumi::pv::string("Dynamic").cast()` for
+  `Output<PropertyValue>` — hence `pulumi::pv::string("Static").cast()` for
   `public_ip_allocation_method`, `"FromImage"` for `create_option`, and so on.
   Everything else in the program is strongly typed: the VM's four nested
   profiles are generated args structs, so this example never needs
