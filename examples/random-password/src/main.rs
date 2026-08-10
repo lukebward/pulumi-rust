@@ -3,7 +3,15 @@
 //! Generate the SDK the program depends on, then run it:
 //!
 //! ```sh
+//! rm -rf ./sdks
 //! pulumi package gen-sdk random@4.18.4 --language rust --out ./sdks/random
+//!
+//! # The generated crate declares `pulumi = "0.1"`, which is not published,
+//! # so repoint it at this repository — otherwise cargo cannot resolve the
+//! # dependency and nothing builds:
+//! #     in ./sdks/random/rust/Cargo.toml
+//! #     pulumi = { path = "../../../../../sdk/rust/pulumi" }
+//!
 //! pulumi up
 //! ```
 

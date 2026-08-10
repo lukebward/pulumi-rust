@@ -31,11 +31,20 @@ const IMAGE: &str = "ubuntu-24-04-x64";
 /// Cloud-init script: install nginx and serve a page naming this Droplet, so
 /// repeated requests through the Load Balancer visibly land on different
 /// backends.
+///
+/// `DPkg::Lock::Timeout` is not decoration. Ubuntu runs `apt-daily` and
+/// `unattended-upgrades` at boot, so a cloud-init script reaching for apt in
+/// the first minute is racing them for the dpkg lock. Losing that race under
+/// `set -e` aborts the script — and the failure is invisible from Pulumi's
+/// side, because the Droplet resource itself created successfully. `pulumi
+/// up` reports success, and the Load Balancer just never sees a healthy
+/// backend. Waiting for the lock is the difference between an example that
+/// works and one that fails silently.
 const USER_DATA: &str = r#"#!/bin/bash
 set -eux
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y nginx
+apt-get -o DPkg::Lock::Timeout=600 update
+apt-get -o DPkg::Lock::Timeout=600 install -y nginx
 echo "Hello from $(hostname)" > /var/www/html/index.html
 systemctl enable --now nginx
 "#;

@@ -193,7 +193,10 @@ the service.
 knows the URL, which is what makes the `curl` step above work without
 credentials. Organizations with the `iam.allowedPolicyMemberDomains`
 constraint in force reject that binding, and `pulumi up` fails with a policy
-violation on the `invoker` resource. Where that applies, drop the `IamMember`
+violation on the `invoker` resource. That constraint is applied by default to
+organizations created on or after 3 May 2024, so this is the common case for
+a recently created account rather than an unusual one. Where it applies, drop
+the `IamMember`
 and call the service with an identity token instead:
 
 ```bash

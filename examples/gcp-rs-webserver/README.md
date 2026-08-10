@@ -224,3 +224,20 @@ constraint against open ingress reject the rule and `pulumi up` fails on the
 `webserver-firewall` resource. Where that applies, narrow `source_ranges` to
 your own address, or drop port 22 from `ports` and reach the VM with
 `gcloud compute ssh`, which tunnels through IAP.
+
+A second constraint bites before that one. The instance asks for an
+ephemeral external IP — that is what the empty `access_configs` entry means —
+and `constraints/compute.vmExternalIpAccess` denies external IPs to any VM
+not on its allow-list. It is applied by default to organizations created on
+or after 3 May 2024, so on a recent account this fails on the instance
+itself, not on the firewall:
+
+```
+Constraint constraints/compute.vmExternalIpAccess violated for project ***.
+Add instance projects/***/zones/***/instances/webserver to the constraint to
+use external IP with it.
+```
+
+There is no provider-side input that overrides an organization policy. Either
+allow-list the instance, or drop `access_configs` and reach the VM over IAP,
+which needs no external address at all.

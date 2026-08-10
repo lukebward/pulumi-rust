@@ -11,6 +11,10 @@ pulumi = { path = "../../sdk/rust/pulumi" }
 # earlier run leaves this path unresolved.
 #   rm -rf ./sdks
 #   pulumi package gen-sdk random@4.18.4 --language rust --out ./sdks/random
+# Then repoint the generated crate's own `pulumi` dependency, which is
+# declared as `pulumi = "0.1"` and is not published:
+#   in ./sdks/random/rust/Cargo.toml
+#   pulumi = { path = "../../../../../sdk/rust/pulumi" }
 pulumi_random = { path = "./sdks/random/rust" }
 
 # Keep the generated SDK out of this workspace: each generated crate

@@ -223,3 +223,27 @@ The kubeconfig does not embed a token. It names `gke-gcloud-auth-plugin` as
 its credential provider, which mints one on demand from whatever gcloud
 credentials the caller already has — which is what lets the same exported
 kubeconfig work on more than one machine.
+
+## A note on the network the cluster lands in
+
+The program names neither `network` nor `subnetwork` on the cluster, so GKE
+places it in the project's `default` VPC. That is the shorter example, and on
+a project that has a `default` network it is also the one that works.
+
+Google stopped creating that network for you on organizations formed on or
+after 3 May 2024: `constraints/compute.skipDefaultNetworkCreation` is applied
+by default, and a project made under it has no `default` VPC at all. The
+cluster then fails on creation rather than falling back:
+
+```
+googleapi: Error 404: The resource 'projects/***/global/networks/default'
+was not found
+```
+
+There is no provider-side input that overrides an organization policy. The
+fix is to stop relying on the implicit network — declare a
+`gcp:compute:Network` with `auto_create_subnetworks = false`, a
+`gcp:compute:Subnetwork` with a primary range and the secondary ranges the
+cluster's pods and services need, and name both on the `Cluster`. That is a
+worthwhile exercise and a considerably longer program; it is deliberately not
+what this example shows.

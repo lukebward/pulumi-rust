@@ -141,6 +141,20 @@ fn main() {
                 // Nothing in the frontend's inputs refers to the backend, so
                 // without this the engine is free to start them in parallel.
                 depends_on: vec![backend.pulumi_resource().clone()],
+                // This container publishes a fixed host port, and changing
+                // the image replaces the container rather than updating it
+                // in place. Pulumi's default is to create the replacement
+                // before deleting the original, which here means the new
+                // container tries to bind a port the old one still holds:
+                //
+                //   Error starting userland proxy: listen tcp4 0.0.0.0:3000:
+                //   bind: address already in use
+                //
+                // The first `pulumi up` is fine. The second one, after the
+                // image changes, is what fails. Deleting first costs a few
+                // seconds of downtime and is the only order that can work
+                // while the host port is pinned.
+                delete_before_replace: Some(true),
                 ..Default::default()
             },
         );

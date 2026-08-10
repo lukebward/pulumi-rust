@@ -143,10 +143,27 @@ AWS account and failed: it set `acl = "public-read"` on every object, and
 AWS changed the default Object Ownership for new buckets to
 `BucketOwnerEnforced` in April 2023, which disables ACLs outright. The
 program compiled, the engine and the SDK did exactly what it asked, and
-every `PutObject` was rejected with `AccessControlListNotSupported`. It now
-uses a bucket policy instead. The lesson generalises: a compiler cannot see
-a cloud default that changed under a program, so treat every example's Notes
-section as a claim to check rather than a guarantee.
+every `PutObject` was rejected with `AccessControlListNotSupported`.
+
+That one deployment prompted an audit of all 22, which found the same shape
+in five more places — each one a program that still compiles against a
+provider that still offers the property, aimed at something the cloud has
+since withdrawn:
+
+| Example | What expired | When |
+|---|---|---|
+| `aws-rs-s3-folder` | object ACLs, via `BucketOwnerEnforced` | Apr 2023 |
+| `azure-rs-webserver` | Basic-SKU public IPs | uncreatable Mar 2025, retired Sep 2025 |
+| `aws-rs-lambda-apigateway` | the `nodejs20.x` Lambda runtime | create blocked Jun 2026 |
+| `gcp-rs-functions` | 1st gen Cloud Functions in a new project | — |
+| `gcp-rs-gke`, `gcp-rs-webserver`, `gcp-rs-cloudrun` | the `default` VPC, external IPs, `allUsers` bindings — all withdrawn by the organization policies applied by default to organizations created on or after 3 May 2024 | May 2024 |
+| `kubernetes-rs-guestbook` | nothing expired; the images were only ever built for amd64 | — |
+
+All are fixed or documented. The pattern worth taking away is that the
+compiler, the provider schema, and the conformance suite all agree a program
+is fine right up until the moment a cloud provider retires something, and
+none of the three will ever tell you. Treat each example's Notes section as
+a claim to re-check, not a guarantee — including after the dates above.
 
 CI does not run any of this, because it needs `pulumi package gen-sdk` and a
 network. The whole-schema half is scripted —

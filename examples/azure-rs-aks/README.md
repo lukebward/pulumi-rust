@@ -168,6 +168,21 @@ values are indicated with `***`.
 
 ## Notes
 
+- **`nodeVmSize` is fixed once the cluster exists; `nodeCount` is not.**
+  Azure treats `agentPoolProfiles[].vmSize` as immutable, so setting it
+  before the first `pulumi up` works and changing it afterwards does not:
+  the VM size of an existing pool cannot be edited in place, and nothing in
+  the schema marks the property as forcing a replacement, so the engine
+  plans an update that the service then refuses. To change it after the
+  fact, either replace the cluster explicitly —
+
+  ```bash
+  $ pulumi up --target-replace 'urn:pulumi:dev::azure-rs-aks::azure-native:containerservice:ManagedCluster::cluster'
+  ```
+
+  — or add a second agent pool at the new size and drain the old one, which
+  is what you would do to a cluster you cared about. `nodeCount` has no such
+  restriction: changing it scales the pool in place.
 - **The kubeconfig is marked secret in the program, not by the provider.**
   Nothing in the azure-native schema flags
   `listManagedClusterUserCredentials`' result as sensitive, so
