@@ -70,11 +70,12 @@ pulumi config set aws:region us-west-2
 pulumi up
 ```
 
-`gen-sdk` writes into whatever is already at `--out` rather than replacing
-it, so start from a clean `./sdks`. An `./sdks` left over from an earlier
-layout leaves `pulumi_aws = { path = "./sdks/aws/rust" }` pointing at
-nothing, and cargo reports the dependency as unresolved rather than as a
-stale directory.
+`gen-sdk` empties and recreates `<out>/<language>` — here `./sdks/aws/rust` —
+but touches nothing else under `--out`. So a directory left behind by a
+*different* `--out` layout survives, and if that is where `Cargo.toml` points,
+`pulumi_aws = { path = "./sdks/aws/rust" }` resolves to nothing. Cargo reports
+an unresolved dependency rather than a stale directory, which is not a useful
+hint. Starting from `rm -rf ./sdks` costs one regeneration and rules it out.
 
 The generated crate's own `Cargo.toml` declares `pulumi = "0.1"`, which is
 not published — repoint it at your checkout before building:
