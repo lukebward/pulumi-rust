@@ -118,6 +118,24 @@ fn deploy_tier(ctx: &pulumi::Context, tier: &Tier) -> core_v1::Service {
     // readable.
     let pod_spec = types::CoreV1PodSpecArgs {
         containers: Some(vec![container]),
+        // Two of the three images are published as single-architecture
+        // amd64 manifests — `gb-frontend:v5` and `gb-redis-follower:v2` are
+        // `manifest.v2+json` carrying `"architecture": "amd64"` rather than
+        // manifest lists — and no arm64 build of either exists. On a
+        // mixed-architecture cluster, saying so is the difference between
+        // the pods landing somewhere they can run and an `ImagePullBackOff`
+        // whose message ("no match for platform in manifest") points at the
+        // registry rather than at the scheduler.
+        //
+        // All three tiers carry it, not just the two that need it, so the
+        // guestbook runs as one unit rather than split across
+        // architectures. On an arm64-only cluster the pods stay Pending
+        // with a node-selector message, which is at least a true
+        // description of the problem.
+        node_selector: Some(pulumi::Output::known(BTreeMap::from([(
+            "kubernetes.io/arch".to_string(),
+            "amd64".to_string(),
+        )]))),
         ..Default::default()
     };
 

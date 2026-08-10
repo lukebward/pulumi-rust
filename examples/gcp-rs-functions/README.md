@@ -3,14 +3,14 @@
 # Deploy a Google Cloud Function
 
 An HTTP-triggered [Google Cloud Function](https://cloud.google.com/functions)
-running JavaScript on the `nodejs20` runtime. The program stages the contents
+running JavaScript on the `nodejs22` runtime. The program stages the contents
 of the local `function/` directory into a Cloud Storage bucket as a zip —
 built with `pulumi::pv::file_archive` over the directory — and points a
-first-generation `gcp:cloudfunctions:Function` at that object, with `handler`
-as its entry point. A `gcp:cloudfunctions:FunctionIamMember` grants
-`roles/cloudfunctions.invoker` to `allUsers` so the URL can be called without
-credentials, and the function's `https_trigger_url` comes back as a stack
-output.
+second-generation `gcp:cloudfunctionsv2:Function` at that object, with
+`handler` as its entry point. A gen2 function is a Cloud Run service
+underneath, so a `gcp:cloudrun:IamMember` grants `roles/run.invoker` to
+`allUsers` to make the URL callable without credentials, and the URL comes
+back as a stack output.
 
 ## Prerequisites
 
@@ -33,6 +33,7 @@ output.
    ```bash
    $ gcloud services enable \
        cloudfunctions.googleapis.com \
+       run.googleapis.com \
        cloudbuild.googleapis.com \
        artifactregistry.googleapis.com \
        storage.googleapis.com
@@ -94,12 +95,12 @@ values are indicated with `***`.
      +   pulumi:pulumi:Stack                     gcp-rs-functions-functions-dev  created
      +   ├─ gcp:storage:Bucket                   function-source            created
      +   ├─ gcp:storage:BucketObject             function-source            created
-     +   ├─ gcp:cloudfunctions:Function          greeting                   created
-     +   └─ gcp:cloudfunctions:FunctionIamMember invoker                    created
+     +   ├─ gcp:cloudfunctionsv2:Function        greeting                   created
+     +   └─ gcp:cloudrun:IamMember               invoker                    created
 
     Outputs:
         function_name: "greeting-***"
-        function_url:  "https://us-central1-***.cloudfunctions.net/greeting-***"
+        function_url:  "https://greeting-***-uc.a.run.app"
 
     Resources:
         + 5 created
@@ -114,7 +115,7 @@ values are indicated with `***`.
     Current stack outputs (2):
         OUTPUT         VALUE
         function_name  greeting-***
-        function_url   https://us-central1-***.cloudfunctions.net/greeting-***
+        function_url   https://greeting-***-uc.a.run.app
     ```
 
 1.  Call the function. The IAM binding means no credentials are needed:
@@ -133,7 +134,7 @@ values are indicated with `***`.
     $ gcloud functions describe $(pulumi stack output functionName) \
         --region $(pulumi config get gcp:region) \
         --format 'value(runtime, entryPoint, status)'
-    nodejs20  handler  ACTIVE
+    nodejs22  handler  ACTIVE
     ```
 
 1.  Edit the greeting in `function/index.js` and run `pulumi up` again. The
@@ -143,7 +144,7 @@ values are indicated with `***`.
     ```bash
     $ pulumi up
         ~ gcp:storage:BucketObject     function-source  replaced
-        ~ gcp:cloudfunctions:Function  greeting         updated
+        ~ gcp:cloudfunctionsv2:Function  greeting       updated
 
     $ curl -sS $(pulumi stack output functionUrl)
     Howdy, world! ...
@@ -186,12 +187,23 @@ tree, or one with a `node_modules` directory, wants a recursive walk in
 
 ## A note on public access
 
-`allUsers` on `roles/cloudfunctions.invoker` makes the endpoint reachable by
-anyone who knows the URL, which is what makes the `curl` step above work
-without credentials. Organizations with the `iam.allowedPolicyMemberDomains`
-constraint in force reject that binding, and `pulumi up` fails with a policy
-violation on the `invoker` resource. Where that applies, drop the
-`FunctionIamMember` and call the function with an identity token instead:
+`allUsers` on `roles/run.invoker` makes the endpoint reachable by anyone who
+knows the URL, which is what makes the `curl` step above work without
+credentials.
+
+The role is the one thing about this that is easy to get wrong. A gen2
+function *is* a Cloud Run service, and Cloud Run is what admits or refuses an
+anonymous caller, so the binding has to be `roles/run.invoker` on the
+service. Granting `roles/cloudfunctions.invoker` on the function instead —
+which is what the gen1 shape of this example did, and what the gen1 docs
+still say — leaves the URL answering `403 Forbidden` with no indication that
+the binding was the wrong one.
+
+Organizations with the `iam.allowedPolicyMemberDomains` constraint in force
+reject an `allUsers` binding outright, and `pulumi up` fails with a policy
+violation on the `invoker` resource. That constraint is on by default for
+organizations created on or after 3 May 2024. Where it applies, drop the
+`IamMember` and call the function with an identity token instead:
 
 ```bash
 $ curl -sS -H "Authorization: Bearer $(gcloud auth print-identity-token)" \

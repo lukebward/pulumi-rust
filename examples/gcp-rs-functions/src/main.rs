@@ -1,7 +1,7 @@
 //! Deploy an HTTP-triggered Google Cloud Function.
 //!
 //! The JavaScript in `function/` is zipped up into a GCS bucket and a
-//! first-generation Cloud Function is pointed at the resulting object, then
+//! second-generation Cloud Function is pointed at the resulting object, then
 //! opened to the world with an IAM binding. The function's URL comes back as
 //! a stack output.
 //!
@@ -21,6 +21,10 @@ const FUNCTION_DIR: &str = "function";
 /// Where the bucket lives. `US` is a multi-region; a Cloud Function can read
 /// its source from any bucket location.
 const BUCKET_LOCATION: &str = "US";
+
+/// Where the function runs. A gen2 function names its region on the resource
+/// rather than inheriting `gcp:region` from provider configuration.
+const FUNCTION_LOCATION: &str = "us-central1";
 
 fn main() {
     pulumi::run(|ctx| async move {
@@ -85,49 +89,87 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        // The function. `project` and `region` are left unset and come from
-        // the provider's `gcp:project` / `gcp:region` configuration.
-        let greeting = pulumi_gcp::cloudfunctions::Function::new(
+        // The function, second generation. Not a preference: Google no
+        // longer permits 1st gen functions to be created in a project that
+        // did not already have them, so `cloudfunctions::Function` — the
+        // resource this example used to build — fails outright in the new
+        // project someone following this README just made.
+        //
+        // The gen2 shape is different rather than merely renamed. Build
+        // inputs and runtime inputs are separate nested structs, the source
+        // is a `storage_source` naming bucket and object instead of two flat
+        // properties, memory is a quantity string rather than a count of
+        // megabytes, and `location` is explicit. `project` still comes from
+        // the provider's `gcp:project` configuration.
+        let greeting = pulumi_gcp::cloudfunctionsv2::Function::new(
             &ctx,
             "greeting",
-            pulumi_gcp::cloudfunctions::FunctionArgs {
-                runtime: Some(pulumi::pv::string("nodejs20").cast()),
-                // The name of the exported member in `function/index.js`.
-                entry_point: Some(pulumi::pv::string("handler").cast()),
-                trigger_http: Some(pulumi::pv::bool(true).cast()),
-                source_archive_bucket: Some(source_bucket.name().cast()),
-                source_archive_object: Some(source_object.name().cast()),
-                available_memory_mb: Some(pulumi::pv::number(256.0).cast()),
+            pulumi_gcp::cloudfunctionsv2::FunctionArgs {
+                location: Some(pulumi::pv::string(FUNCTION_LOCATION).cast()),
                 description: Some(
                     pulumi::pv::string("An HTTP function deployed from Rust.").cast(),
                 ),
+                build_config: Some(pulumi_gcp::types::Cloudfunctionsv2FunctionBuildConfigArgs {
+                    runtime: Some(pulumi::pv::string("nodejs22").cast()),
+                    // The name of the exported member in `function/index.js`.
+                    entry_point: Some(pulumi::pv::string("handler").cast()),
+                    source: Some(
+                        pulumi_gcp::types::Cloudfunctionsv2FunctionBuildConfigSourceArgs {
+                            storage_source: Some(
+                                pulumi_gcp::types::Cloudfunctionsv2FunctionBuildConfigSourceStorageSourceArgs {
+                                    bucket: Some(source_bucket.name().cast()),
+                                    object: Some(source_object.name().cast()),
+                                    ..Default::default()
+                                },
+                            ),
+                            ..Default::default()
+                        },
+                    ),
+                    ..Default::default()
+                }),
+                service_config: Some(pulumi_gcp::types::Cloudfunctionsv2FunctionServiceConfigArgs {
+                    available_memory: Some(pulumi::pv::string("256M").cast()),
+                    max_instance_count: Some(pulumi::pv::number(3.0).cast()),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
 
-        // A freshly created function rejects unauthenticated callers, so
-        // grant the invoker role to everyone. Reading `project` and `region`
-        // back off the function rather than restating them keeps the binding
-        // attached to wherever the function actually landed.
-        pulumi_gcp::cloudfunctions::FunctionIamMember::new(
+        // A gen2 function is a Cloud Run service wearing a hat, and it is
+        // Cloud Run that decides whether an anonymous caller gets in — so
+        // the binding that opens it to the world is `roles/run.invoker` on
+        // that service, not `roles/cloudfunctions.invoker` on the function.
+        // Granting only the latter, as the gen1 version of this example did,
+        // leaves the URL answering 403.
+        //
+        // The service carries the function's own name, and reading
+        // `location` and `project` back off the function rather than
+        // restating them keeps the binding attached to wherever it landed.
+        pulumi_gcp::cloudrun::IamMember::new(
             &ctx,
             "invoker",
-            pulumi_gcp::cloudfunctions::FunctionIamMemberArgs {
-                cloud_function: Some(greeting.name().cast()),
-                role: Some(pulumi::pv::string("roles/cloudfunctions.invoker").cast()),
-                member: Some(pulumi::pv::string("allUsers").cast()),
+            pulumi_gcp::cloudrun::IamMemberArgs {
+                service: Some(greeting.name().cast()),
+                location: Some(greeting.location().cast()),
                 project: Some(greeting.project().cast()),
-                region: Some(greeting.region().cast()),
+                role: Some(pulumi::pv::string("roles/run.invoker").cast()),
+                member: Some(pulumi::pv::string("allUsers").cast()),
                 ..Default::default()
             },
             pulumi::ResourceOptions::default(),
         );
 
         ctx.export("functionName", greeting.name().cast::<pulumi::PropertyValue>());
+        // gen2 has no flat `https_trigger_url`: the URL is the Cloud Run
+        // service's, reported under `service_config`.
         ctx.export(
             "functionUrl",
-            greeting.https_trigger_url().cast::<pulumi::PropertyValue>(),
+            greeting
+                .service_config()
+                .map(|c| c.and_then(|c| c.uri))
+                .cast::<pulumi::PropertyValue>(),
         );
 
         Ok(())
