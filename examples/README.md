@@ -87,29 +87,36 @@ though one that renames or removes an input still will.
 
 ## What is and isn't verified
 
-None of the cloud examples is deployed by CI, and none is built as part of
-this repository — building one requires a provider SDK you generate
-locally. They are written against the SDK shapes this repository's own
-generator produces, and were checked at three different strengths:
+**Every example in this directory compiles.** Each one was `cargo check`ed
+against a `pulumi_<provider>` crate produced by this repository's own
+generator from the provider's real published schema, at the version the
+example pins — not against a stub, and not by inspection.
 
-| Strength | Examples | What was done |
+| Provider | Examples | Schema |
 |---|---|---|
-| Compiled against the real generated SDK | both `kubernetes-rs-*`, `digitalocean-rs-loadbalanced-droplets`, `aws-rs-eks` | The provider's published schema was run through this repo's `GeneratePackage`, and the program `cargo check`ed against the result |
-| Compiled against a stub SDK | both `gcp-rs-cloudrun`/`gcp-rs-gke`, `docker-rs-multi-container-app` | Checked against hand-built crates reproducing the generator's shapes, with field lists derived mechanically from the provider's published SDK |
-| Property names machine-checked against the published schema | the remaining AWS and Azure examples, `gcp-rs-webserver`, `gcp-rs-functions` | Every args-struct literal diffed field-by-field against the provider schema at the pinned version, using a reimplementation of the generator's naming rules |
+| aws 7.41.0 | all six `aws-rs-*` | published schema, subset to the members the examples use |
+| azure-native 3.25.0 | all five `azure-rs-*` | published schema, subset |
+| gcp 9.33.0 | all four `gcp-rs-*` | published schema, subset |
+| kubernetes 4.33.0 | both `kubernetes-rs-*` | published schema, whole |
+| digitalocean 4.78.1, docker 5.1.0, random 4.18.4 | the rest | published schema, whole |
+| — | `component`, `config-and-outputs` | no provider; built directly in this repo |
 
-Cloud *semantics* — IAM trust policies, image names, SKU compatibility,
-which ARN an integration wants — are not verified by any of that, and each
-example's README calls out its own risky assumptions in a Notes section.
+The three large schemas are cut down to the transitive closure of the
+members each example touches, because the full crates are hundreds of
+megabytes of Rust. That does not weaken the check for what it covers:
+generated type names derive from schema tokens alone, so a subset produces
+byte-identical declarations for the members it contains.
 
-The two examples that need no provider **are** compiled in this repository.
+What this does **not** cover is cloud *semantics*. That an IAM trust policy
+grants the right principal, that an image tag exists, that a SKU is
+available in a region, that an integration wants the invoke ARN rather than
+the plain one — none of that is checked by a compiler, and none of these
+examples has been deployed. Each README calls out its own riskiest
+assumptions in a Notes section.
 
-| Example | Needs a provider SDK | Built here |
-|---|---|---|
-| [`config-and-outputs`](./config-and-outputs) | no | yes |
-| [`component`](./component) | no | yes |
-| [`random-password`](./random-password) | yes (`random`) | no |
-| every cloud example above | yes | no |
+CI does not run any of this, because it needs `pulumi package gen-sdk` and a
+network. The compile check is reproducible by hand: generate the SDK, point
+its `pulumi` dependency at your checkout, and `cargo check`.
 
 ## Language examples
 

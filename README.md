@@ -36,7 +36,7 @@ language to author policy packs and component providers.
 | Provider host | `sdk/rust/pulumi/src/provider.rs` | Serving a component provider: `GetSchema` and `Construct` |
 | Policy packs | `pulumi-language-rust/testdata/policies` | Nine Rust policy packs exercised by the `policy-*` tests |
 | Providers | `pulumi-language-rust/testdata/providers` | Rust component providers exercised by the `provider-*` tests |
-| Examples | `examples/` | Nineteen pulumi/examples-style cloud programs across AWS, Azure, GCP, Kubernetes, DigitalOcean and Docker, plus language examples for config, outputs and components |
+| Examples | `examples/` | Nineteen pulumi/examples-style cloud programs across AWS, Azure, GCP, Kubernetes, DigitalOcean and Docker, plus language examples for config, outputs and components. All of them compile against SDKs this generator produces from the providers' real schemas |
 | Template | `templates/rust` | Starting point for a new Rust Pulumi project |
 
 ## How it fits together
