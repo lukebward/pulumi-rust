@@ -6,10 +6,11 @@ A static website served straight out of an S3 bucket, using
 [S3's website support](https://docs.aws.amazon.com/AmazonS3/latest/dev/WebsiteHosting.html).
 The program creates a bucket configured to serve `index.html` at the root,
 walks the local `www/` directory with `std::fs::read_dir`, and creates one
-`aws:s3:BucketObject` per file with a publicly readable ACL and the right
-`Content-Type` — the file list is ordinary local data, so it is a plain Rust
-`for` loop rather than anything output-shaped. The bucket name and the
-website endpoint come back as stack outputs.
+`aws:s3:BucketObject` per file with the right `Content-Type` — the file list
+is ordinary local data, so it is a plain Rust `for` loop rather than
+anything output-shaped. An `aws:s3:BucketPolicy` is what makes the site
+readable. The bucket name and the website endpoint come back as stack
+outputs.
 
 ## Prerequisites
 
@@ -74,18 +75,20 @@ values are indicated with `***`.
     $ pulumi up
     Updating (website-testing)
 
-         Type                    Name                              Status
-     +   pulumi:pulumi:Stack     aws-rs-s3-folder-website-testing  created
-     +   ├─ aws:s3:Bucket        s3-website-bucket                 created
-     +   ├─ aws:s3:BucketObject  index.html                        created
-     +   └─ aws:s3:BucketObject  styles.css                        created
+         Type                              Name                              Status
+     +   pulumi:pulumi:Stack               aws-rs-s3-folder-website-testing  created
+     +   ├─ aws:s3:Bucket                  s3-website-bucket                 created
+     +   ├─ aws:s3:BucketObject            index.html                        created
+     +   ├─ aws:s3:BucketObject            styles.css                        created
+     +   ├─ aws:s3:BucketPublicAccessBlock s3-website-bucket-access          created
+     +   └─ aws:s3:BucketPolicy            s3-website-bucket-policy          created
 
     Outputs:
-        bucket_name: "s3-website-bucket-***"
-        website_url: "s3-website-bucket-***.s3-website-us-west-2.amazonaws.com"
+        bucketName: "s3-website-bucket-***"
+        websiteUrl: "s3-website-bucket-***.s3-website-us-west-2.amazonaws.com"
 
     Resources:
-        + 4 created
+        + 6 created
 
     Duration: ***
     ```
@@ -95,9 +98,9 @@ values are indicated with `***`.
     ```bash
     $ pulumi stack output
     Current stack outputs (2):
-        OUTPUT       VALUE
-        bucket_name  s3-website-bucket-***
-        website_url  s3-website-bucket-***.s3-website-us-west-2.amazonaws.com
+        OUTPUT      VALUE
+        bucketName  s3-website-bucket-***
+        websiteUrl  s3-website-bucket-***.s3-website-us-west-2.amazonaws.com
     ```
 
 1.  Check that both objects landed in the bucket, then fetch the page:
@@ -128,15 +131,29 @@ values are indicated with `***`.
 
 ## A note on public access
 
-The objects are made readable with `acl = "public-read"`, which requires the
-bucket to accept public ACLs. AWS accounts created since April 2023 block
-them by default (S3 Block Public Access, plus a bucket ownership setting of
-`BucketOwnerEnforced`, which disables ACLs outright), and `pulumi up` will
-fail with `AccessControlListNotSupported` or `AccessDenied` where that is in
-force.
+The objects carry no ACL. AWS changed the default Object Ownership for new
+buckets to `BucketOwnerEnforced` in April 2023, which disables ACLs
+outright, so the older shape of this example — `acl = "public-read"` on each
+object — fails on any bucket created since:
 
-The upstream TypeScript, Python, and Go versions of this example handle that
-by adding an `aws:s3:BucketPublicAccessBlock` with `blockPublicAcls = false`,
-or by dropping ACLs entirely in favour of an `aws:s3:BucketPolicy` that
-grants `s3:GetObject` to everyone. Either is a small addition to
-`src/main.rs`.
+```
+aws:s3:BucketObject (index.html):
+  error: creating S3 Object: AccessControlListNotSupported:
+         The bucket does not allow ACLs
+```
+
+Public read comes from an `aws:s3:BucketPolicy` granting `s3:GetObject` to
+`*` on `<bucket-arn>/*`, which is how upstream pulumi/examples does it now.
+Two things about that are easy to get wrong:
+
+- A bucket policy that grants public access is refused unless the bucket's
+  `aws:s3:BucketPublicAccessBlock` permits one. This program sets
+  `block_public_policy` and `restrict_public_buckets` to `false` and leaves
+  `block_public_acls` and `ignore_public_acls` **on**, since nothing here
+  uses an ACL — blocking what you do not use costs nothing.
+- Nothing in the policy's inputs refers to the access block, so the engine
+  has no reason to order them. Without `depends_on`, the policy can be
+  applied first and fail with `AccessDenied`.
+
+The bucket is public by design: it is a website. Do not copy this shape onto
+a bucket holding anything you would not publish.

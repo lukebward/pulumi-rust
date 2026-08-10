@@ -108,11 +108,12 @@ example pins — not against a stub, and not by inspection.
 | digitalocean 4.78.1, docker 5.1.0, random 4.18.4 | the rest | published schema |
 | — | `component`, `config-and-outputs` | no provider; built directly in this repo |
 
-Each example is checked against a crate generated from the **subset** of its
-provider's schema that the example touches, because the large crates are
-tens of megabytes of Rust apiece and the loop is much faster. Separately,
-and as its own check, the **whole** schema of every provider in the table
-is generated and compiled:
+The everyday check builds each example against a crate generated from the
+**subset** of its provider's schema that the example touches, because the
+large crates are tens of megabytes of Rust apiece and the loop is much
+faster. Separately, the **whole** schema of every provider in the table is
+generated, compiled, and then every example that pins that provider is
+compiled against the whole crate — all 22 do:
 
 | Provider | Generated types | `lib.rs` |
 |---|---|---|
@@ -134,9 +135,18 @@ the right properties.
 What neither covers is cloud *semantics*. That an IAM trust policy grants
 the right principal, that an image tag exists, that a SKU is available in a
 region, that an integration wants the invoke ARN rather than the plain one
-— none of that is checked by a compiler, and none of these examples has
-been deployed. Each README calls out its own riskiest assumptions in a
-Notes section.
+— none of that is checked by a compiler. Each README calls out its own
+riskiest assumptions in a Notes section.
+
+That gap is not hypothetical. `aws-rs-s3-folder` was deployed against a real
+AWS account and failed: it set `acl = "public-read"` on every object, and
+AWS changed the default Object Ownership for new buckets to
+`BucketOwnerEnforced` in April 2023, which disables ACLs outright. The
+program compiled, the engine and the SDK did exactly what it asked, and
+every `PutObject` was rejected with `AccessControlListNotSupported`. It now
+uses a bucket policy instead. The lesson generalises: a compiler cannot see
+a cloud default that changed under a program, so treat every example's Notes
+section as a claim to check rather than a guarantee.
 
 CI does not run any of this, because it needs `pulumi package gen-sdk` and a
 network. The whole-schema half is scripted —
