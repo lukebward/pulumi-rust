@@ -220,6 +220,10 @@ type programGenerator struct {
 	// functionSchemas caches token -> function lookups across packages.
 	functionSchemas map[string]*schema.Function
 	packages        []*schema.Package
+	// sdkGenerators caches a name-resolved SDK generator per referenced
+	// package, so a type is named here exactly as the generated crate
+	// declares it. See sdkGenerator.
+	sdkGenerators map[*schema.Package]*pkgGenerator
 	// builtinVars tracks variables bound to raw pulumi builtin resources
 	// (e.g. pulumi:index:Stash), which use dynamic property accessors.
 	builtinVars map[string]bool
@@ -1067,7 +1071,7 @@ func (g *programGenerator) typedObjectLiteral(
 		g.errorf(subject, "expected an object literal for type %q", obj.Token)
 		return "Default::default()"
 	}
-	pg := &pkgGenerator{pkg: packageOfObject(obj)}
+	pg := g.sdkGenerator(packageOfObject(obj))
 	argsPath := g.typesPathFor(obj) + pg.typeNameForToken(obj.Token) + "Args"
 
 	var inputs []*model.Attribute
@@ -1099,7 +1103,26 @@ func packageOfObject(obj *schema.ObjectType) *schema.Package {
 	if pkg, err := obj.PackageReference.Definition(); err == nil && pkg != nil {
 		return pkg
 	}
-	return &schema.Package{}
+	return nil
+}
+
+// sdkGenerator returns a name-resolved SDK generator for pkg, so that a type
+// named from a program is named exactly as the generated crate declares it —
+// including any disambiguating suffix resolveTypeNames applied. Resolution
+// walks the whole schema, so the generators are cached per package.
+func (g *programGenerator) sdkGenerator(pkg *schema.Package) *pkgGenerator {
+	if pkg == nil {
+		return newPkgGenerator(&schema.Package{})
+	}
+	if pg, ok := g.sdkGenerators[pkg]; ok {
+		return pg
+	}
+	pg := newPkgGenerator(pkg)
+	if g.sdkGenerators == nil {
+		g.sdkGenerators = map[*schema.Package]*pkgGenerator{}
+	}
+	g.sdkGenerators[pkg] = pg
+	return pg
 }
 
 // plainLiteral renders a plain (non-output) Rust value for a literal

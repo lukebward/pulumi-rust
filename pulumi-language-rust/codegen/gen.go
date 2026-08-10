@@ -33,12 +33,7 @@ func GeneratePackage(
 	tool string, pkg *schema.Package,
 	extraFiles map[string][]byte, localDependencies map[string]string,
 ) (map[string][]byte, error) {
-	g := &pkgGenerator{
-		pkg:          pkg,
-		inputTokens:  map[string]*schema.ObjectType{},
-		outputTokens: map[string]*schema.ObjectType{},
-	}
-	g.discoverObjectTypes()
+	g := newPkgGenerator(pkg)
 	g.findRecursiveTypes()
 
 	files := map[string][]byte{}
@@ -59,6 +54,15 @@ type pkgGenerator struct {
 	// Object types reachable from resource/function inputs and outputs.
 	inputTokens  map[string]*schema.ObjectType
 	outputTokens map[string]*schema.ObjectType
+	// Tokens whose object type is a function's synthesized result rather
+	// than a type the schema declares. The binder mints these by appending
+	// "Result" to the function's member name, which can land on the token
+	// of a declared type; resolveTypeNames uses this to decide which of the
+	// two keeps the undecorated name.
+	functionResults map[string]bool
+	// Object token -> Rust type name, assigned once by resolveTypeNames so
+	// that distinct tokens never share a name. Read through typeNameForToken.
+	typeNames map[string]string
 	// Object tokens that sit on a containment cycle, grouped by cycle.
 	// See findRecursiveTypes.
 	cycleGroup map[string]int
@@ -69,6 +73,23 @@ type pkgGenerator struct {
 	// Set when some property defaults to an environment variable, so the
 	// helpers that read one are emitted only into the crates that use them.
 	needsEnvHelpers bool
+}
+
+// newPkgGenerator returns a generator whose object types are discovered and
+// whose type names are resolved — the state every emitter reads. Callers
+// that only want to *name* a type in an SDK someone else generates want one
+// of these too, since a name depends on the whole token set.
+func newPkgGenerator(pkg *schema.Package) *pkgGenerator {
+	g := &pkgGenerator{
+		pkg:             pkg,
+		inputTokens:     map[string]*schema.ObjectType{},
+		outputTokens:    map[string]*schema.ObjectType{},
+		functionResults: map[string]bool{},
+		typeNames:       map[string]string{},
+	}
+	g.discoverObjectTypes()
+	g.resolveTypeNames()
+	return g
 }
 
 // fail records a generation failure. Emitting continues so one run reports
@@ -171,6 +192,11 @@ func (g *pkgGenerator) discoverObjectTypes() {
 		}
 		if f.Outputs != nil {
 			visitOutput(f.Outputs)
+			o := f.Outputs
+			if o.IsInputShape() {
+				o = o.PlainShape
+			}
+			g.functionResults[o.Token] = true
 		}
 	}
 }
@@ -341,15 +367,76 @@ func (g *pkgGenerator) allResources() []*schema.Resource {
 	return resources
 }
 
-// typeNameForToken derives the Rust type name for an object type token,
-// prefixing the module name for non-index modules to avoid collisions.
-func (g *pkgGenerator) typeNameForToken(token string) string {
+// deriveTypeName is the naming rule: the token's member, prefixed with the
+// module name for non-index modules. It is not injective — a token carries
+// more than its module and member, so two distinct tokens can derive the
+// same name. resolveTypeNames is what makes the result unique.
+func (g *pkgGenerator) deriveTypeName(token string) string {
 	mod := g.pkg.TokenToModule(token)
 	name := pascalCase(tokenMember(token))
 	if mod != "" && mod != "index" {
 		name = pascalCase(mod) + name
 	}
 	return name
+}
+
+// resolveTypeNames assigns every discovered object token a Rust type name
+// that no other token holds. Both forms of a name are reserved together,
+// since a token emits `Name` on the output side and `NameArgs` on the input
+// side and either one may be the thing that clashes.
+//
+// Tokens the schema declares are named first, function results second, so
+// that a synthesized `<function>Result` token yields to a declared type of
+// the same name rather than the other way round: a declared type can be
+// referenced from anywhere in the schema, while a function result is only
+// ever named by its own invoke. Go's generator resolves the same collision
+// in the same order — it registers types before functions — but repairs it
+// by renaming the function, which a Rust generator has no reason to do
+// since a function and a struct do not share a namespace here.
+func (g *pkgGenerator) resolveTypeNames() {
+	declared := make([]string, 0, len(g.inputTokens)+len(g.outputTokens))
+	results := make([]string, 0, len(g.functionResults))
+	seen := map[string]bool{}
+	for _, tokens := range []map[string]*schema.ObjectType{g.inputTokens, g.outputTokens} {
+		for token := range tokens {
+			if seen[token] {
+				continue
+			}
+			seen[token] = true
+			if g.functionResults[token] {
+				results = append(results, token)
+			} else {
+				declared = append(declared, token)
+			}
+		}
+	}
+	sort.Strings(declared)
+	sort.Strings(results)
+
+	taken := map[string]bool{}
+	assign := func(token string) {
+		base := g.deriveTypeName(token)
+		name := base
+		for n := 2; taken[name] || taken[name+"Args"]; n++ {
+			name = base + strconv.Itoa(n)
+		}
+		taken[name], taken[name+"Args"] = true, true
+		g.typeNames[token] = name
+	}
+	for _, token := range declared {
+		assign(token)
+	}
+	for _, token := range results {
+		assign(token)
+	}
+}
+
+// typeNameForToken reports the Rust type name for an object type token.
+func (g *pkgGenerator) typeNameForToken(token string) string {
+	if name, ok := g.typeNames[token]; ok {
+		return name
+	}
+	return g.deriveTypeName(token)
 }
 
 // containsObject reports whether an object type is reachable in t without

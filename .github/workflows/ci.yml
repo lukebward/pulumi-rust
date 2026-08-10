@@ -18,6 +18,20 @@ jobs:
       - run: cargo test
         working-directory: sdk/rust/pulumi
 
+  codegen:
+    name: Codegen tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      # The generator's own tests: naming, recursive types, type-name
+      # collisions, args shape, defaults. They need neither cargo nor a
+      # plugin, so they run on every PR in seconds.
+      - run: go test ./codegen/...
+        working-directory: pulumi-language-rust
+
   conformance:
     name: Conformance (smoke subset)
     runs-on: ubuntu-latest

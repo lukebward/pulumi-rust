@@ -5,7 +5,11 @@ edition = "2021"
 
 [dependencies]
 pulumi = { path = "../../sdk/rust/pulumi" }
-# Generate this SDK before building:
+# Generate this SDK before building. `gen-sdk` writes to <out>/<language>,
+# so the crate lands in ./sdks/aws/rust, which is what the path below points
+# at. Remove any existing ./sdks first: a layout left over from an earlier
+# run leaves this path unresolved.
+#   rm -rf ./sdks
 #   pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
 pulumi_aws = { path = "./sdks/aws/rust" }
 

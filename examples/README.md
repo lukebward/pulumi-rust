@@ -63,11 +63,18 @@ in each `Cargo.toml` line up:
 
 ```sh
 cd aws-rs-s3-folder
+rm -rf ./sdks
 pulumi package gen-sdk aws@7.41.0 --language rust --out ./sdks/aws
 pulumi stack init dev
 pulumi config set aws:region us-west-2
 pulumi up
 ```
+
+`gen-sdk` writes into whatever is already at `--out` rather than replacing
+it, so start from a clean `./sdks`. An `./sdks` left over from an earlier
+layout leaves `pulumi_aws = { path = "./sdks/aws/rust" }` pointing at
+nothing, and cargo reports the dependency as unresolved rather than as a
+stale directory.
 
 The generated crate's own `Cargo.toml` declares `pulumi = "0.1"`, which is
 not published — repoint it at your checkout before building:
@@ -94,28 +101,52 @@ example pins — not against a stub, and not by inspection.
 
 | Provider | Examples | Schema |
 |---|---|---|
-| aws 7.41.0 | all six `aws-rs-*` | published schema, subset to the members the examples use |
-| azure-native 3.25.0 | all five `azure-rs-*` | published schema, subset |
-| gcp 9.33.0 | all four `gcp-rs-*` | published schema, subset |
-| kubernetes 4.33.0 | both `kubernetes-rs-*` | published schema, whole |
-| digitalocean 4.78.1, docker 5.1.0, random 4.18.4 | the rest | published schema, whole |
+| aws 7.41.0 | all six `aws-rs-*` | published schema |
+| azure-native 3.25.0 | all five `azure-rs-*` | published schema |
+| gcp 9.33.0 | all four `gcp-rs-*` | published schema |
+| kubernetes 4.33.0 | both `kubernetes-rs-*` | published schema |
+| digitalocean 4.78.1, docker 5.1.0, random 4.18.4 | the rest | published schema |
 | — | `component`, `config-and-outputs` | no provider; built directly in this repo |
 
-The three large schemas are cut down to the transitive closure of the
-members each example touches, because the full crates are hundreds of
-megabytes of Rust. That does not weaken the check for what it covers:
-generated type names derive from schema tokens alone, so a subset produces
-byte-identical declarations for the members it contains.
+Each example is checked against a crate generated from the **subset** of its
+provider's schema that the example touches, because the large crates are
+tens of megabytes of Rust apiece and the loop is much faster. Separately,
+and as its own check, the **whole** schema of every provider in the table
+is generated and compiled:
 
-What this does **not** cover is cloud *semantics*. That an IAM trust policy
-grants the right principal, that an image tag exists, that a SKU is
-available in a region, that an integration wants the invoke ARN rather than
-the plain one — none of that is checked by a compiler, and none of these
-examples has been deployed. Each README calls out its own riskiest
-assumptions in a Notes section.
+| Provider | Generated types | `lib.rs` |
+|---|---|---|
+| azure-native 3.25.0 | 27,777 | 42.9 MB |
+| aws 7.41.0 | 22,142 | 28.2 MB |
+| gcp 9.33.0 | 19,290 | 25.0 MB |
+| kubernetes 4.33.0 | 4,701 | 5.9 MB |
+| digitalocean 4.78.1 | 1,489 | 2.0 MB |
+| docker 5.1.0 | 200 | 0.3 MB |
+| random 4.18.4 | 18 | 43 KB |
+
+Both checks are needed, and neither substitutes for the other. A subset
+crate cannot surface a defect that only two members *together* produce —
+the one that motivated this section was two schema tokens deriving the same
+Rust type name, which is invisible unless both are generated at once. A
+whole-schema crate, in turn, says nothing about whether an example names
+the right properties.
+
+What neither covers is cloud *semantics*. That an IAM trust policy grants
+the right principal, that an image tag exists, that a SKU is available in a
+region, that an integration wants the invoke ARN rather than the plain one
+— none of that is checked by a compiler, and none of these examples has
+been deployed. Each README calls out its own riskiest assumptions in a
+Notes section.
 
 CI does not run any of this, because it needs `pulumi package gen-sdk` and a
-network. The compile check is reproducible by hand: generate the SDK, point
+network. The whole-schema half is scripted —
+
+```sh
+make check_full_sdks              # every provider the examples pin
+scripts/check-full-sdks.sh aws@7.41.0
+```
+
+— and the per-example half is reproducible by hand: generate the SDK, point
 its `pulumi` dependency at your checkout, and `cargo check`.
 
 ## Language examples

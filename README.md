@@ -37,6 +37,7 @@ language to author policy packs and component providers.
 | Policy packs | `pulumi-language-rust/testdata/policies` | Nine Rust policy packs exercised by the `policy-*` tests |
 | Providers | `pulumi-language-rust/testdata/providers` | Rust component providers exercised by the `provider-*` tests |
 | Examples | `examples/` | Nineteen pulumi/examples-style cloud programs across AWS, Azure, GCP, Kubernetes, DigitalOcean and Docker, plus language examples for config, outputs and components. All of them compile against SDKs this generator produces from the providers' real schemas |
+| Full-SDK check | `scripts/check-full-sdks.sh` | Generates and compiles the *whole* SDK for every provider the examples pin — aws, azure-native, gcp, kubernetes, digitalocean, docker, random — since a defect two schema members produce only together cannot appear in a subset |
 | Template | `templates/rust` | Starting point for a new Rust Pulumi project |
 
 ## How it fits together
@@ -163,8 +164,8 @@ fn main() {
 
 None outstanding. [`docs/roadmap.md`](./docs/roadmap.md) records what the
 suite cannot: the two behaviours that used to differ from the Go SDK and
-now do not, the three generator defects the example programs surfaced, and
-what `Construct` deliberately omits.
+now do not, the four generator defects the providers' real schemas
+surfaced, and what `Construct` deliberately omits.
 
 ## License
 

@@ -1,8 +1,8 @@
 # Roadmap
 
 The conformance suite passes in full, so this file records what a green
-suite does not: behaviours that differed from the Go SDK, defects the
-example programs surfaced, and what is deliberately left out.
+suite does not: behaviours that differed from the Go SDK, defects the real
+provider schemas surfaced, and what is deliberately left out.
 
 ## Known divergences
 
@@ -49,10 +49,10 @@ A third divergence surfaced while verifying those two, and is fixed as well:
 explicit provider was read by the default one instead, and its children
 inherited nothing. Registration and read now share one `resolve_providers`.
 
-## Generator limitations found writing the examples
+## Generator limitations found against real provider schemas
 
-Three generator defects surfaced while writing the cloud examples, none of
-them exercised by any conformance schema. All three are now fixed.
+Four generator defects surfaced against the providers' published schemas,
+none of them exercised by any conformance schema. All four are now fixed.
 
 - **Self-referential object types.** An object type that refers to itself,
   directly or through a chain, generated a Rust struct with an infinitely
@@ -94,6 +94,41 @@ them exercised by any conformance schema. All three are now fixed.
   schema property names fold onto one Rust identifier under either the old
   rule or the new one. The new rule can only insert separators into the old
   output, so it can split an existing collision apart but never create one.
+- **Type names were not unique.** A Rust type name was derived from a
+  schema token's module and member alone, which is not enough to tell two
+  tokens apart: `aws:iam/getPrincipalPolicySimulationResult:getPrincipalPolicySimulationResult`
+  and the result type the binder synthesizes for the function
+  `aws:iam/getPrincipalPolicySimulation:getPrincipalPolicySimulation` both
+  derive `IamGetPrincipalPolicySimulationResult`, so the full `pulumi_aws`
+  crate declared that struct twice and failed to compile. `resolveTypeNames`
+  now assigns every discovered token a name no other token holds, reserving
+  a name together with its `Args` form and appending a numeric suffix on
+  collision. Schema-declared types are named before synthesized function
+  results, so the type that can be referenced from anywhere in the schema
+  keeps the undecorated name and the invoke's own result type takes the
+  suffix. The program generator resolves names the same way, so a program
+  and the SDK it builds against agree. Covered by
+  `codegen/typenames_test.go`.
+
+  Two collision classes exist and both are covered: a declared type against
+  a synthesized function result, and two declared types in sibling
+  submodules of one module (`ec2/instance:Filter` and `ec2/volume:Filter`
+  under aws' `moduleFormat`). This is also why the whole schema of every
+  provider is now generated and compiled, not just the subsets the examples
+  need — a collision is invisible unless both colliding members are
+  generated at once, which is precisely what a subset does not do.
+  `scripts/check-full-sdks.sh` is that check.
+
+  Go's generator has the same problem and resolves it in the same order —
+  it registers resource names, then type names, then function names, so a
+  type also wins there — but with different repairs: a colliding type takes
+  a `Type` then `Typ` suffix, a colliding function is renamed (`GetX` →
+  `LookupX`), and an irreparable collision panics. The renames do not carry
+  over. A Rust function and a Rust struct do not share a namespace, so
+  renaming `get_principal_policy_simulation` would change the public API to
+  fix a collision Rust does not have; only the type needs a new name, and a
+  numeric suffix says "this is the second thing that wanted this name"
+  without implying anything about the schema.
 
 ## Deliberate omissions
 
