@@ -26,6 +26,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,6 +39,9 @@ import (
 	pbempty "google.golang.org/protobuf/types/known/emptypb"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/pulumi/pulumi/pkg/v3/codegen/hcl2/syntax"
 	"github.com/pulumi/pulumi/pkg/v3/codegen/pcl"
@@ -85,15 +90,7 @@ func main() {
 		close(cancelChannel)
 	}()
 
-	handle, err := rpcutil.ServeWithOptions(rpcutil.ServeOptions{
-		Cancel: cancelChannel,
-		Init: func(srv *grpc.Server) error {
-			host := newLanguageHost(engineAddress)
-			pulumirpc.RegisterLanguageRuntimeServer(srv, host)
-			return nil
-		},
-		Options: rpcutil.OpenTracingServerInterceptorOptions(nil),
-	})
+	handle, err := serveLanguageHost(cancelChannel, engineAddress)
 	if err != nil {
 		cmdutil.Exit(fmt.Errorf("could not start language host RPC server: %w", err))
 	}
@@ -103,6 +100,55 @@ func main() {
 	if err := <-handle.Done; err != nil {
 		cmdutil.Exit(fmt.Errorf("language host RPC stopped serving: %w", err))
 	}
+}
+
+// serveLanguageHost is rpcutil.ServeWithOptions without the 400 MiB cap on
+// incoming gRPC messages. The cap cannot be lifted through that helper: it
+// appends its own grpc.MaxRecvMsgSize after the caller's options, and the
+// last option applied wins. 400 MiB is too small for GeneratePackage, whose
+// request carries the provider schema inline — azure-native's is ~480 MiB.
+// The cap also buys nothing here: the host listens on 127.0.0.1 for the
+// engine that spawned it, and memory follows the message actually sent, not
+// the ceiling.
+func serveLanguageHost(cancel <-chan bool, engineAddress string) (rpcutil.ServeHandle, error) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return rpcutil.ServeHandle{}, fmt.Errorf("failed to listen on 127.0.0.1: %w", err)
+	}
+
+	srv := grpc.NewServer(append(
+		rpcutil.OpenTracingServerInterceptorOptions(nil),
+		grpc.MaxRecvMsgSize(math.MaxInt32),
+	)...)
+	pulumirpc.RegisterLanguageRuntimeServer(srv, newLanguageHost(engineAddress))
+
+	// The rest mirrors rpcutil: health and reflection services, a cancel
+	// channel that ends the server when closed or sent true, and a done
+	// channel that reports how serving ended.
+	healthSrv := health.NewServer()
+	healthgrpc.RegisterHealthServer(srv, healthSrv)
+	reflection.Register(srv)
+	for name := range srv.GetServiceInfo() {
+		healthSrv.SetServingStatus(name, healthgrpc.HealthCheckResponse_SERVING)
+	}
+
+	go func() {
+		for v, ok := <-cancel; !v && ok; v, ok = <-cancel {
+		}
+		srv.GracefulStop()
+	}()
+
+	done := make(chan error)
+	go func() {
+		if err := srv.Serve(lis); err != nil && !rpcutil.IsBenignCloseErr(err) {
+			done <- fmt.Errorf("stopped serving: %w", err)
+		} else {
+			done <- nil
+		}
+		close(done)
+	}()
+
+	return rpcutil.ServeHandle{Port: lis.Addr().(*net.TCPAddr).Port, Done: done}, nil
 }
 
 type rustLanguageHost struct {
