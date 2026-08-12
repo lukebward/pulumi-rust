@@ -29,11 +29,20 @@ else
     # The versions the examples pin, deduplicated, straight from the
     # `gen-sdk` line each example's Cargo.toml carries — so this list cannot
     # drift from what the examples are actually checked against.
-    mapfile -t specs < <(
-        grep -rhoP --include=Cargo.toml \
-            '(?<=pulumi package gen-sdk )[a-z-]+@[0-9][0-9a-zA-Z.+-]*' \
-            "$root/examples" | sort -u
+    # No mapfile and no grep -P: both are GNU-only, and on macOS the empty
+    # list they produced made this script pass having checked nothing.
+    specs=()
+    while IFS= read -r spec; do
+        specs+=("$spec")
+    done < <(
+        grep -rhoE --include=Cargo.toml \
+            'pulumi package gen-sdk [a-z-]+@[0-9][0-9a-zA-Z.+-]*' \
+            "$root/examples" | awk '{print $NF}' | sort -u
     )
+    if [ ${#specs[@]} -eq 0 ]; then
+        echo "error: found no gen-sdk pins under $root/examples" >&2
+        exit 1
+    fi
 fi
 
 echo "checking ${#specs[@]} provider SDKs in $work"
