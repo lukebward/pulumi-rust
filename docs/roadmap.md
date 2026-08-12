@@ -117,7 +117,13 @@ none of them exercised by any conformance schema. All four are now fixed.
   provider is now generated and compiled, not just the subsets the examples
   need — a collision is invisible unless both colliding members are
   generated at once, which is precisely what a subset does not do.
-  `scripts/check-full-sdks.sh` is that check.
+  `scripts/check-full-sdks.sh` is that check. One boundary remains:
+  azure-native is checked from the default-version schema its provider
+  checks into its repository, because the all-API-versions schema the
+  plugin serves generates a 441 MB `lib.rs` that rustc cannot compile as
+  one crate. Whether the versioned surface hides further collisions is
+  therefore unverified; compiling it at all needs the crate split by
+  module or gated by features first.
 
   Go's generator has the same problem and resolves it in the same order —
   it registers resource names, then type names, then function names, so a

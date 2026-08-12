@@ -103,7 +103,7 @@ example pins — not against a stub, and not by inspection.
 | Provider | Examples | Schema |
 |---|---|---|
 | aws 7.41.0 | all six `aws-rs-*` | published schema |
-| azure-native 3.25.0 | all five `azure-rs-*` | published schema |
+| azure-native 3.25.0 | all five `azure-rs-*` | published default-version schema |
 | gcp 9.33.0 | all four `gcp-rs-*` | published schema |
 | kubernetes 4.33.0 | both `kubernetes-rs-*` | published schema |
 | digitalocean 4.78.1, docker 5.1.0, random 4.18.4 | the rest | published schema |
@@ -125,6 +125,16 @@ compiled against the whole crate — all 22 do:
 | digitalocean 4.78.1 | 1,489 | 2.0 MB |
 | docker 5.1.0 | 200 | 0.3 MB |
 | random 4.18.4 | 18 | 43 KB |
+
+For azure-native, "whole" means the default-version schema the provider
+checks into its repository — the same schema the azure examples document
+generating from. The schema the plugin itself serves spans every Azure API
+version: 273,430 types and a 441 MB `lib.rs`, which rustc cannot compile as
+a single crate — it exhausts memory on machines with far more than the
+schema's own size. Everything the azure examples name lives in the default
+versions, so the compilable schema is the one that matters for them;
+carving the versioned surface into something a crate can hold is future
+work.
 
 Both checks are needed, and neither substitutes for the other. A subset
 crate cannot surface a defect that only two members *together* produce —

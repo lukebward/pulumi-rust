@@ -72,10 +72,15 @@ values are indicated with `***`.
     $ pulumi config set vmSize Standard_B2s
     ```
 
-1.  Generate the azure-native provider SDK into `./sdks`:
+1.  Generate the azure-native provider SDK into `./sdks`. Generate from the
+    default-version schema the provider checks into its repository — the
+    plugin itself serves a schema spanning every Azure API version, which
+    generates more Rust than rustc can compile as one crate:
 
     ```bash
-    $ pulumi package gen-sdk azure-native@3.25.0 --language rust --out ./sdks/azure-native
+    $ curl -fsSL --create-dirs -o ./sdks/schema.json \
+        https://raw.githubusercontent.com/pulumi/pulumi-azure-native/v3.25.0/provider/cmd/pulumi-resource-azure-native/schema.json
+    $ pulumi package gen-sdk ./sdks/schema.json --language rust --out ./sdks/azure-native
     ```
 
     `gen-sdk` writes to `<out>/<language>`, so the crate lands in
@@ -180,7 +185,7 @@ removes the problem, and the indirection went with it.
 
 ## Notes on the generated API
 
-`pulumi package gen-sdk azure-native` produces a `pulumi_azure_native` crate
+`gen-sdk` on the azure-native schema produces a `pulumi_azure_native` crate
 whose layout follows the package's schema modules:
 
 - Resources live under their module: `resources::ResourceGroup`,

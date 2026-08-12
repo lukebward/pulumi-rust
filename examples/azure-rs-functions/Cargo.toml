@@ -9,8 +9,17 @@ pulumi = { path = "../../sdk/rust/pulumi" }
 # so the crate lands in ./sdks/azure-native/rust, which is what the path
 # below points at. Remove any existing ./sdks first: a layout left over from
 # an earlier run leaves this path unresolved.
+#
+# Generate from the default-version schema the provider checks into its
+# repository, not from the plugin: the plugin serves a schema spanning every
+# Azure API version, and the ~440 MB of Rust generated from that is more
+# than rustc can compile as one crate. The checked-in schema carries the
+# default API versions — the ones this example uses — and compiles in
+# minutes.
 #   rm -rf ./sdks
-#   pulumi package gen-sdk azure-native@3.25.0 --language rust --out ./sdks/azure-native
+#   curl -fsSL --create-dirs -o ./sdks/schema.json \
+#     https://raw.githubusercontent.com/pulumi/pulumi-azure-native/v3.25.0/provider/cmd/pulumi-resource-azure-native/schema.json
+#   pulumi package gen-sdk ./sdks/schema.json --language rust --out ./sdks/azure-native
 pulumi_azure_native = { path = "./sdks/azure-native/rust" }
 
 # Standalone crate: never adopt an enclosing workspace. `gen-sdk` writes a

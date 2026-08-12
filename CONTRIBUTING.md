@@ -94,11 +94,12 @@ make check_full_sdks                        # every provider the examples pin
 scripts/check-full-sdks.sh aws@7.41.0       # just one
 ```
 
-This generates and compiles the *whole* SDK for each provider, then compiles
-every example that pins it against that whole crate. It needs `pulumi` on
-`PATH` and a network, so CI does not run it. See
+This generates and compiles the *whole* SDK for each provider — azure-native's
+from the default-version schema its provider checks into its repository —
+then compiles every example that pins it against that whole crate. It needs
+`pulumi` on `PATH` and a network, so CI does not run it. See
 [`examples/README.md`](./examples/README.md) for why a subset check is not a
-substitute.
+substitute, and for what "whole" means for azure-native.
 
 ## What a generated program looks like
 

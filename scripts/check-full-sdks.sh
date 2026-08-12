@@ -10,8 +10,15 @@
 # name are invisible unless both are generated at once. This script is the
 # other half of the check.
 #
-# Needs `pulumi` and `cargo` on PATH, and network access for both the provider
-# plugins and crates.io.
+# azure-native is the one provider not generated from its plugin. The plugin
+# serves a schema spanning every Azure API version — ~490 MB of JSON that
+# generates ~440 MB of Rust, more than rustc can compile as one crate. The
+# azure examples instead document generating from the default-version schema
+# the provider checks into its repository, so that is the schema checked
+# here. See examples/README.md.
+#
+# Needs `pulumi` and `cargo` on PATH, and network access for the provider
+# plugins, the azure-native schema, and crates.io.
 #
 #   scripts/check-full-sdks.sh              # every provider the examples pin
 #   scripts/check-full-sdks.sh aws@7.41.0   # just one
@@ -26,18 +33,24 @@ export CARGO_TARGET_DIR
 if [ $# -gt 0 ]; then
     specs=("$@")
 else
-    # The versions the examples pin, deduplicated, straight from the
-    # `gen-sdk` line each example's Cargo.toml carries — so this list cannot
-    # drift from what the examples are actually checked against.
+    # The versions the examples pin, deduplicated, straight out of each
+    # example's Cargo.toml — the `gen-sdk` line for most providers, the
+    # schema URL for azure-native — so this list cannot drift from what the
+    # examples are actually checked against.
     # No mapfile and no grep -P: both are GNU-only, and on macOS the empty
     # list they produced made this script pass having checked nothing.
     specs=()
     while IFS= read -r spec; do
         specs+=("$spec")
     done < <(
-        grep -rhoE --include=Cargo.toml \
-            'pulumi package gen-sdk [a-z-]+@[0-9][0-9a-zA-Z.+-]*' \
-            "$root/examples" | awk '{print $NF}' | sort -u
+        {
+            grep -rhoE --include=Cargo.toml \
+                'pulumi package gen-sdk [a-z-]+@[0-9][0-9a-zA-Z.+-]*' \
+                "$root/examples" | awk '{print $NF}'
+            grep -rhoE --include=Cargo.toml \
+                'pulumi-azure-native/v[0-9][0-9a-zA-Z.+-]*/' \
+                "$root/examples" | sed 's|pulumi-azure-native/v\(.*\)/|azure-native@\1|'
+        } | sort -u
     )
     if [ ${#specs[@]} -eq 0 ]; then
         echo "error: found no gen-sdk pins under $root/examples" >&2
@@ -49,10 +62,25 @@ echo "checking ${#specs[@]} provider SDKs in $work"
 failed=()
 for spec in "${specs[@]}"; do
     name=${spec%@*}
+    version=${spec#*@}
     out=$work/$name
     rm -rf "$out"
 
-    if ! pulumi package gen-sdk "$spec" --language rust --out "$out" >"$work/$name.gen.log" 2>&1; then
+    # azure-native generates from the checked-in default-version schema, as
+    # its examples document; every other provider generates from its plugin.
+    src=$spec
+    if [ "$name" = azure-native ]; then
+        src=$work/azure-native-$version.json
+        url="https://raw.githubusercontent.com/pulumi/pulumi-azure-native/v$version/provider/cmd/pulumi-resource-azure-native/schema.json"
+        if [ ! -s "$src" ] && ! curl -fsSL -o "$src" "$url"; then
+            rm -f "$src"
+            echo "FAIL $spec: schema download"
+            failed+=("$spec")
+            continue
+        fi
+    fi
+
+    if ! pulumi package gen-sdk "$src" --language rust --out "$out" >"$work/$name.gen.log" 2>&1; then
         echo "FAIL $spec: gen-sdk"
         tail -20 "$work/$name.gen.log"
         failed+=("$spec")

@@ -51,7 +51,10 @@ values are indicated with `***`.
     $ pulumi config set azure-native:location WestUS
     ```
 
-1.  Generate the azure-native provider SDK and wire it into `Cargo.toml`:
+1.  Generate the azure-native provider SDK and wire it into `Cargo.toml`.
+    Generate from the default-version schema the provider checks into its
+    repository — the plugin itself serves a schema spanning every Azure API
+    version, which generates more Rust than rustc can compile as one crate:
 
     ```bash
     $ pulumi package add azure-native@3.25.0
@@ -62,7 +65,9 @@ values are indicated with `***`.
     equivalent generate-only command is
 
     ```bash
-    $ pulumi package gen-sdk azure-native@3.25.0 --language rust --out ./sdks/azure-native
+    $ curl -fsSL --create-dirs -o ./sdks/schema.json \
+        https://raw.githubusercontent.com/pulumi/pulumi-azure-native/v3.25.0/provider/cmd/pulumi-resource-azure-native/schema.json
+    $ pulumi package gen-sdk ./sdks/schema.json --language rust --out ./sdks/azure-native
     ```
 
     but note that `gen-sdk` writes to `<out>/<language>`, so the crate lands
