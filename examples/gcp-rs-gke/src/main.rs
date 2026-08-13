@@ -95,9 +95,7 @@ fn main() {
                 // An example has to be tearable down.
                 deletion_protection: Some(pulumi::pv::bool(false).cast()),
 
-                description: Some(
-                    pulumi::pv::string("GKE cluster deployed from Rust.").cast(),
-                ),
+                description: Some(pulumi::pv::string("GKE cluster deployed from Rust.").cast()),
 
                 ..Default::default()
             },
@@ -211,7 +209,11 @@ fn interpolate(template: &str, values: Vec<Output<PropertyValue>>) -> Output<Pro
     while let Some(chunk) = chunks.next() {
         parts.push(pulumi::pv::string(chunk));
         if chunks.peek().is_some() {
-            parts.push(values.next().expect("interpolate: not enough values for template"));
+            parts.push(
+                values
+                    .next()
+                    .expect("interpolate: not enough values for template"),
+            );
         }
     }
     pulumi::pv::concat(parts)

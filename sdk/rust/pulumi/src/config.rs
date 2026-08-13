@@ -21,7 +21,11 @@ impl Config {
         secret_keys: HashSet<String>,
         project: String,
     ) -> Self {
-        Config { values, secret_keys, project }
+        Config {
+            values,
+            secret_keys,
+            project,
+        }
     }
 
     fn full_key(&self, key: &str) -> String {
@@ -58,7 +62,9 @@ impl Config {
     pub fn require(&self, key: &str) -> Result<Output<PropertyValue>> {
         match self.get_value(key) {
             Some(v) => Ok(Output::from_value(v)),
-            None => Err(Error::new(format!("missing required configuration key {key:?}"))),
+            None => Err(Error::new(format!(
+                "missing required configuration key {key:?}"
+            ))),
         }
     }
 
@@ -118,7 +124,9 @@ impl Config {
     ) -> Result<Output<PropertyValue>> {
         match self.typed_value(key, expected, parse)? {
             Some(v) => Ok(Output::from_value(v)),
-            None => Err(Error::new(format!("missing required configuration variable '{key}'"))),
+            None => Err(Error::new(format!(
+                "missing required configuration variable '{key}'"
+            ))),
         }
     }
 
@@ -278,7 +286,9 @@ pub fn json_to_property(v: &serde_json::Value) -> PropertyValue {
             PropertyValue::Array(a.iter().map(json_to_property).collect())
         }
         serde_json::Value::Object(o) => PropertyValue::Object(
-            o.iter().map(|(k, v)| (k.clone(), json_to_property(v))).collect(),
+            o.iter()
+                .map(|(k, v)| (k.clone(), json_to_property(v)))
+                .collect(),
         ),
     }
 }
@@ -299,7 +309,9 @@ mod tests {
 
         assert_eq!(
             c.get_value("aString"),
-            Some(PropertyValue::Secret(Box::new(PropertyValue::String("hello".into()))))
+            Some(PropertyValue::Secret(Box::new(PropertyValue::String(
+                "hello".into()
+            ))))
         );
         assert_eq!(c.get_value("anInt"), Some(PropertyValue::Number(42.0)));
         assert_eq!(
@@ -313,7 +325,10 @@ mod tests {
 
     fn config(pairs: &[(&str, &str)], secrets: &[&str]) -> Config {
         Config::new(
-            pairs.iter().map(|(k, v)| (format!("proj:{k}"), v.to_string())).collect(),
+            pairs
+                .iter()
+                .map(|(k, v)| (format!("proj:{k}"), v.to_string()))
+                .collect(),
             secrets.iter().map(|k| format!("proj:{k}")).collect(),
             "proj".to_string(),
         )
@@ -341,11 +356,19 @@ mod tests {
     async fn a_secret_key_produces_a_secret_output_through_every_accessor() {
         // Secretness has to survive the typed accessors, not just get_value —
         // this is what keeps a password from landing in plaintext state.
-        let c = config(&[("pw", "hunter2"), ("n", "1"), ("b", "true")], &["pw", "n", "b"]);
+        let c = config(
+            &[("pw", "hunter2"), ("n", "1"), ("b", "true")],
+            &["pw", "n", "b"],
+        );
         assert!(c.require_string("pw").unwrap().data().await.secret);
         assert!(c.get_string_opt("pw").unwrap().data().await.secret);
         assert!(c.require_number("n").unwrap().data().await.secret);
-        assert!(c.get_bool_or("b", PropertyValue::Bool(false)).data().await.secret);
+        assert!(
+            c.get_bool_or("b", PropertyValue::Bool(false))
+                .data()
+                .await
+                .secret
+        );
     }
 
     #[test]
@@ -360,7 +383,10 @@ mod tests {
         let c = config(&[("set", "9")], &[]);
         let got = c.get_int_or("set", PropertyValue::Number(0.0)).data().await;
         assert_eq!(got.value, PropertyValue::Number(9.0));
-        let dflt = c.get_int_or("unset", PropertyValue::Number(7.0)).data().await;
+        let dflt = c
+            .get_int_or("unset", PropertyValue::Number(7.0))
+            .data()
+            .await;
         assert_eq!(dflt.value, PropertyValue::Number(7.0));
     }
 
@@ -395,7 +421,10 @@ mod tests {
 
     #[test]
     fn an_unparseable_object_falls_back_to_the_raw_string() {
-        assert_eq!(parse_object("{not json"), Some(PropertyValue::String("{not json".into())));
+        assert_eq!(
+            parse_object("{not json"),
+            Some(PropertyValue::String("{not json".into()))
+        );
     }
 
     #[test]
@@ -404,7 +433,10 @@ mod tests {
         // replicas and reported nothing.
         let c = config(&[("replicas", "abc")], &[]);
         let err = c.require_int("replicas").unwrap_err().to_string();
-        assert!(err.contains("proj:replicas"), "error does not name the key: {err}");
+        assert!(
+            err.contains("proj:replicas"),
+            "error does not name the key: {err}"
+        );
         assert!(err.contains("int"), "error does not name the type: {err}");
         assert!(err.contains("abc"), "error does not show the value: {err}");
     }
@@ -413,7 +445,10 @@ mod tests {
     fn a_malformed_bool_is_a_config_error_not_a_false() {
         let c = config(&[("enabled", "TRUE")], &[]);
         let err = c.require_bool("enabled").unwrap_err().to_string();
-        assert!(err.contains("proj:enabled"), "error does not name the key: {err}");
+        assert!(
+            err.contains("proj:enabled"),
+            "error does not name the key: {err}"
+        );
         assert!(err.contains("bool"), "error does not name the type: {err}");
     }
 
@@ -423,9 +458,15 @@ mod tests {
         // writes it to the update log in plaintext.
         let c = config(&[("n", "hunter2")], &["n"]);
         let err = c.require_number("n").unwrap_err().to_string();
-        assert!(!err.contains("hunter2"), "the secret leaked into the error: {err}");
+        assert!(
+            !err.contains("hunter2"),
+            "the secret leaked into the error: {err}"
+        );
         assert!(err.contains("proj:n"), "error does not name the key: {err}");
-        assert!(err.contains("number"), "error does not name the type: {err}");
+        assert!(
+            err.contains("number"),
+            "error does not name the type: {err}"
+        );
     }
 
     #[test]
@@ -449,11 +490,17 @@ mod tests {
     async fn a_well_formed_value_is_unaffected_by_the_type_check() {
         let c = config(&[("n", "42"), ("b", "false"), ("s", "abc")], &[]);
         assert_eq!(
-            c.get_int_or("n", PropertyValue::Number(0.0)).data().await.value,
+            c.get_int_or("n", PropertyValue::Number(0.0))
+                .data()
+                .await
+                .value,
             PropertyValue::Number(42.0)
         );
         assert_eq!(
-            c.get_bool_or("b", PropertyValue::Bool(true)).data().await.value,
+            c.get_bool_or("b", PropertyValue::Bool(true))
+                .data()
+                .await
+                .value,
             PropertyValue::Bool(false)
         );
         // A string getter takes the value verbatim, so it can never fail.
@@ -467,16 +514,21 @@ mod tests {
     fn a_plain_string_config_value_is_not_json_decoded() {
         // parse_config_value only decodes non-string JSON, so a value that
         // happens to be quoted text stays text.
-        assert_eq!(parse_config_value("hello"), PropertyValue::String("hello".into()));
-        assert_eq!(parse_config_value("[1]"), PropertyValue::Array(vec![PropertyValue::Number(1.0)]));
+        assert_eq!(
+            parse_config_value("hello"),
+            PropertyValue::String("hello".into())
+        );
+        assert_eq!(
+            parse_config_value("[1]"),
+            PropertyValue::Array(vec![PropertyValue::Number(1.0)])
+        );
     }
 
     #[test]
     fn json_to_property_maps_every_json_shape() {
-        let v: serde_json::Value = serde_json::from_str(
-            r#"{"n":1,"s":"x","b":true,"nil":null,"a":[1,2],"o":{"k":"v"}}"#,
-        )
-        .unwrap();
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"n":1,"s":"x","b":true,"nil":null,"a":[1,2],"o":{"k":"v"}}"#)
+                .unwrap();
         match json_to_property(&v) {
             PropertyValue::Object(m) => {
                 assert_eq!(m.get("n"), Some(&PropertyValue::Number(1.0)));

@@ -30,9 +30,11 @@ async fn run() -> pulumi::Result<()> {
                     let Some(PropertyValue::Bool(expected)) = args.config.get("value") else {
                         return Ok(());
                     };
-                    if let Some(PropertyValue::Bool(actual)) = args.resource.properties.get("value") {
+                    if let Some(PropertyValue::Bool(actual)) = args.resource.properties.get("value")
+                    {
                         if actual != expected {
-                            args.manager.report_violation(format!("Property was {actual}"), "");
+                            args.manager
+                                .report_violation(format!("Property was {actual}"), "");
                         }
                     }
                     Ok(())

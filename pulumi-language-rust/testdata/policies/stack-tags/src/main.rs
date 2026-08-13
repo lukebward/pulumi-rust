@@ -33,7 +33,8 @@ async fn run() -> pulumi::Result<()> {
                     }
 
                     let Some(tag) = args.stack.tags.get("value") else {
-                        args.manager.report_violation("Stack tag 'value' is required", "");
+                        args.manager
+                            .report_violation("Stack tag 'value' is required", "");
                         return Ok(());
                     };
                     let expected = match tag.trim() {
@@ -51,7 +52,8 @@ async fn run() -> pulumi::Result<()> {
                     if let Some(PropertyValue::Bool(actual)) = args.resource.properties.get("value")
                     {
                         if *actual != expected {
-                            args.manager.report_violation(format!("Property was {actual}"), "");
+                            args.manager
+                                .report_violation(format!("Property was {actual}"), "");
                         }
                     }
                     Ok(())

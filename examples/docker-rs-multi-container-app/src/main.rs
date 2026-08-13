@@ -18,8 +18,9 @@
 //! ```
 
 use pulumi::{Output, PropertyValue};
-use pulumi_docker::{types, Container, ContainerArgs, Network, NetworkArgs, RemoteImage,
-    RemoteImageArgs};
+use pulumi_docker::{
+    types, Container, ContainerArgs, Network, NetworkArgs, RemoteImage, RemoteImageArgs,
+};
 
 /// Pinned tags rather than `:latest`, so a `pulumi up` months from now pulls
 /// the same bytes it pulls today.
@@ -115,10 +116,7 @@ fn main() {
                     external: Some(host_port.clone().cast()),
                     ..Default::default()
                 }]),
-                networks_advanced: Some(vec![network_attachment(
-                    network.name().cast(),
-                    None,
-                )]),
+                networks_advanced: Some(vec![network_attachment(network.name().cast(), None)]),
                 // Where a real frontend would look for its backend. The
                 // stock nginx image ignores this variable; it is here to show
                 // the wiring, and the hostname in it is exactly the alias the
@@ -168,10 +166,7 @@ fn main() {
         // out well-formed even though config numbers are `f64` underneath.
         ctx.export(
             "url",
-            pulumi::pv::concat(vec![
-                pulumi::pv::string("http://localhost:"),
-                host_port,
-            ]),
+            pulumi::pv::concat(vec![pulumi::pv::string("http://localhost:"), host_port]),
         );
 
         Ok(())

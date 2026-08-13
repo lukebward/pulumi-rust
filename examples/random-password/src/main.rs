@@ -50,7 +50,10 @@ fn main() {
 
         ctx.export("petName", pet.id().cast::<pulumi::PropertyValue>());
         // The provider marks this output secret, so it is redacted.
-        ctx.export("password", password.result().cast::<pulumi::PropertyValue>());
+        ctx.export(
+            "password",
+            password.result().cast::<pulumi::PropertyValue>(),
+        );
 
         Ok(())
     });

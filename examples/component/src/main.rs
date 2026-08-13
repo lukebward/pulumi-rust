@@ -10,7 +10,9 @@ fn main() {
         let public = BucketWithPolicy::new(
             &ctx,
             "public",
-            BucketWithPolicyArgs { public: Some(pulumi::pv::bool(true)) },
+            BucketWithPolicyArgs {
+                public: Some(pulumi::pv::bool(true)),
+            },
             pulumi::ResourceOptions::default(),
         )
         .await?;
@@ -18,7 +20,9 @@ fn main() {
         let private = BucketWithPolicy::new(
             &ctx,
             "private",
-            BucketWithPolicyArgs { public: Some(pulumi::pv::bool(false)) },
+            BucketWithPolicyArgs {
+                public: Some(pulumi::pv::bool(false)),
+            },
             pulumi::ResourceOptions::default(),
         )
         .await?;

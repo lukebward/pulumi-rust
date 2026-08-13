@@ -68,7 +68,10 @@ impl BucketWithPolicy {
         // against the component's own URN.
         ctx.register_resource_outputs(&component, vec![("url".to_string(), url.clone())]);
 
-        Ok(BucketWithPolicy { resource: component, url })
+        Ok(BucketWithPolicy {
+            resource: component,
+            url,
+        })
     }
 
     pub fn pulumi_resource(&self) -> &pulumi::Resource {

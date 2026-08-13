@@ -34,9 +34,7 @@ fn main() {
         ctx.export(
             "shouted",
             greeting.map(|v: pulumi::PropertyValue| match v {
-                pulumi::PropertyValue::String(s) => {
-                    pulumi::PropertyValue::String(s.to_uppercase())
-                }
+                pulumi::PropertyValue::String(s) => pulumi::PropertyValue::String(s.to_uppercase()),
                 other => other,
             }),
         );

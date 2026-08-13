@@ -27,7 +27,9 @@ async fn run() -> pulumi::Result<()> {
                         if args.resource.type_ != "simple:index:Resource" {
                             return Ok(());
                         }
-                        if let Some(PropertyValue::Bool(true)) = args.resource.properties.get("value") {
+                        if let Some(PropertyValue::Bool(true)) =
+                            args.resource.properties.get("value")
+                        {
                             args.manager.report_violation("This is a test warning", "");
                         }
                         Ok(())
@@ -43,7 +45,9 @@ async fn run() -> pulumi::Result<()> {
                         if args.resource.type_ != "simple:index:Resource" {
                             return Ok(());
                         }
-                        if let Some(PropertyValue::Bool(false)) = args.resource.properties.get("value") {
+                        if let Some(PropertyValue::Bool(false)) =
+                            args.resource.properties.get("value")
+                        {
                             args.manager.report_violation("This is a test error", "");
                         }
                         Ok(())

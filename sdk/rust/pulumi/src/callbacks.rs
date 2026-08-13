@@ -51,7 +51,9 @@ impl Callbacks for Service {
             Status::not_found(format!("unknown callback token {}", request.token))
         })?;
         let response = cb(request.request).await?;
-        Ok(Response::new(pulumirpc::CallbackInvokeResponse { response }))
+        Ok(Response::new(pulumirpc::CallbackInvokeResponse {
+            response,
+        }))
     }
 }
 
@@ -65,7 +67,9 @@ impl CallbackServer {
             .local_addr()
             .map_err(|e| Error::new(format!("reading callback server address: {e}")))?;
         let registry = Arc::new(Mutex::new(Registry::default()));
-        let service = Service { registry: registry.clone() };
+        let service = Service {
+            registry: registry.clone(),
+        };
         let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
         tokio::spawn(async move {
             let _ = tonic::transport::Server::builder()
@@ -75,7 +79,10 @@ impl CallbackServer {
         });
         // The engine dials this with grpc.NewClient, which wants a bare
         // host:port.
-        Ok(CallbackServer { target: format!("127.0.0.1:{}", addr.port()), registry })
+        Ok(CallbackServer {
+            target: format!("127.0.0.1:{}", addr.port()),
+            registry,
+        })
     }
 
     /// Register a callback and return the descriptor the engine needs.

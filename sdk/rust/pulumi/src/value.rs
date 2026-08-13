@@ -52,15 +52,24 @@ pub struct Asset {
 
 impl Asset {
     pub fn from_text(text: impl Into<String>) -> Self {
-        Asset { text: Some(text.into()), ..Default::default() }
+        Asset {
+            text: Some(text.into()),
+            ..Default::default()
+        }
     }
 
     pub fn from_path(path: impl Into<String>) -> Self {
-        Asset { path: Some(path.into()), ..Default::default() }
+        Asset {
+            path: Some(path.into()),
+            ..Default::default()
+        }
     }
 
     pub fn from_uri(uri: impl Into<String>) -> Self {
-        Asset { uri: Some(uri.into()), ..Default::default() }
+        Asset {
+            uri: Some(uri.into()),
+            ..Default::default()
+        }
     }
 }
 
@@ -83,15 +92,24 @@ pub struct Archive {
 
 impl Archive {
     pub fn from_path(path: impl Into<String>) -> Self {
-        Archive { path: Some(path.into()), ..Default::default() }
+        Archive {
+            path: Some(path.into()),
+            ..Default::default()
+        }
     }
 
     pub fn from_uri(uri: impl Into<String>) -> Self {
-        Archive { uri: Some(uri.into()), ..Default::default() }
+        Archive {
+            uri: Some(uri.into()),
+            ..Default::default()
+        }
     }
 
     pub fn from_assets(assets: BTreeMap<String, AssetOrArchive>) -> Self {
-        Archive { assets: Some(assets), ..Default::default() }
+        Archive {
+            assets: Some(assets),
+            ..Default::default()
+        }
     }
 }
 
@@ -153,7 +171,9 @@ pub struct OutputValue {
 pub type PropertyMap = BTreeMap<String, PropertyValue>;
 
 fn string_value(s: impl Into<String>) -> Value {
-    Value { kind: Some(Kind::StringValue(s.into())) }
+    Value {
+        kind: Some(Kind::StringValue(s.into())),
+    }
 }
 
 fn sig_object(sig: &str) -> BTreeMap<String, Value> {
@@ -167,7 +187,9 @@ fn struct_from(fields: BTreeMap<String, Value>) -> Struct {
 }
 
 fn object_value(fields: BTreeMap<String, Value>) -> Value {
-    Value { kind: Some(Kind::StructValue(struct_from(fields))) }
+    Value {
+        kind: Some(Kind::StructValue(struct_from(fields))),
+    }
 }
 
 impl Asset {
@@ -274,14 +296,18 @@ impl PropertyValue {
     /// engine negotiates).
     pub fn to_proto(&self) -> Value {
         match self {
-            PropertyValue::Null | PropertyValue::Missing => {
-                Value { kind: Some(Kind::NullValue(0)) }
-            }
+            PropertyValue::Null | PropertyValue::Missing => Value {
+                kind: Some(Kind::NullValue(0)),
+            },
             // A value whose resource failed to register never materialized,
             // so it travels as unknown.
             PropertyValue::Failed(_) => string_value(UNKNOWN_STRING_VALUE),
-            PropertyValue::Bool(b) => Value { kind: Some(Kind::BoolValue(*b)) },
-            PropertyValue::Number(n) => Value { kind: Some(Kind::NumberValue(*n)) },
+            PropertyValue::Bool(b) => Value {
+                kind: Some(Kind::BoolValue(*b)),
+            },
+            PropertyValue::Number(n) => Value {
+                kind: Some(Kind::NumberValue(*n)),
+            },
             PropertyValue::String(s) => string_value(s.clone()),
             PropertyValue::ByteString(bytes) => {
                 use base64::Engine;
@@ -315,7 +341,12 @@ impl PropertyValue {
                     m.insert("value".into(), v.to_proto());
                 }
                 if o.secret {
-                    m.insert("secret".into(), Value { kind: Some(Kind::BoolValue(true)) });
+                    m.insert(
+                        "secret".into(),
+                        Value {
+                            kind: Some(Kind::BoolValue(true)),
+                        },
+                    );
                 }
                 if !o.dependencies.is_empty() {
                     m.insert(
@@ -346,7 +377,10 @@ impl PropertyValue {
                     None => {}
                 }
                 if !r.package_version.is_empty() {
-                    m.insert("packageVersion".into(), string_value(r.package_version.clone()));
+                    m.insert(
+                        "packageVersion".into(),
+                        string_value(r.package_version.clone()),
+                    );
                 }
                 object_value(m)
             }
@@ -401,7 +435,10 @@ impl PropertyValue {
                 PropertyValue::Secret(Box::new(inner))
             }
             Some(OUTPUT_VALUE_SIG) => {
-                let value = s.fields.get("value").map(|v| Box::new(PropertyValue::from_proto(v)));
+                let value = s
+                    .fields
+                    .get("value")
+                    .map(|v| Box::new(PropertyValue::from_proto(v)));
                 let secret = s
                     .fields
                     .get("secret")
@@ -426,7 +463,11 @@ impl PropertyValue {
                         _ => None,
                     })
                     .unwrap_or_default();
-                PropertyValue::Output(OutputValue { value, secret, dependencies })
+                PropertyValue::Output(OutputValue {
+                    value,
+                    secret,
+                    dependencies,
+                })
             }
             Some(RESOURCE_REFERENCE_SIG) => {
                 let id = match get_string("id") {
@@ -482,8 +523,11 @@ impl PropertyValue {
                 PropertyValue::from_bytes(decoded)
             }
             _ => {
-                let fields =
-                    s.fields.iter().map(|(k, v)| (k.clone(), PropertyValue::from_proto(v))).collect();
+                let fields = s
+                    .fields
+                    .iter()
+                    .map(|(k, v)| (k.clone(), PropertyValue::from_proto(v)))
+                    .collect();
                 PropertyValue::Object(fields)
             }
         }
@@ -503,12 +547,20 @@ impl PropertyValue {
 
 /// Marshal a property map to a protobuf `Struct`.
 pub fn marshal_properties(props: &PropertyMap) -> Struct {
-    struct_from(props.iter().map(|(k, v)| (k.clone(), v.to_proto())).collect())
+    struct_from(
+        props
+            .iter()
+            .map(|(k, v)| (k.clone(), v.to_proto()))
+            .collect(),
+    )
 }
 
 /// Unmarshal a protobuf `Struct` into a property map.
 pub fn unmarshal_properties(s: &Struct) -> PropertyMap {
-    s.fields.iter().map(|(k, v)| (k.clone(), PropertyValue::from_proto(v))).collect()
+    s.fields
+        .iter()
+        .map(|(k, v)| (k.clone(), PropertyValue::from_proto(v)))
+        .collect()
 }
 
 #[cfg(test)]
@@ -544,7 +596,10 @@ mod tests {
     #[test]
     fn round_trip_asset_archive() {
         let mut assets = BTreeMap::new();
-        assets.insert("a.txt".to_string(), AssetOrArchive::Asset(Asset::from_text("hi")));
+        assets.insert(
+            "a.txt".to_string(),
+            AssetOrArchive::Asset(Asset::from_text("hi")),
+        );
         let v = PropertyValue::Archive(Archive::from_assets(assets));
         assert_eq!(PropertyValue::from_proto(&v.to_proto()), v);
     }
@@ -658,9 +713,12 @@ mod tests {
     #[test]
     fn contains_secret_looks_inside_every_container() {
         let deep = PropertyValue::Array(vec![PropertyValue::Object(
-            [("k".to_string(), PropertyValue::Secret(Box::new(PropertyValue::Number(1.0))))]
-                .into_iter()
-                .collect(),
+            [(
+                "k".to_string(),
+                PropertyValue::Secret(Box::new(PropertyValue::Number(1.0))),
+            )]
+            .into_iter()
+            .collect(),
         )]);
         assert!(deep.contains_secret());
         assert!(!PropertyValue::Array(vec![PropertyValue::Number(1.0)]).contains_secret());
@@ -676,13 +734,21 @@ mod tests {
     fn nested_containers_round_trip() {
         let v = PropertyValue::Object(
             [
-                ("list".to_string(), PropertyValue::Array(vec![
-                    PropertyValue::Number(1.0),
-                    PropertyValue::Bool(false),
-                ])),
-                ("nested".to_string(), PropertyValue::Object(
-                    [("k".to_string(), PropertyValue::String("v".into()))].into_iter().collect(),
-                )),
+                (
+                    "list".to_string(),
+                    PropertyValue::Array(vec![
+                        PropertyValue::Number(1.0),
+                        PropertyValue::Bool(false),
+                    ]),
+                ),
+                (
+                    "nested".to_string(),
+                    PropertyValue::Object(
+                        [("k".to_string(), PropertyValue::String("v".into()))]
+                            .into_iter()
+                            .collect(),
+                    ),
+                ),
             ]
             .into_iter()
             .collect(),

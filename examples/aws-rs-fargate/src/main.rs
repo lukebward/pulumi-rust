@@ -243,7 +243,9 @@ fn main() {
                 launch_type: Some(pulumi::pv::string("FARGATE").cast()),
                 network_configuration: Some(
                     pulumi_aws::types::EcsServiceNetworkConfigurationArgs {
-                        subnets: Some(subnets.map(|s: pulumi_aws::types::Ec2GetSubnetsResult| s.ids)),
+                        subnets: Some(
+                            subnets.map(|s: pulumi_aws::types::Ec2GetSubnetsResult| s.ids),
+                        ),
                         security_groups: Some(security_group.id().map(|id: String| vec![id])),
                         // The default VPC's subnets are public and have no
                         // NAT gateway, so without a public IP the task

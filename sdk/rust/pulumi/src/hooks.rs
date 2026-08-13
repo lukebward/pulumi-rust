@@ -79,15 +79,20 @@ pub(crate) async fn run_command(argv: Output<PropertyValue>) -> Option<String> {
         }
     }
     let parts: Vec<String> = match unwrap(&value) {
-        PropertyValue::Array(items) => {
-            items.iter().map(|v| crate::output::display(&unwrap(v))).collect()
-        }
+        PropertyValue::Array(items) => items
+            .iter()
+            .map(|v| crate::output::display(&unwrap(v)))
+            .collect(),
         other => vec![crate::output::display(&other)],
     };
     let Some((program, args)) = parts.split_first() else {
         return Some("hook command is empty".to_string());
     };
-    match tokio::process::Command::new(program).args(args).status().await {
+    match tokio::process::Command::new(program)
+        .args(args)
+        .status()
+        .await
+    {
         Ok(status) if status.success() => None,
         Ok(status) => Some(format!("command {:?} failed: {}", parts, status)),
         Err(e) => Some(format!("running command {:?}: {}", parts, e)),

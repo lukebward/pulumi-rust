@@ -62,12 +62,16 @@ impl StackReference {
             let key = key.data().await;
             let names = secret_names.data().await;
             let is_secret = match (&key.value, &names.value) {
-                (PropertyValue::String(k), PropertyValue::Array(names)) => {
-                    names.iter().any(|n| matches!(n, PropertyValue::String(s) if s == k))
-                }
+                (PropertyValue::String(k), PropertyValue::Array(names)) => names
+                    .iter()
+                    .any(|n| matches!(n, PropertyValue::String(s) if s == k)),
                 _ => false,
             };
-            OutputData { value: d.value, secret: d.secret || is_secret, deps: d.deps }
+            OutputData {
+                value: d.value,
+                secret: d.secret || is_secret,
+                deps: d.deps,
+            }
         })
     }
 }

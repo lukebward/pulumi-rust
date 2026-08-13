@@ -3,8 +3,17 @@ name = "pulumi"
 description = "Pulumi Rust SDK core runtime (experimental)"
 version = "0.1.0"
 edition = "2021"
+# The floor CONTRIBUTING.md states and rust-toolchain.toml pins.
+rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/lukebward/pulumi-rust"
+homepage = "https://www.pulumi.com"
+documentation = "https://docs.rs/pulumi"
+# Beside the manifest, not the repository root: the root README is not part of
+# the .crate archive, so crates.io would render a bare page without this one.
+readme = "README.md"
+keywords = ["pulumi", "infrastructure", "iac", "cloud", "devops"]
+categories = ["development-tools", "api-bindings"]
 
 [lib]
 # The generated proto bindings carry doc comments that are not Rust doctests.
@@ -31,3 +40,10 @@ protox = "0.7"
 # Standalone crate: never adopt an enclosing workspace. This matters because
 # the crate is copied verbatim into conformance-test artifact directories.
 [workspace]
+
+[lints.clippy]
+# Every gRPC handler returns Result<_, tonic::Status>, and Status is large by
+# construction — it carries the message, details and metadata map. The lint is
+# right about the size and wrong about the remedy: boxing the error variant of
+# a trait-mandated signature is not ours to do.
+result_large_err = "allow"

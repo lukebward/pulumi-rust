@@ -225,9 +225,10 @@ impl<T: FromPropertyValue> FromPropertyValue for Vec<T> {
     fn from_property_value(v: PropertyValue) -> Result<Self> {
         let (v, secret) = unwrap(v)?;
         match v {
-            PropertyValue::Array(vs) => {
-                vs.into_iter().map(T::from_property_value).collect::<Result<Vec<_>>>()
-            }
+            PropertyValue::Array(vs) => vs
+                .into_iter()
+                .map(T::from_property_value)
+                .collect::<Result<Vec<_>>>(),
             other => Err(mismatch("array", &other, secret)),
         }
     }
@@ -236,7 +237,9 @@ impl<T: FromPropertyValue> FromPropertyValue for Vec<T> {
 impl<T: IntoPropertyValue> IntoPropertyValue for BTreeMap<String, T> {
     fn into_property_value(self) -> PropertyValue {
         PropertyValue::Object(
-            self.into_iter().map(|(k, v)| (k, v.into_property_value())).collect(),
+            self.into_iter()
+                .map(|(k, v)| (k, v.into_property_value()))
+                .collect(),
         )
     }
 }
@@ -257,7 +260,9 @@ impl<T: FromPropertyValue> FromPropertyValue for BTreeMap<String, T> {
 impl<T: IntoPropertyValue> IntoPropertyValue for HashMap<String, T> {
     fn into_property_value(self) -> PropertyValue {
         PropertyValue::Object(
-            self.into_iter().map(|(k, v)| (k, v.into_property_value())).collect(),
+            self.into_iter()
+                .map(|(k, v)| (k, v.into_property_value()))
+                .collect(),
         )
     }
 }
@@ -381,8 +386,7 @@ mod tests {
     #[test]
     fn collections_round_trip() {
         assert_eq!(round_trip(vec![1i64, 2, 3]), vec![1i64, 2, 3]);
-        let m: BTreeMap<String, i64> =
-            [("a".to_string(), 1i64)].into_iter().collect();
+        let m: BTreeMap<String, i64> = [("a".to_string(), 1i64)].into_iter().collect();
         assert_eq!(round_trip(m.clone()), m);
     }
 
@@ -391,7 +395,10 @@ mod tests {
         // Generated code boxes a field that would otherwise make its struct
         // infinitely sized. The box is a Rust detail; the wire sees the value.
         let boxed = Box::new("x".to_string());
-        assert_eq!(boxed.clone().into_property_value(), PropertyValue::String("x".into()));
+        assert_eq!(
+            boxed.clone().into_property_value(),
+            PropertyValue::String("x".into())
+        );
         let back: Box<String> =
             FromPropertyValue::from_property_value(PropertyValue::String("x".into())).unwrap();
         assert_eq!(*back, "x".to_string());
@@ -434,10 +441,8 @@ mod tests {
             dependencies: vec!["urn:res".to_string()],
         });
         for v in [secret, wrapped] {
-            let got: Option<String> =
-                FromPropertyValue::from_property_value(v.clone()).unwrap_or_else(|e| {
-                    panic!("{v:?} did not convert: {e}")
-                });
+            let got: Option<String> = FromPropertyValue::from_property_value(v.clone())
+                .unwrap_or_else(|e| panic!("{v:?} did not convert: {e}"));
             assert_eq!(got, None, "{v:?} should be absent");
         }
     }
@@ -473,9 +478,18 @@ mod tests {
         let err = <String as FromPropertyValue>::from_property_value(v)
             .unwrap_err()
             .to_string();
-        assert!(!err.contains("1234"), "the secret leaked into the error: {err}");
-        assert!(err.contains("string"), "error does not name the expected type: {err}");
-        assert!(err.contains("number"), "error does not name the actual type: {err}");
+        assert!(
+            !err.contains("1234"),
+            "the secret leaked into the error: {err}"
+        );
+        assert!(
+            err.contains("string"),
+            "error does not name the expected type: {err}"
+        );
+        assert!(
+            err.contains("number"),
+            "error does not name the actual type: {err}"
+        );
     }
 
     #[test]
@@ -487,7 +501,10 @@ mod tests {
         let err = <String as FromPropertyValue>::from_property_value(v)
             .unwrap_err()
             .to_string();
-        assert!(!err.contains("hunter2"), "the secret leaked into the error: {err}");
+        assert!(
+            !err.contains("hunter2"),
+            "the secret leaked into the error: {err}"
+        );
     }
 
     #[test]
@@ -502,29 +519,38 @@ mod tests {
         let err = <String as FromPropertyValue>::from_property_value(v)
             .unwrap_err()
             .to_string();
-        assert!(!err.contains("1234"), "the secret leaked into the error: {err}");
+        assert!(
+            !err.contains("1234"),
+            "the secret leaked into the error: {err}"
+        );
     }
 
     #[test]
     fn a_type_mismatch_names_the_expected_type_and_shows_the_value() {
-        let err = <i64 as FromPropertyValue>::from_property_value(
-            PropertyValue::String("x".into()),
-        )
-        .unwrap_err()
-        .to_string();
-        assert!(err.contains("integer"), "error does not name the expected type: {err}");
-        assert!(err.contains("x"), "error does not show the offending value: {err}");
+        let err =
+            <i64 as FromPropertyValue>::from_property_value(PropertyValue::String("x".into()))
+                .unwrap_err()
+                .to_string();
+        assert!(
+            err.contains("integer"),
+            "error does not name the expected type: {err}"
+        );
+        assert!(
+            err.contains("x"),
+            "error does not show the offending value: {err}"
+        );
     }
 
     #[test]
     fn non_utf8_bytes_refuse_to_become_a_rust_string() {
         // Silently lossy-converting would corrupt the value; the error has to
         // say why, since the wire type is still "string".
-        let err = <String as FromPropertyValue>::from_property_value(
-            PropertyValue::ByteString(vec![0xff]),
-        )
-        .unwrap_err()
-        .to_string();
+        let err =
+            <String as FromPropertyValue>::from_property_value(PropertyValue::ByteString(vec![
+                0xff,
+            ]))
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("non-UTF8"), "unhelpful error: {err}");
     }
 }

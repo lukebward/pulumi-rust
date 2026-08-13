@@ -33,12 +33,14 @@ fn main() {
         // `pulumi config set machineType e2-small` override these. The one
         // piece of configuration with no default is `gcp:project`, which the
         // provider requires; see the README.
-        let zone = ctx
-            .config()
-            .get_string_or("zone", pulumi::PropertyValue::String("us-central1-a".into()));
-        let machine_type = ctx
-            .config()
-            .get_string_or("machineType", pulumi::PropertyValue::String("e2-micro".into()));
+        let zone = ctx.config().get_string_or(
+            "zone",
+            pulumi::PropertyValue::String("us-central1-a".into()),
+        );
+        let machine_type = ctx.config().get_string_or(
+            "machineType",
+            pulumi::PropertyValue::String("e2-micro".into()),
+        );
 
         // A network of this stack's own rather than the project's `default`
         // network: the firewall rule below opens ports on whatever network it
@@ -80,9 +82,7 @@ fn main() {
                     ..Default::default()
                 }]),
                 source_ranges: Some(pulumi::Output::known(vec!["0.0.0.0/0".to_string()])),
-                description: Some(
-                    pulumi::pv::string("Allow SSH and HTTP from anywhere").cast(),
-                ),
+                description: Some(pulumi::pv::string("Allow SSH and HTTP from anywhere").cast()),
                 ..Default::default()
             },
             pulumi::ResourceOptions::default(),
@@ -168,7 +168,10 @@ fn main() {
             .index(0usize)
             .index("natIp");
 
-        ctx.export("instanceName", server.name().cast::<pulumi::PropertyValue>());
+        ctx.export(
+            "instanceName",
+            server.name().cast::<pulumi::PropertyValue>(),
+        );
         ctx.export("publicIp", public_ip.clone());
         ctx.export(
             "url",

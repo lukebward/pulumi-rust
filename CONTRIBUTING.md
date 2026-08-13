@@ -80,9 +80,13 @@ The `policy-*` and `provider-*` tests build the policy packs under
 `testdata/policies` and the component providers under `testdata/providers`,
 each of which is a real Rust crate the engine launches as a plugin.
 
-Builds share a cargo target directory
-(`$TMPDIR/pulumi-language-rust-target-$UID`) so the dependency graph
-compiles once per machine, not once per test.
+Builds share a cargo target directory under the user's cache directory
+(`$XDG_CACHE_HOME/pulumi-language-rust/target`, or the platform equivalent)
+so the dependency graph compiles once per machine, not once per test. It is
+deliberately not in `/tmp`: a predictable path in a world-writable directory
+is another local user's to pre-create or symlink, and cargo would then write
+— and later execute — build-script binaries from a location they control.
+`make clean` removes it.
 
 ### The real-schema canary
 

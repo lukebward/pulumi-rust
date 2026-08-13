@@ -55,11 +55,17 @@ async fn main() {
 
 async fn construct(args: pulumi::ConstructArgs) -> pulumi::Result<pulumi::ConstructResult> {
     if args.type_ != "conformance-component:index:Simple" {
-        return Err(pulumi::Error::new(format!("unknown resource type {}", args.type_)));
+        return Err(pulumi::Error::new(format!(
+            "unknown resource type {}",
+            args.type_
+        )));
     }
 
     let value = pulumi::Output::from_value(
-        args.inputs.get("value").cloned().unwrap_or(pulumi::PropertyValue::Null),
+        args.inputs
+            .get("value")
+            .cloned()
+            .unwrap_or(pulumi::PropertyValue::Null),
     );
 
     let component = args.ctx.register_resource(pulumi::RegisterRequest {
@@ -83,15 +89,21 @@ async fn construct(args: pulumi::ConstructArgs) -> pulumi::Result<pulumi::Constr
         &args.ctx,
         &format!("{}-child", args.name),
         pulumi_simple::ResourceArgs { value: negated },
-        pulumi::ResourceOptions { parent: Some(component.clone()), ..Default::default() },
+        pulumi::ResourceOptions {
+            parent: Some(component.clone()),
+            ..Default::default()
+        },
     );
 
-    args.ctx.register_resource_outputs(&component, vec![("value".to_string(), value.clone())]);
+    args.ctx
+        .register_resource_outputs(&component, vec![("value".to_string(), value.clone())]);
 
     let urn = match component.urn().data().await.value {
         pulumi::PropertyValue::String(urn) => urn,
         other => {
-            return Err(pulumi::Error::new(format!("component URN was not a string: {other:?}")))
+            return Err(pulumi::Error::new(format!(
+                "component URN was not a string: {other:?}"
+            )))
         }
     };
 

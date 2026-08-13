@@ -16,7 +16,11 @@ fn combine2(
         let secret = da.secret || db.secret;
         let deps: Vec<String> = da.deps.iter().chain(db.deps.iter()).cloned().collect();
         if !da.known() || !db.known() {
-            return OutputData { value: PropertyValue::Computed, secret, deps };
+            return OutputData {
+                value: PropertyValue::Computed,
+                secret,
+                deps,
+            };
         }
         // Lift any wrappers the combination produced (e.g. indexing into an
         // array with secret elements) into the flags.
@@ -62,7 +66,9 @@ numeric_op!(mul, *);
 numeric_op!(div, /);
 
 pub fn rem(a: Output<PropertyValue>, b: Output<PropertyValue>) -> Output<PropertyValue> {
-    combine2(a, b, |a, b| PropertyValue::Number(as_number(&a) % as_number(&b)))
+    combine2(a, b, |a, b| {
+        PropertyValue::Number(as_number(&a) % as_number(&b))
+    })
 }
 
 pub fn eq(a: Output<PropertyValue>, b: Output<PropertyValue>) -> Output<PropertyValue> {
@@ -95,11 +101,13 @@ pub fn or(a: Output<PropertyValue>, b: Output<PropertyValue>) -> Output<Property
 }
 
 pub fn not(a: Output<PropertyValue>) -> Output<PropertyValue> {
-    a.map(|v: PropertyValue| PropertyValue::Bool(!as_bool(&v))).cast()
+    a.map(|v: PropertyValue| PropertyValue::Bool(!as_bool(&v)))
+        .cast()
 }
 
 pub fn neg(a: Output<PropertyValue>) -> Output<PropertyValue> {
-    a.map(|v: PropertyValue| PropertyValue::Number(-as_number(&v))).cast()
+    a.map(|v: PropertyValue| PropertyValue::Number(-as_number(&v)))
+        .cast()
 }
 
 /// A conditional expression. Both branches are evaluated (they are pure
@@ -112,7 +120,11 @@ pub fn cond(
     Output::from_data_future(async move {
         let dc = c.data().await;
         if !dc.known() {
-            return OutputData { value: PropertyValue::Computed, secret: dc.secret, deps: dc.deps };
+            return OutputData {
+                value: PropertyValue::Computed,
+                secret: dc.secret,
+                deps: dc.deps,
+            };
         }
         let branch = if as_bool(&dc.value) { t } else { f };
         let db = branch.data().await;
@@ -246,7 +258,11 @@ pub fn for_array(
             // element as a deletion.
             if !keep.known() {
                 secret |= keep.secret;
-                return OutputData { value: PropertyValue::Computed, secret, deps };
+                return OutputData {
+                    value: PropertyValue::Computed,
+                    secret,
+                    deps,
+                };
             }
             if !matches!(keep.value, PropertyValue::Bool(true)) {
                 continue;
@@ -255,7 +271,11 @@ pub fn for_array(
             deps.extend(dv.deps.clone());
             items.push(dv.into_value());
         }
-        OutputData { value: PropertyValue::Array(items), secret, deps }
+        OutputData {
+            value: PropertyValue::Array(items),
+            secret,
+            deps,
+        }
     })
 }
 
@@ -266,9 +286,7 @@ pub fn for_object(
     cond: impl Fn(Output<PropertyValue>, Output<PropertyValue>) -> Output<PropertyValue>
         + Send
         + 'static,
-    key: impl Fn(Output<PropertyValue>, Output<PropertyValue>) -> Output<PropertyValue>
-        + Send
-        + 'static,
+    key: impl Fn(Output<PropertyValue>, Output<PropertyValue>) -> Output<PropertyValue> + Send + 'static,
     value: impl Fn(Output<PropertyValue>, Output<PropertyValue>) -> Output<PropertyValue>
         + Send
         + 'static,
@@ -291,7 +309,11 @@ pub fn for_object(
             // than silently missing its filtered entries.
             if !keep.known() {
                 secret |= keep.secret;
-                return OutputData { value: PropertyValue::Computed, secret, deps };
+                return OutputData {
+                    value: PropertyValue::Computed,
+                    secret,
+                    deps,
+                };
             }
             if !matches!(keep.value, PropertyValue::Bool(true)) {
                 continue;
@@ -304,7 +326,11 @@ pub fn for_object(
                 map.insert(ks, dv.into_value());
             }
         }
-        OutputData { value: PropertyValue::Object(map), secret, deps }
+        OutputData {
+            value: PropertyValue::Object(map),
+            secret,
+            deps,
+        }
     })
 }
 
@@ -317,13 +343,21 @@ pub fn index(target: Output<PropertyValue>, key: Output<PropertyValue>) -> Outpu
         let secret = dt.secret || dk.secret;
         let deps: Vec<String> = dt.deps.iter().chain(dk.deps.iter()).cloned().collect();
         if matches!(dt.value, PropertyValue::Computed) || !dk.known() {
-            return OutputData { value: PropertyValue::Computed, secret, deps };
+            return OutputData {
+                value: PropertyValue::Computed,
+                secret,
+                deps,
+            };
         }
         let idx = match &dk.value {
             PropertyValue::Number(n) => crate::output::PropIndex::Index(*n as usize),
             PropertyValue::String(s) => crate::output::PropIndex::Key(s.clone()),
             _ => {
-                return OutputData { value: PropertyValue::Null, secret, deps };
+                return OutputData {
+                    value: PropertyValue::Null,
+                    secret,
+                    deps,
+                };
             }
         };
         // Indexing semantics live in one place: this used to be a
@@ -351,14 +385,27 @@ pub fn index_checked(
         let secret = dt.secret || dk.secret;
         let deps: Vec<String> = dt.deps.iter().chain(dk.deps.iter()).cloned().collect();
         if matches!(dt.value, PropertyValue::Computed) || !dk.known() {
-            return OutputData { value: PropertyValue::Computed, secret, deps };
+            return OutputData {
+                value: PropertyValue::Computed,
+                secret,
+                deps,
+            };
         }
         let idx = match &dk.value {
             PropertyValue::Number(n) => crate::output::PropIndex::Index(*n as usize),
             PropertyValue::String(s) => crate::output::PropIndex::Key(s.clone()),
-            _ => return OutputData { value: PropertyValue::Missing, secret, deps },
+            _ => {
+                return OutputData {
+                    value: PropertyValue::Missing,
+                    secret,
+                    deps,
+                }
+            }
         };
-        let inner = Output::<PropertyValue>::from_value(dt.value).index_checked(idx).data().await;
+        let inner = Output::<PropertyValue>::from_value(dt.value)
+            .index_checked(idx)
+            .data()
+            .await;
         OutputData {
             value: inner.value,
             secret: secret || inner.secret,
@@ -424,7 +471,11 @@ pub fn try_(alts: Vec<Output<PropertyValue>>) -> Output<PropertyValue> {
             last = data;
         }
         // Every alternative failed; surface null rather than the sentinel.
-        OutputData { value: PropertyValue::Null, secret: last.secret, deps: last.deps }
+        OutputData {
+            value: PropertyValue::Null,
+            secret: last.secret,
+            deps: last.deps,
+        }
     })
 }
 
@@ -458,30 +509,62 @@ mod tests {
 
     #[tokio::test]
     async fn arithmetic_and_comparison() {
-        assert_eq!(value(add(num(2.0), num(3.0))).await, PropertyValue::Number(5.0));
-        assert_eq!(value(sub(num(5.0), num(3.0))).await, PropertyValue::Number(2.0));
-        assert_eq!(value(mul(num(2.0), num(3.0))).await, PropertyValue::Number(6.0));
-        assert_eq!(value(div(num(6.0), num(3.0))).await, PropertyValue::Number(2.0));
-        assert_eq!(value(rem(num(7.0), num(3.0))).await, PropertyValue::Number(1.0));
+        assert_eq!(
+            value(add(num(2.0), num(3.0))).await,
+            PropertyValue::Number(5.0)
+        );
+        assert_eq!(
+            value(sub(num(5.0), num(3.0))).await,
+            PropertyValue::Number(2.0)
+        );
+        assert_eq!(
+            value(mul(num(2.0), num(3.0))).await,
+            PropertyValue::Number(6.0)
+        );
+        assert_eq!(
+            value(div(num(6.0), num(3.0))).await,
+            PropertyValue::Number(2.0)
+        );
+        assert_eq!(
+            value(rem(num(7.0), num(3.0))).await,
+            PropertyValue::Number(1.0)
+        );
         assert_eq!(value(neg(num(2.0))).await, PropertyValue::Number(-2.0));
-        assert_eq!(value(lt(num(1.0), num(2.0))).await, PropertyValue::Bool(true));
-        assert_eq!(value(gte(num(2.0), num(2.0))).await, PropertyValue::Bool(true));
+        assert_eq!(
+            value(lt(num(1.0), num(2.0))).await,
+            PropertyValue::Bool(true)
+        );
+        assert_eq!(
+            value(gte(num(2.0), num(2.0))).await,
+            PropertyValue::Bool(true)
+        );
     }
 
     #[tokio::test]
     async fn equality_compares_values_not_wrappers() {
         // A secret and a plain value holding the same thing are equal; the
         // secretness rides along on the result instead.
-        let d = eq(pv::secret(pv::string("x")), pv::string("x")).data().await;
+        let d = eq(pv::secret(pv::string("x")), pv::string("x"))
+            .data()
+            .await;
         assert_eq!(d.value, PropertyValue::Bool(true));
         assert!(d.secret);
-        assert_eq!(value(neq(pv::string("x"), pv::string("y"))).await, PropertyValue::Bool(true));
+        assert_eq!(
+            value(neq(pv::string("x"), pv::string("y"))).await,
+            PropertyValue::Bool(true)
+        );
     }
 
     #[tokio::test]
     async fn logic_operators() {
-        assert_eq!(value(and(pv::bool(true), pv::bool(false))).await, PropertyValue::Bool(false));
-        assert_eq!(value(or(pv::bool(true), pv::bool(false))).await, PropertyValue::Bool(true));
+        assert_eq!(
+            value(and(pv::bool(true), pv::bool(false))).await,
+            PropertyValue::Bool(false)
+        );
+        assert_eq!(
+            value(or(pv::bool(true), pv::bool(false))).await,
+            PropertyValue::Bool(true)
+        );
         assert_eq!(value(not(pv::bool(false))).await, PropertyValue::Bool(true));
     }
 
@@ -510,16 +593,20 @@ mod tests {
         );
         // Which branch was taken leaks the condition, so a secret condition
         // makes the result secret whichever branch wins.
-        assert!(cond(pv::secret(pv::bool(true)), pv::string("t"), pv::string("f"))
-            .data()
-            .await
-            .secret);
+        assert!(
+            cond(pv::secret(pv::bool(true)), pv::string("t"), pv::string("f"))
+                .data()
+                .await
+                .secret
+        );
     }
 
     #[tokio::test]
     async fn an_unknown_condition_yields_an_unknown_result() {
         // Not one of the branches: during a preview we do not know which.
-        let d = cond(Output::unknown(), pv::string("t"), pv::string("f")).data().await;
+        let d = cond(Output::unknown(), pv::string("t"), pv::string("f"))
+            .data()
+            .await;
         assert!(!d.known());
     }
 
@@ -527,20 +614,47 @@ mod tests {
 
     #[tokio::test]
     async fn coercions_follow_pcl_semantics() {
-        assert_eq!(value(to_number(pv::string("3.5"))).await, PropertyValue::Number(3.5));
-        assert_eq!(value(to_number(pv::bool(true))).await, PropertyValue::Number(1.0));
-        assert_eq!(value(to_int(pv::string("3.9"))).await, PropertyValue::Number(3.0));
-        assert_eq!(value(to_bool(pv::string("true"))).await, PropertyValue::Bool(true));
-        assert_eq!(value(to_string(num(3.0))).await, PropertyValue::String("3".into()));
-        assert_eq!(value(to_string(num(3.5))).await, PropertyValue::String("3.5".into()));
-        assert_eq!(value(to_string(pv::bool(true))).await, PropertyValue::String("true".into()));
+        assert_eq!(
+            value(to_number(pv::string("3.5"))).await,
+            PropertyValue::Number(3.5)
+        );
+        assert_eq!(
+            value(to_number(pv::bool(true))).await,
+            PropertyValue::Number(1.0)
+        );
+        assert_eq!(
+            value(to_int(pv::string("3.9"))).await,
+            PropertyValue::Number(3.0)
+        );
+        assert_eq!(
+            value(to_bool(pv::string("true"))).await,
+            PropertyValue::Bool(true)
+        );
+        assert_eq!(
+            value(to_string(num(3.0))).await,
+            PropertyValue::String("3".into())
+        );
+        assert_eq!(
+            value(to_string(num(3.5))).await,
+            PropertyValue::String("3.5".into())
+        );
+        assert_eq!(
+            value(to_string(pv::bool(true))).await,
+            PropertyValue::String("true".into())
+        );
     }
 
     #[tokio::test]
     async fn an_uncoercible_value_is_left_alone_rather_than_zeroed() {
         // Turning "abc" into 0 would silently deploy the wrong number.
-        assert_eq!(value(to_number(pv::string("abc"))).await, PropertyValue::String("abc".into()));
-        assert_eq!(value(to_bool(pv::string("yes"))).await, PropertyValue::String("yes".into()));
+        assert_eq!(
+            value(to_number(pv::string("abc"))).await,
+            PropertyValue::String("abc".into())
+        );
+        assert_eq!(
+            value(to_bool(pv::string("yes"))).await,
+            PropertyValue::String("yes".into())
+        );
     }
 
     #[tokio::test]
@@ -566,7 +680,10 @@ mod tests {
         );
         assert_eq!(
             value(out).await,
-            PropertyValue::Array(vec![PropertyValue::Number(20.0), PropertyValue::Number(30.0)])
+            PropertyValue::Array(vec![
+                PropertyValue::Number(20.0),
+                PropertyValue::Number(30.0)
+            ])
         );
     }
 
@@ -599,7 +716,10 @@ mod tests {
             |_k, v| v,
         );
         let d = out.data().await;
-        assert!(!d.known(), "an unknown condition filtered instead of going unknown");
+        assert!(
+            !d.known(),
+            "an unknown condition filtered instead of going unknown"
+        );
 
         let out = for_object(
             pv::object(vec![("a".to_string(), num(1.0))]),
@@ -618,7 +738,10 @@ mod tests {
             |_k, v| gt(v, num(1.0)),
             |_k, v| v,
         );
-        assert_eq!(value(out).await, PropertyValue::Array(vec![PropertyValue::Number(2.0)]));
+        assert_eq!(
+            value(out).await,
+            PropertyValue::Array(vec![PropertyValue::Number(2.0)])
+        );
     }
 
     // --- try / can / recover ------------------------------------------------
@@ -666,7 +789,10 @@ mod tests {
         let out = recover(failed, |e| e);
         let d = out.data().await;
         assert_eq!(d.value, PropertyValue::String("it broke".into()));
-        assert!(d.deps.is_empty(), "the failed resource's deps leaked into the recovery");
+        assert!(
+            d.deps.is_empty(),
+            "the failed resource's deps leaked into the recovery"
+        );
     }
 
     // --- indexing -----------------------------------------------------------
@@ -678,7 +804,10 @@ mod tests {
         // string keys on arrays, and looking through a secret wrapper while
         // lifting its secretness onto the result.
         let arr = pv::array(vec![num(7.0)]);
-        assert_eq!(value(index(arr.clone(), pv::string("0"))).await, PropertyValue::Number(7.0));
+        assert_eq!(
+            value(index(arr.clone(), pv::string("0"))).await,
+            PropertyValue::Number(7.0)
+        );
         let d = index(pv::secret(arr), num(0.0)).data().await;
         assert_eq!(d.value, PropertyValue::Number(7.0));
         assert!(d.secret, "indexing a secret container lost its secretness");
@@ -687,7 +816,10 @@ mod tests {
     #[tokio::test]
     async fn index_checked_flags_an_absent_key_while_index_nulls_it() {
         let obj = pv::object(vec![("a".to_string(), num(1.0))]);
-        assert_eq!(value(index(obj.clone(), pv::string("nope"))).await, PropertyValue::Null);
+        assert_eq!(
+            value(index(obj.clone(), pv::string("nope"))).await,
+            PropertyValue::Null
+        );
         assert_eq!(
             value(index_checked(obj, pv::string("nope"))).await,
             PropertyValue::Missing

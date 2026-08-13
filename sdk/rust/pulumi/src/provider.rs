@@ -241,10 +241,7 @@ impl ResourceProvider for Service {
         Ok(Response::new(pulumirpc::GetMappingsResponse::default()))
     }
 
-    async fn cancel(
-        &self,
-        _request: Request<()>,
-    ) -> std::result::Result<Response<()>, Status> {
+    async fn cancel(&self, _request: Request<()>) -> std::result::Result<Response<()>, Status> {
         Ok(Response::new(()))
     }
 
@@ -279,7 +276,9 @@ fn construct_options(ctx: &Context, request: &pulumirpc::ConstructRequest) -> Re
         options.parent = Some(ctx.resource_from_urn(&request.parent));
     }
     for (pkg, reference) in &request.providers {
-        options.providers.push((pkg.clone(), ctx.provider_from_reference(reference)));
+        options
+            .providers
+            .push((pkg.clone(), ctx.provider_from_reference(reference)));
     }
     for urn in &request.dependencies {
         options.depends_on.push(ctx.resource_from_urn(urn));
@@ -342,7 +341,10 @@ fn construct_options(ctx: &Context, request: &pulumirpc::ConstructRequest) -> Re
         // The hooks themselves live in the program that registered them; the
         // engine only needs their names to bind them again here.
         let hooks = |names: &[String]| -> Vec<ResourceHook> {
-            names.iter().map(|name| ResourceHook { name: name.clone() }).collect()
+            names
+                .iter()
+                .map(|name| ResourceHook { name: name.clone() })
+                .collect()
         };
         options.hooks = ResourceHookBinding {
             before_create: hooks(&binding.before_create),
@@ -374,7 +376,11 @@ async fn construct(
         dry_run: request.dry_run,
         monitor_addr: request.monitor_endpoint.clone(),
         engine_addr,
-        config: request.config.clone().into_iter().collect::<HashMap<_, _>>(),
+        config: request
+            .config
+            .clone()
+            .into_iter()
+            .collect::<HashMap<_, _>>(),
         config_secret_keys: request.config_secret_keys.clone(),
     };
     let ctx = crate::runtime::connect_context(settings).await?;
@@ -427,7 +433,10 @@ pub async fn component_provider_host(opts: ComponentProviderOptions) -> Result<(
     // The engine passes its address as the first argument; the handshake
     // supplies it too on newer engines.
     let engine = std::env::args().nth(1).unwrap_or_default();
-    let service = Service { opts: Arc::new(opts), engine: Arc::new(Mutex::new(engine)) };
+    let service = Service {
+        opts: Arc::new(opts),
+        engine: Arc::new(Mutex::new(engine)),
+    };
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tonic::transport::Server::builder()
         .add_service(ResourceProviderServer::new(service))

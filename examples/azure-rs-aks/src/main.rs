@@ -151,7 +151,10 @@ fn main() {
             "resourceGroupName",
             resource_group.name().cast::<pulumi::PropertyValue>(),
         );
-        ctx.export("clusterName", cluster.name().cast::<pulumi::PropertyValue>());
+        ctx.export(
+            "clusterName",
+            cluster.name().cast::<pulumi::PropertyValue>(),
+        );
 
         // A kubeconfig carries a client certificate and key: whoever holds
         // it is an authenticated cluster user. Nothing in the schema marks

@@ -61,9 +61,10 @@ fn main() {
         // The region, by contrast, is only ever *passed* to a resource, so
         // the ordinary output-shaped getter is fine.
         // `pulumi config set region sfo3` to override.
-        let region = ctx
-            .config()
-            .get_string_or("region", pulumi::PropertyValue::String(DEFAULT_REGION.into()));
+        let region = ctx.config().get_string_or(
+            "region",
+            pulumi::PropertyValue::String(DEFAULT_REGION.into()),
+        );
 
         // The tag that ties the fleet together. Leaving the name unset hands
         // it to Pulumi's auto-naming, which suffixes the resource name with
@@ -152,7 +153,10 @@ fn main() {
             },
         );
 
-        ctx.export("loadBalancerIp", load_balancer.ip().cast::<pulumi::PropertyValue>());
+        ctx.export(
+            "loadBalancerIp",
+            load_balancer.ip().cast::<pulumi::PropertyValue>(),
+        );
 
         // Collapsing a `Vec<Output<..>>` into one output: `pulumi::pv::array`
         // takes `Vec<Output<PropertyValue>>` and returns a single

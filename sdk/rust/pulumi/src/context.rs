@@ -342,7 +342,11 @@ impl Resource {
                 return OutputData {
                     value: PropertyValue::Failed(msg.as_str().into()),
                     secret: false,
-                    deps: if o.urn.is_empty() { vec![] } else { vec![o.urn.clone()] },
+                    deps: if o.urn.is_empty() {
+                        vec![]
+                    } else {
+                        vec![o.urn.clone()]
+                    },
                 };
             }
             OutputData {
@@ -363,7 +367,11 @@ impl Resource {
                 Some(id) if !id.is_empty() && !o.unknown => PropertyValue::String(id.clone()),
                 _ => PropertyValue::Computed,
             };
-            OutputData { value, secret: false, deps: vec![o.urn.clone()] }
+            OutputData {
+                value,
+                secret: false,
+                deps: vec![o.urn.clone()],
+            }
         })
     }
 
@@ -381,7 +389,11 @@ impl Resource {
                 return OutputData {
                     value: PropertyValue::Failed(msg.as_str().into()),
                     secret: false,
-                    deps: if o.urn.is_empty() { vec![] } else { vec![o.urn.clone()] },
+                    deps: if o.urn.is_empty() {
+                        vec![]
+                    } else {
+                        vec![o.urn.clone()]
+                    },
                 };
             }
             let mut data = match o.outputs.get(&name) {
@@ -415,10 +427,18 @@ impl Resource {
             let o = state.await;
             let value = PropertyValue::ResourceReference(crate::value::ResourceReference {
                 urn: o.urn.clone(),
-                id: if custom { Some(o.id.clone().filter(|i| !i.is_empty())) } else { None },
+                id: if custom {
+                    Some(o.id.clone().filter(|i| !i.is_empty()))
+                } else {
+                    None
+                },
                 package_version: version,
             });
-            OutputData { value, secret: false, deps: vec![] }
+            OutputData {
+                value,
+                secret: false,
+                deps: vec![],
+            }
         })
     }
 
@@ -480,7 +500,11 @@ impl Context {
 
     /// Export a stack output.
     pub fn export(&self, name: impl Into<String>, value: impl Into<Output<PropertyValue>>) {
-        self.inner.exports.lock().unwrap().push((name.into(), value.into()));
+        self.inner
+            .exports
+            .lock()
+            .unwrap()
+            .push((name.into(), value.into()));
     }
 
     /// Register a resource with the engine. Returns immediately; the
@@ -517,7 +541,9 @@ impl Context {
         if req.options.provider_value.is_none() {
             req.options.provider = provider.as_ref().map(|p| (**p).clone());
         }
-        let fut = async move { Arc::new(do_register(inner, req).await) }.boxed().shared();
+        let fut = async move { Arc::new(do_register(inner, req).await) }
+            .boxed()
+            .shared();
         // Drive the registration immediately so independent resources
         // register concurrently, then track it for draining at shutdown.
         tokio::spawn(fut.clone());
@@ -633,7 +659,11 @@ impl Context {
             let mut props = BTreeMap::new();
             for (name, out) in outputs {
                 let data = out.data().await;
-                let mut value = if !data.known() { PropertyValue::Computed } else { data.value };
+                let mut value = if !data.known() {
+                    PropertyValue::Computed
+                } else {
+                    data.value
+                };
                 if data.secret && secrets {
                     value = PropertyValue::Secret(Box::new(value));
                 }
@@ -680,10 +710,9 @@ impl Context {
         let callback = server.register(Arc::new(move |bytes: Vec<u8>| {
             let command = command.clone();
             Box::pin(async move {
-                let request = <pulumirpc::ResourceHookRequest as prost::Message>::decode(
-                    bytes.as_slice(),
-                )
-                .map_err(|e| tonic::Status::invalid_argument(format!("{e}")))?;
+                let request =
+                    <pulumirpc::ResourceHookRequest as prost::Message>::decode(bytes.as_slice())
+                        .map_err(|e| tonic::Status::invalid_argument(format!("{e}")))?;
                 let args = hook_args(
                     &request.urn,
                     &request.id,
@@ -694,8 +723,12 @@ impl Context {
                     request.new_outputs.as_ref(),
                     request.old_outputs.as_ref(),
                 );
-                let error = crate::hooks::run_command(command(args)).await.unwrap_or_default();
-                Ok(prost::Message::encode_to_vec(&pulumirpc::ResourceHookResponse { error }))
+                let error = crate::hooks::run_command(command(args))
+                    .await
+                    .unwrap_or_default();
+                Ok(prost::Message::encode_to_vec(
+                    &pulumirpc::ResourceHookResponse { error },
+                ))
             })
         }));
 
@@ -740,10 +773,12 @@ impl Context {
                 // The operation is retried if and only if the hook's command
                 // exits successfully; a failing command is not a hook error.
                 let failed = crate::hooks::run_command(command(args)).await;
-                Ok(prost::Message::encode_to_vec(&pulumirpc::ErrorHookResponse {
-                    error: String::new(),
-                    retry: failed.is_none(),
-                }))
+                Ok(prost::Message::encode_to_vec(
+                    &pulumirpc::ErrorHookResponse {
+                        error: String::new(),
+                        retry: failed.is_none(),
+                    },
+                ))
             })
         }));
 
@@ -762,7 +797,9 @@ impl Context {
         self.inner
             .callbacks
             .get_or_try_init(|| async {
-                crate::callbacks::CallbackServer::start().await.map(Arc::new)
+                crate::callbacks::CallbackServer::start()
+                    .await
+                    .map(Arc::new)
             })
             .await
             .cloned()
@@ -929,8 +966,11 @@ impl Context {
         let mut outputs = BTreeMap::new();
         for (name, out) in exports {
             let data = out.data().await;
-            let mut value =
-                if !data.known() { PropertyValue::Computed } else { data.value };
+            let mut value = if !data.known() {
+                PropertyValue::Computed
+            } else {
+                data.value
+            };
             if data.secret && self.inner.features.secrets {
                 value = PropertyValue::Secret(Box::new(value));
             }
@@ -1025,14 +1065,16 @@ fn strip_output_values(v: PropertyValue, features: Features) -> PropertyValue {
             };
             secret_wrap(inner, o.secret)
         }
-        PropertyValue::Secret(inner) => {
-            secret_wrap(strip_output_values(*inner, features), true)
-        }
+        PropertyValue::Secret(inner) => secret_wrap(strip_output_values(*inner, features), true),
         PropertyValue::Array(vs) => PropertyValue::Array(
-            vs.into_iter().map(|v| strip_output_values(v, features)).collect(),
+            vs.into_iter()
+                .map(|v| strip_output_values(v, features))
+                .collect(),
         ),
         PropertyValue::Object(m) => PropertyValue::Object(
-            m.into_iter().map(|(k, v)| (k, strip_output_values(v, features))).collect(),
+            m.into_iter()
+                .map(|(k, v)| (k, strip_output_values(v, features)))
+                .collect(),
         ),
         other => other,
     }
@@ -1050,9 +1092,11 @@ fn provider_ref_from_value(v: &PropertyValue) -> String {
             format!("{}::{}", r.urn, id)
         }
         PropertyValue::Secret(inner) => provider_ref_from_value(inner),
-        PropertyValue::Output(o) => {
-            o.value.as_deref().map(provider_ref_from_value).unwrap_or_default()
-        }
+        PropertyValue::Output(o) => o
+            .value
+            .as_deref()
+            .map(provider_ref_from_value)
+            .unwrap_or_default(),
         _ => String::new(),
     }
 }
@@ -1079,8 +1123,16 @@ async fn package_ref(inner: &Arc<ContextInner>, pkg: &PackageDescriptor) -> Stri
         name: pkg.base_name.clone(),
         version: pkg.base_version.clone(),
         download_url: pkg.download_url.clone(),
-        parameterization: if pkg.extension { None } else { Some(parameterization.clone()) },
-        extension: if pkg.extension { Some(parameterization) } else { None },
+        parameterization: if pkg.extension {
+            None
+        } else {
+            Some(parameterization.clone())
+        },
+        extension: if pkg.extension {
+            Some(parameterization)
+        } else {
+            None
+        },
         ..Default::default()
     };
     let mut monitor = inner.monitor.clone();
@@ -1153,7 +1205,11 @@ async fn resource_state(urn: &str) -> Option<PropertyValue> {
         PropertyValue::Object(m) => m.get("state").cloned()?,
         _ => return None,
     };
-    inner.hydrated.lock().await.insert(urn.to_string(), state.clone());
+    inner
+        .hydrated
+        .lock()
+        .await
+        .insert(urn.to_string(), state.clone());
     Some(state)
 }
 
@@ -1176,7 +1232,10 @@ fn hook_args(
     m.insert("type".to_string(), PropertyValue::String(type_.to_string()));
     let mut put = |key: &str, s: Option<&prost_types::Struct>| {
         if let Some(s) = s {
-            m.insert(key.to_string(), PropertyValue::Object(unmarshal_properties(s)));
+            m.insert(
+                key.to_string(),
+                PropertyValue::Object(unmarshal_properties(s)),
+            );
         }
     };
     put("newInputs", new_inputs);
@@ -1354,15 +1413,27 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
     // schema default — a required property that carries one is supplied, not
     // missing. Wire names are used deliberately: that is what the schema and
     // every other language's docs show.
-    let missing: Vec<&str> =
-        req.required.iter().copied().filter(|k| !object.contains_key(*k)).collect();
+    let missing: Vec<&str> = req
+        .required
+        .iter()
+        .copied()
+        .filter(|k| !object.contains_key(*k))
+        .collect();
     if !missing.is_empty() {
         let msg = format!(
             "{} resource '{}': missing required {} {}",
             req.type_,
             req.name,
-            if missing.len() == 1 { "input" } else { "inputs" },
-            missing.iter().map(|m| format!("`{m}`")).collect::<Vec<_>>().join(", "),
+            if missing.len() == 1 {
+                "input"
+            } else {
+                "inputs"
+            },
+            missing
+                .iter()
+                .map(|m| format!("`{m}`"))
+                .collect::<Vec<_>>()
+                .join(", "),
         );
         // Logged as well as returned: `finish` keeps only the first error, and
         // a program with three broken resources should report all three.
@@ -1401,7 +1472,7 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
         accept_secrets: true,
         additional_secret_outputs: req.options.additional_secret_outputs.clone(),
         import_id: req.options.import_id.clone(),
-        custom_timeouts: custom_timeouts,
+        custom_timeouts,
         supports_partial_values: true,
         remote: req.remote,
         accept_resources: true,
@@ -1454,7 +1525,10 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
     // supports_result_reporting; it sends no message, so synthesize one like
     // the other SDKs do.
     let failed = if response.result != pulumirpc::Result::Success as i32 {
-        Some(format!("resource {} [{}] failed to register", req.name, req.type_))
+        Some(format!(
+            "resource {} [{}] failed to register",
+            req.name, req.type_
+        ))
     } else {
         None
     };
@@ -1468,6 +1542,10 @@ async fn do_register(inner: Arc<ContextInner>, req: RegisterRequest) -> Register
     }
 }
 
+// One argument per Read RPC field the caller can vary. Bundling them into a
+// struct would only move the same eight values behind a name that no other
+// call site would use.
+#[allow(clippy::too_many_arguments)]
 async fn do_read(
     inner: Arc<ContextInner>,
     type_: String,
@@ -1544,7 +1622,10 @@ async fn do_read(
     let response = match monitor.read_resource(request).await {
         Ok(r) => r.into_inner(),
         Err(e) => {
-            return fail(format!("reading resource {name} ({type_}): {}", e.message()));
+            return fail(format!(
+                "reading resource {name} ({type_}): {}",
+                e.message()
+            ));
         }
     };
     let outputs = match &response.properties {
@@ -1587,7 +1668,9 @@ async fn do_call(
         let data = out.data().await;
         arg_dependencies.insert(
             key.clone(),
-            pulumirpc::resource_call_request::ArgumentDependencies { urns: data.deps.clone() },
+            pulumirpc::resource_call_request::ArgumentDependencies {
+                urns: data.deps.clone(),
+            },
         );
         arg_map.insert(key, encode_value(data, inner.features));
     }
@@ -1603,7 +1686,10 @@ async fn do_call(
         },
         package_version: self_.version.clone(),
     };
-    arg_map.insert("__self__".to_string(), PropertyValue::ResourceReference(self_ref));
+    arg_map.insert(
+        "__self__".to_string(),
+        PropertyValue::ResourceReference(self_ref),
+    );
     if !outcome.urn.is_empty() {
         arg_dependencies.insert(
             "__self__".to_string(),
@@ -1699,10 +1785,12 @@ async fn do_invoke(
     // INVOKE_DEPENDS_ON gate, conservatively skip previews of invokes that
     // depend on other resources; gating monitors sequence these themselves
     // and answer `unknown` while dependencies are pending.
-    if !known
-        || (inner.settings.dry_run && !deps.is_empty() && !inner.features.invoke_depends_on)
-    {
-        return Ok(OutputData { value: PropertyValue::Computed, secret, deps });
+    if !known || (inner.settings.dry_run && !deps.is_empty() && !inner.features.invoke_depends_on) {
+        return Ok(OutputData {
+            value: PropertyValue::Computed,
+            secret,
+            deps,
+        });
     }
 
     // Which provider serves this invoke, the way Go's getProvider decides it:
@@ -1757,9 +1845,10 @@ async fn do_invoke(
     };
 
     let mut monitor = inner.monitor.clone();
-    let response = monitor.invoke(request).await.map_err(|e| {
-        Error::new(format!("invoking {}: {}", tok, e.message()))
-    })?;
+    let response = monitor
+        .invoke(request)
+        .await
+        .map_err(|e| Error::new(format!("invoking {}: {}", tok, e.message())))?;
     let response = response.into_inner();
     if !response.failures.is_empty() {
         let msgs: Vec<_> = response
@@ -1776,7 +1865,11 @@ async fn do_invoke(
         return Err(Error::new(format!("invoking {}: {}", tok, msgs.join("; "))));
     }
     if response.unknown {
-        return Ok(OutputData { value: PropertyValue::Computed, secret, deps });
+        return Ok(OutputData {
+            value: PropertyValue::Computed,
+            secret,
+            deps,
+        });
     }
 
     let ret = match &response.r#return {
@@ -1797,7 +1890,9 @@ async fn do_invoke(
 
 /// Build a [`Struct`] from marshaled fields — exposed for the runtime module.
 pub(crate) fn empty_struct() -> Struct {
-    Struct { fields: Default::default() }
+    Struct {
+        fields: Default::default(),
+    }
 }
 
 #[cfg(test)]
@@ -1850,10 +1945,15 @@ mod tests {
         // Every generated args field is an Option, so this is the only place
         // a forgotten required input is caught before the provider sees it.
         let outcome = do_register(offline_context(), request(vec![], &["bucket"])).await;
-        let err = outcome.error.expect("a missing required input was not reported");
+        let err = outcome
+            .error
+            .expect("a missing required input was not reported");
         assert!(err.contains("test:index:Thing"), "no resource type: {err}");
         assert!(err.contains("thing"), "no resource name: {err}");
-        assert!(err.contains("`bucket`"), "the missing input is not named: {err}");
+        assert!(
+            err.contains("`bucket`"),
+            "the missing input is not named: {err}"
+        );
     }
 
     #[tokio::test]
@@ -1925,7 +2025,10 @@ mod tests {
             secret: false,
             deps: vec!["urn:a".into()],
         };
-        let features = Features { output_values: true, ..no_output_values() };
+        let features = Features {
+            output_values: true,
+            ..no_output_values()
+        };
         match encode_value(data, features) {
             PropertyValue::Output(o) => assert_eq!(o.dependencies, vec!["urn:a".to_string()]),
             other => panic!("expected an output value, got {other:?}"),
@@ -1954,7 +2057,10 @@ mod tests {
         // struct: a required property carrying a default is supplied.
         let outcome = do_register(
             offline_context(),
-            request(vec![("bucket", PropertyValue::String("b".into()))], &["bucket"]),
+            request(
+                vec![("bucket", PropertyValue::String("b".into()))],
+                &["bucket"],
+            ),
         )
         .await;
         // No missing-input error. The registration fails later, on the
@@ -2020,13 +2126,19 @@ mod provider_tests {
             &ctx,
             "simple:index:Resource",
             "parent1",
-            ResourceOptions { provider: Some(prov.clone()), ..Default::default() },
+            ResourceOptions {
+                provider: Some(prov.clone()),
+                ..Default::default()
+            },
         );
         let _child = register(
             &ctx,
             "simple:index:Resource",
             "child1",
-            ResourceOptions { parent: Some(parent), ..Default::default() },
+            ResourceOptions {
+                parent: Some(parent),
+                ..Default::default()
+            },
         );
         ctx.drain().await.unwrap();
         assert!(
@@ -2044,7 +2156,10 @@ mod provider_tests {
             &ctx,
             "primitive:index:Resource",
             "mismatch",
-            ResourceOptions { provider: Some(prov), ..Default::default() },
+            ResourceOptions {
+                provider: Some(prov),
+                ..Default::default()
+            },
         );
         ctx.drain().await.unwrap();
         assert_eq!(wire_provider(&captured, "mismatch"), "");
@@ -2058,7 +2173,10 @@ mod provider_tests {
             &ctx,
             "simple:index:Resource",
             "matched",
-            ResourceOptions { provider: Some(prov), ..Default::default() },
+            ResourceOptions {
+                provider: Some(prov),
+                ..Default::default()
+            },
         );
         ctx.drain().await.unwrap();
         assert!(!wire_provider(&captured, "matched").is_empty());
@@ -2076,7 +2194,10 @@ mod provider_tests {
             &ctx,
             "simple:index:Resource",
             "parent",
-            ResourceOptions { provider: Some(prov_a), ..Default::default() },
+            ResourceOptions {
+                provider: Some(prov_a),
+                ..Default::default()
+            },
         );
         let child = register(
             &ctx,
@@ -2096,7 +2217,10 @@ mod provider_tests {
             &ctx,
             "simple:index:Resource",
             "grandchild",
-            ResourceOptions { parent: Some(child), ..Default::default() },
+            ResourceOptions {
+                parent: Some(child),
+                ..Default::default()
+            },
         );
         ctx.drain().await.unwrap();
         let want = match prov_b.provider_ref().data().await.value {
@@ -2123,12 +2247,18 @@ mod provider_tests {
             Output::from_value(PropertyValue::String("id-0".into())),
             vec![],
             "",
-            ResourceOptions { provider: Some(prov), ..Default::default() },
+            ResourceOptions {
+                provider: Some(prov),
+                ..Default::default()
+            },
         );
         ctx.drain().await.unwrap();
         let reads = captured.lock().unwrap();
         let read = reads.reads.first().expect("no read reached the monitor");
-        assert!(!read.provider.is_empty(), "the read did not name its provider");
+        assert!(
+            !read.provider.is_empty(),
+            "the read did not name its provider"
+        );
     }
 
     #[tokio::test]
@@ -2139,10 +2269,16 @@ mod provider_tests {
         let (ctx, _captured) = fake_monitor_context().await;
         let out = ctx.invoke(
             "simple-invoke:index:secretInvoke",
-            vec![("value".to_string(), crate::pv::secret(crate::pv::string("goodbye")))],
+            vec![(
+                "value".to_string(),
+                crate::pv::secret(crate::pv::string("goodbye")),
+            )],
             InvokeOptions::default(),
         );
-        assert!(out.data().await.secret, "an invoke dropped its argument's secretness");
+        assert!(
+            out.data().await.secret,
+            "an invoke dropped its argument's secretness"
+        );
     }
 
     #[tokio::test]
@@ -2153,11 +2289,19 @@ mod provider_tests {
         // The argument's secretness still reaches the provider through
         // arg_dependencies.
         let (ctx, captured) = fake_monitor_context().await;
-        let receiver = register(&ctx, "simple:index:Resource", "res", ResourceOptions::default());
+        let receiver = register(
+            &ctx,
+            "simple:index:Resource",
+            "res",
+            ResourceOptions::default(),
+        );
         let out = ctx.call(
             "simple:index:Resource/method",
             &receiver,
-            vec![("value".to_string(), crate::pv::secret(crate::pv::string("shh")))],
+            vec![(
+                "value".to_string(),
+                crate::pv::secret(crate::pv::string("shh")),
+            )],
         );
         assert!(
             !out.data().await.secret,
@@ -2182,18 +2326,27 @@ mod provider_tests {
             &ctx,
             "simple:index:Resource",
             "parent",
-            ResourceOptions { provider: Some(prov), ..Default::default() },
+            ResourceOptions {
+                provider: Some(prov),
+                ..Default::default()
+            },
         );
         let _ = ctx
             .invoke(
                 "simple:index:myInvoke",
                 vec![],
-                InvokeOptions { parent: Some(parent), ..Default::default() },
+                InvokeOptions {
+                    parent: Some(parent),
+                    ..Default::default()
+                },
             )
             .data()
             .await;
         let invokes = captured.lock().unwrap();
-        let invoke = invokes.invokes.first().expect("no invoke reached the monitor");
+        let invoke = invokes
+            .invokes
+            .first()
+            .expect("no invoke reached the monitor");
         assert!(
             !invoke.provider.is_empty(),
             "the invoke did not inherit its parent's provider"

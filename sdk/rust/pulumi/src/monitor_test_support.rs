@@ -7,7 +7,8 @@
 //! client half wrong and still pass `l2-resource-provider-inheritance`. The
 //! only way to pin what we actually put on the wire is to be the monitor.
 
-#![cfg(test)]
+// `lib.rs` already declares this module `#[cfg(test)]`; repeating the gate
+// here is redundant.
 
 use std::sync::{Arc, Mutex};
 
@@ -54,14 +55,21 @@ impl pulumirpc::resource_monitor_server::ResourceMonitor for FakeMonitor {
         let req = request.into_inner();
         let urn = format!("urn:pulumi:dev::proj::{}::{}", req.r#type, req.name);
         self.captured.lock().unwrap().reads.push(req);
-        Ok(Response::new(pulumirpc::ReadResourceResponse { urn, properties: None }))
+        Ok(Response::new(pulumirpc::ReadResourceResponse {
+            urn,
+            properties: None,
+        }))
     }
 
     async fn invoke(
         &self,
         request: Request<pulumirpc::ResourceInvokeRequest>,
     ) -> Result<Response<pulumirpc::ResourceInvokeResponse>, Status> {
-        self.captured.lock().unwrap().invokes.push(request.into_inner());
+        self.captured
+            .lock()
+            .unwrap()
+            .invokes
+            .push(request.into_inner());
         Ok(Response::new(pulumirpc::ResourceInvokeResponse::default()))
     }
 
@@ -69,7 +77,11 @@ impl pulumirpc::resource_monitor_server::ResourceMonitor for FakeMonitor {
         &self,
         request: Request<pulumirpc::ResourceCallRequest>,
     ) -> Result<Response<pulumirpc::CallResponse>, Status> {
-        self.captured.lock().unwrap().calls.push(request.into_inner());
+        self.captured
+            .lock()
+            .unwrap()
+            .calls
+            .push(request.into_inner());
         Ok(Response::new(pulumirpc::CallResponse::default()))
     }
 
@@ -77,7 +89,9 @@ impl pulumirpc::resource_monitor_server::ResourceMonitor for FakeMonitor {
         &self,
         _: Request<pulumirpc::SupportsFeatureRequest>,
     ) -> Result<Response<pulumirpc::SupportsFeatureResponse>, Status> {
-        Ok(Response::new(pulumirpc::SupportsFeatureResponse { has_support: true }))
+        Ok(Response::new(pulumirpc::SupportsFeatureResponse {
+            has_support: true,
+        }))
     }
 
     async fn register_resource_outputs(
@@ -129,25 +143,23 @@ impl pulumirpc::resource_monitor_server::ResourceMonitor for FakeMonitor {
         Ok(Response::new(pulumirpc::RegisterPackageResponse::default()))
     }
 
-    async fn signal_and_wait_for_shutdown(
-        &self,
-        _: Request<()>,
-    ) -> Result<Response<()>, Status> {
+    async fn signal_and_wait_for_shutdown(&self, _: Request<()>) -> Result<Response<()>, Status> {
         Ok(Response::new(()))
     }
 }
 
 /// Start a fake monitor on an ephemeral port and return a context wired to
 /// it, plus the capture buffer.
-pub(crate) async fn fake_monitor_context()
--> (crate::Context, Arc<Mutex<Captured>>) {
+pub(crate) async fn fake_monitor_context() -> (crate::Context, Arc<Mutex<Captured>>) {
     use crate::pulumirpc::resource_monitor_client::ResourceMonitorClient;
     use crate::pulumirpc::resource_monitor_server::ResourceMonitorServer;
 
     let captured = Arc::new(Mutex::new(Captured::default()));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
-    let service = FakeMonitor { captured: captured.clone() };
+    let service = FakeMonitor {
+        captured: captured.clone(),
+    };
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tokio::spawn(async move {
         let _ = tonic::transport::Server::builder()

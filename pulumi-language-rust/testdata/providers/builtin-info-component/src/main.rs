@@ -53,7 +53,10 @@ async fn main() {
 
 async fn construct(args: pulumi::ConstructArgs) -> pulumi::Result<pulumi::ConstructResult> {
     if args.type_ != "builtin-info-component:index:BuiltinInfo" {
-        return Err(pulumi::Error::new(format!("unknown resource type {}", args.type_)));
+        return Err(pulumi::Error::new(format!(
+            "unknown resource type {}",
+            args.type_
+        )));
     }
 
     let component = args.ctx.register_resource(pulumi::RegisterRequest {
@@ -73,18 +76,27 @@ async fn construct(args: pulumi::ConstructArgs) -> pulumi::Result<pulumi::Constr
     // The engine hands these to Construct, so a component provider sees the
     // same deployment information a program does.
     let outputs = vec![
-        ("organization".to_string(), pulumi::pv::string(args.ctx.organization())),
-        ("project".to_string(), pulumi::pv::string(args.ctx.project())),
+        (
+            "organization".to_string(),
+            pulumi::pv::string(args.ctx.organization()),
+        ),
+        (
+            "project".to_string(),
+            pulumi::pv::string(args.ctx.project()),
+        ),
         ("stack".to_string(), pulumi::pv::string(args.ctx.stack())),
         ("isDryRun".to_string(), pulumi::pv::bool(args.ctx.dry_run())),
     ];
 
-    args.ctx.register_resource_outputs(&component, outputs.clone());
+    args.ctx
+        .register_resource_outputs(&component, outputs.clone());
 
     let urn = match component.urn().data().await.value {
         pulumi::PropertyValue::String(urn) => urn,
         other => {
-            return Err(pulumi::Error::new(format!("component URN was not a string: {other:?}")))
+            return Err(pulumi::Error::new(format!(
+                "component URN was not a string: {other:?}"
+            )))
         }
     };
 

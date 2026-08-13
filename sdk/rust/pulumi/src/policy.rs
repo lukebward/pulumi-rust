@@ -73,7 +73,10 @@ pub struct ViolationManager {
 impl ViolationManager {
     /// Report that the resource under analysis violates this policy.
     pub fn report_violation(&self, message: impl Into<String>, urn: impl Into<String>) {
-        self.violations.lock().unwrap().push((message.into(), urn.into()));
+        self.violations
+            .lock()
+            .unwrap()
+            .push((message.into(), urn.into()));
     }
 
     fn take(&self) -> Vec<(String, String)> {
@@ -99,9 +102,13 @@ pub struct ResourceRemediationArgs {
     pub stack: StackInfo,
 }
 
-type ValidateFn = Arc<dyn Fn(ResourceValidationArgs) -> BoxFuture<'static, Result<()>> + Send + Sync>;
-type RemediateFn =
-    Arc<dyn Fn(ResourceRemediationArgs) -> BoxFuture<'static, Result<Option<PropertyMap>>> + Send + Sync>;
+type ValidateFn =
+    Arc<dyn Fn(ResourceValidationArgs) -> BoxFuture<'static, Result<()>> + Send + Sync>;
+type RemediateFn = Arc<
+    dyn Fn(ResourceRemediationArgs) -> BoxFuture<'static, Result<Option<PropertyMap>>>
+        + Send
+        + Sync,
+>;
 
 /// A JSON-schema description of a policy's configuration.
 #[derive(Clone, Debug, Default)]
@@ -128,7 +135,10 @@ impl Policy {
         name: impl Into<String>,
         description: impl Into<String>,
         enforcement_level: EnforcementLevel,
-        validate: impl Fn(ResourceValidationArgs) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
+        validate: impl Fn(ResourceValidationArgs) -> BoxFuture<'static, Result<()>>
+            + Send
+            + Sync
+            + 'static,
     ) -> Policy {
         Policy {
             name: name.into(),
@@ -209,7 +219,12 @@ impl PolicyPack {
                 }
             }
         }
-        Ok(PolicyPack { name, version: version.into(), enforcement_level, policies })
+        Ok(PolicyPack {
+            name,
+            version: version.into(),
+            enforcement_level,
+            policies,
+        })
     }
 }
 
@@ -309,7 +324,11 @@ impl Service {
                     description: policy.description.clone(),
                     message,
                     enforcement_level: level.to_proto(),
-                    urn: if urn.is_empty() { resource.urn.clone() } else { urn },
+                    urn: if urn.is_empty() {
+                        resource.urn.clone()
+                    } else {
+                        urn
+                    },
                     ..Default::default()
                 });
             }
@@ -339,8 +358,7 @@ impl Analyzer for Service {
         request: Request<pulumirpc::AnalyzeRequest>,
     ) -> std::result::Result<Response<pulumirpc::AnalyzeResponse>, Status> {
         let r = request.into_inner();
-        let resource =
-            resource_from_proto(r.r#type, r.name, r.urn, r.properties.as_ref());
+        let resource = resource_from_proto(r.r#type, r.name, r.urn, r.properties.as_ref());
         let diagnostics = self.analyze_resource(resource).await?;
         Ok(Response::new(pulumirpc::AnalyzeResponse {
             diagnostics,
@@ -367,8 +385,7 @@ impl Analyzer for Service {
         // resource's inputs, in order, so every policy must see what the
         // previous one produced. Passing the original map to all of them
         // would silently revert all but the last.
-        let mut resource =
-            resource_from_proto(r.r#type, r.name, r.urn, r.properties.as_ref());
+        let mut resource = resource_from_proto(r.r#type, r.name, r.urn, r.properties.as_ref());
         let mut remediations = vec![];
         let pack = self.pack()?;
         for policy in &pack.policies {
@@ -409,23 +426,23 @@ impl Analyzer for Service {
         _request: Request<()>,
     ) -> std::result::Result<Response<pulumirpc::AnalyzerInfo>, Status> {
         let pack = self.pack()?;
-        let policies = pack
-            .policies
-            .iter()
-            .map(|p| pulumirpc::PolicyInfo {
-                name: p.name.clone(),
-                display_name: p.name.clone(),
-                description: p.description.clone(),
-                enforcement_level: p.enforcement_level.to_proto(),
-                config_schema: p.config_schema.as_ref().map(|s| {
-                    pulumirpc::PolicyConfigSchema {
-                        properties: Some(marshal_properties(&s.properties.clone())),
-                        required: s.required.clone(),
-                    }
-                }),
-                ..Default::default()
-            })
-            .collect();
+        let policies =
+            pack.policies
+                .iter()
+                .map(|p| pulumirpc::PolicyInfo {
+                    name: p.name.clone(),
+                    display_name: p.name.clone(),
+                    description: p.description.clone(),
+                    enforcement_level: p.enforcement_level.to_proto(),
+                    config_schema: p.config_schema.as_ref().map(|s| {
+                        pulumirpc::PolicyConfigSchema {
+                            properties: Some(marshal_properties(&s.properties.clone())),
+                            required: s.required.clone(),
+                        }
+                    }),
+                    ..Default::default()
+                })
+                .collect();
         Ok(Response::new(pulumirpc::AnalyzerInfo {
             name: pack.name.clone(),
             display_name: pack.name.clone(),
@@ -453,10 +470,18 @@ impl Analyzer for Service {
         let mut state = self.state.lock().unwrap();
         state.config.clear();
         for (name, config) in r.policy_config {
-            let props = config.properties.as_ref().map(unmarshal_properties).unwrap_or_default();
-            state
-                .config
-                .insert(name, (EnforcementLevel::from_proto(config.enforcement_level), props));
+            let props = config
+                .properties
+                .as_ref()
+                .map(unmarshal_properties)
+                .unwrap_or_default();
+            state.config.insert(
+                name,
+                (
+                    EnforcementLevel::from_proto(config.enforcement_level),
+                    props,
+                ),
+            );
         }
         Ok(Response::new(()))
     }
@@ -465,7 +490,9 @@ impl Analyzer for Service {
         &self,
         _request: Request<pulumirpc::AnalyzerHandshakeRequest>,
     ) -> std::result::Result<Response<pulumirpc::AnalyzerHandshakeResponse>, Status> {
-        Ok(Response::new(pulumirpc::AnalyzerHandshakeResponse::default()))
+        Ok(Response::new(
+            pulumirpc::AnalyzerHandshakeResponse::default(),
+        ))
     }
 
     async fn configure_stack(
@@ -491,7 +518,9 @@ impl Analyzer for Service {
         let mut state = self.state.lock().unwrap();
         state.stack = stack;
         state.pack = built;
-        Ok(Response::new(pulumirpc::AnalyzerStackConfigureResponse::default()))
+        Ok(Response::new(
+            pulumirpc::AnalyzerStackConfigureResponse::default(),
+        ))
     }
 
     async fn cancel(&self, _request: Request<()>) -> std::result::Result<Response<()>, Status> {
@@ -533,7 +562,10 @@ async fn serve(source: PackSource) -> Result<()> {
     use std::io::Write;
     let _ = std::io::stdout().flush();
 
-    let service = Service { source, state: Mutex::new(State::default()) };
+    let service = Service {
+        source,
+        state: Mutex::new(State::default()),
+    };
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     tonic::transport::Server::builder()
         .add_service(AnalyzerServer::new(service))
@@ -548,7 +580,10 @@ mod tests {
     use super::*;
 
     fn service(pack: PolicyPack) -> Service {
-        Service { source: PackSource::Fixed(pack), state: Mutex::new(State::default()) }
+        Service {
+            source: PackSource::Fixed(pack),
+            state: Mutex::new(State::default()),
+        }
     }
 
     fn props(pairs: &[(&str, &str)]) -> PropertyMap {
@@ -579,32 +614,49 @@ mod tests {
         message: &'static str,
         level: EnforcementLevel,
     ) -> Policy {
-        Policy::resource_validation(name, description, level, move |args: ResourceValidationArgs| {
-            Box::pin(async move {
-                args.manager.report_violation(message, "");
-                Ok(())
-            })
-        })
+        Policy::resource_validation(
+            name,
+            description,
+            level,
+            move |args: ResourceValidationArgs| {
+                Box::pin(async move {
+                    args.manager.report_violation(message, "");
+                    Ok(())
+                })
+            },
+        )
     }
 
     /// A policy that rewrites one property.
     fn rewrite(name: &str, key: &'static str, value: &'static str) -> Policy {
-        Policy::resource_remediation(name, "rewrites a property", move |args: ResourceRemediationArgs| {
-            Box::pin(async move {
-                let mut p = args.resource.properties.clone();
-                p.insert(key.to_string(), PropertyValue::String(value.to_string()));
-                Ok(Some(p))
-            })
-        })
+        Policy::resource_remediation(
+            name,
+            "rewrites a property",
+            move |args: ResourceRemediationArgs| {
+                Box::pin(async move {
+                    let mut p = args.resource.properties.clone();
+                    p.insert(key.to_string(), PropertyValue::String(value.to_string()));
+                    Ok(Some(p))
+                })
+            },
+        )
     }
 
     #[tokio::test]
     async fn a_violation_message_leads_with_the_policy_description() {
         // The engine prints `message` verbatim and never reads `description`,
         // so a bare message loses the policy's own explanation.
-        let pack = PolicyPack::new("p", "1.0.0", EnforcementLevel::Advisory,
-                                   vec![failing("no-public", "buckets must be private", "it is public")])
-            .unwrap();
+        let pack = PolicyPack::new(
+            "p",
+            "1.0.0",
+            EnforcementLevel::Advisory,
+            vec![failing(
+                "no-public",
+                "buckets must be private",
+                "it is public",
+            )],
+        )
+        .unwrap();
         let diags = service(pack)
             .analyze_resource(AnalyzerResource {
                 type_: "test:index:Thing".into(),
@@ -622,12 +674,18 @@ mod tests {
 
     #[tokio::test]
     async fn a_violation_with_no_message_is_just_the_description() {
-        let pack = PolicyPack::new("p", "1.0.0", EnforcementLevel::Advisory,
-                                   vec![failing("no-public", "buckets must be private", "")])
-            .unwrap();
+        let pack = PolicyPack::new(
+            "p",
+            "1.0.0",
+            EnforcementLevel::Advisory,
+            vec![failing("no-public", "buckets must be private", "")],
+        )
+        .unwrap();
         let diags = service(pack)
             .analyze_resource(AnalyzerResource {
-                type_: "t".into(), name: "n".into(), urn: "urn:n".into(),
+                type_: "t".into(),
+                name: "n".into(),
+                urn: "urn:n".into(),
                 properties: PropertyMap::new(),
             })
             .await
@@ -637,11 +695,18 @@ mod tests {
 
     #[tokio::test]
     async fn a_violation_defaults_to_the_analysed_resource_urn() {
-        let pack = PolicyPack::new("p", "1.0.0", EnforcementLevel::Advisory,
-                                   vec![failing("x", "d", "m")]).unwrap();
+        let pack = PolicyPack::new(
+            "p",
+            "1.0.0",
+            EnforcementLevel::Advisory,
+            vec![failing("x", "d", "m")],
+        )
+        .unwrap();
         let diags = service(pack)
             .analyze_resource(AnalyzerResource {
-                type_: "t".into(), name: "n".into(), urn: "urn:the-resource".into(),
+                type_: "t".into(),
+                name: "n".into(),
+                urn: "urn:the-resource".into(),
                 properties: PropertyMap::new(),
             })
             .await
@@ -656,7 +721,9 @@ mod tests {
         // but the last are silently reverted — a corrupted deployment with no
         // error anywhere.
         let pack = PolicyPack::new(
-            "p", "1.0.0", EnforcementLevel::Advisory,
+            "p",
+            "1.0.0",
+            EnforcementLevel::Advisory,
             vec![rewrite("first", "a", "1"), rewrite("second", "b", "2")],
         )
         .unwrap();
@@ -668,18 +735,25 @@ mod tests {
         assert_eq!(resp.remediations.len(), 2);
         let last = unmarshal_properties(resp.remediations[1].properties.as_ref().unwrap());
         assert_eq!(last.get("keep"), Some(&PropertyValue::String("yes".into())));
-        assert_eq!(last.get("a"), Some(&PropertyValue::String("1".into())),
-                   "the second remediation dropped the first one's change");
+        assert_eq!(
+            last.get("a"),
+            Some(&PropertyValue::String("1".into())),
+            "the second remediation dropped the first one's change"
+        );
         assert_eq!(last.get("b"), Some(&PropertyValue::String("2".into())));
     }
 
     #[tokio::test]
     async fn a_policy_that_remediates_nothing_produces_no_remediation() {
         let pack = PolicyPack::new(
-            "p", "1.0.0", EnforcementLevel::Advisory,
-            vec![Policy::resource_remediation("noop", "does nothing", |_: ResourceRemediationArgs| {
-                Box::pin(async { Ok(None) })
-            })],
+            "p",
+            "1.0.0",
+            EnforcementLevel::Advisory,
+            vec![Policy::resource_remediation(
+                "noop",
+                "does nothing",
+                |_: ResourceRemediationArgs| Box::pin(async { Ok(None) }),
+            )],
         )
         .unwrap();
         let resp = service(pack)
@@ -693,43 +767,67 @@ mod tests {
     #[tokio::test]
     async fn a_disabled_policy_neither_validates_nor_remediates() {
         let pack = PolicyPack::new(
-            "p", "1.0.0", EnforcementLevel::Advisory,
+            "p",
+            "1.0.0",
+            EnforcementLevel::Advisory,
             vec![failing("v", "d", "m"), rewrite("r", "a", "1")],
         )
         .unwrap();
         let svc = service(pack);
         {
             let mut state = svc.state.lock().unwrap();
-            state.config.insert("v".into(), (EnforcementLevel::Disabled, PropertyMap::new()));
-            state.config.insert("r".into(), (EnforcementLevel::Disabled, PropertyMap::new()));
+            state
+                .config
+                .insert("v".into(), (EnforcementLevel::Disabled, PropertyMap::new()));
+            state
+                .config
+                .insert("r".into(), (EnforcementLevel::Disabled, PropertyMap::new()));
         }
         let diags = svc
             .analyze_resource(AnalyzerResource {
-                type_: "t".into(), name: "n".into(), urn: "urn:n".into(),
+                type_: "t".into(),
+                name: "n".into(),
+                urn: "urn:n".into(),
                 properties: PropertyMap::new(),
             })
             .await
             .unwrap();
         assert!(diags.is_empty());
-        let resp = svc.remediate(analyze_request(&PropertyMap::new())).await.unwrap().into_inner();
+        let resp = svc
+            .remediate(analyze_request(&PropertyMap::new()))
+            .await
+            .unwrap()
+            .into_inner();
         assert!(resp.remediations.is_empty());
     }
 
     #[tokio::test]
     async fn configured_enforcement_overrides_the_policy_and_the_pack() {
-        let pack = PolicyPack::new("p", "1.0.0", EnforcementLevel::Advisory,
-                                   vec![failing("v", "d", "m")]).unwrap();
+        let pack = PolicyPack::new(
+            "p",
+            "1.0.0",
+            EnforcementLevel::Advisory,
+            vec![failing("v", "d", "m")],
+        )
+        .unwrap();
         let svc = service(pack);
-        svc.state.lock().unwrap().config
-            .insert("v".into(), (EnforcementLevel::Mandatory, PropertyMap::new()));
+        svc.state.lock().unwrap().config.insert(
+            "v".into(),
+            (EnforcementLevel::Mandatory, PropertyMap::new()),
+        );
         let diags = svc
             .analyze_resource(AnalyzerResource {
-                type_: "t".into(), name: "n".into(), urn: "urn:n".into(),
+                type_: "t".into(),
+                name: "n".into(),
+                urn: "urn:n".into(),
                 properties: PropertyMap::new(),
             })
             .await
             .unwrap();
-        assert_eq!(diags[0].enforcement_level, EnforcementLevel::Mandatory.to_proto());
+        assert_eq!(
+            diags[0].enforcement_level,
+            EnforcementLevel::Mandatory.to_proto()
+        );
     }
 
     #[tokio::test]
@@ -748,9 +846,10 @@ mod tests {
         // The engine owns that key; a pack declaring it would shadow the
         // engine's own handling.
         let mut schema = ConfigSchema::default();
-        schema
-            .properties
-            .insert("enforcementLevel".to_string(), PropertyValue::String("string".into()));
+        schema.properties.insert(
+            "enforcementLevel".to_string(),
+            PropertyValue::String("string".into()),
+        );
         let policy = failing("v", "d", "m").with_config_schema(schema);
         let err = match PolicyPack::new("p", "1.0.0", EnforcementLevel::Advisory, vec![policy]) {
             Ok(_) => panic!("a pack redeclaring enforcementLevel was accepted"),

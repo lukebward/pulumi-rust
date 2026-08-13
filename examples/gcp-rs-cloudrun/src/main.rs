@@ -113,7 +113,10 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        ctx.export("serviceName", service.name().cast::<pulumi::PropertyValue>());
+        ctx.export(
+            "serviceName",
+            service.name().cast::<pulumi::PropertyValue>(),
+        );
 
         // The URL is nested two levels down in the service's outputs. The
         // GCP provider surfaces Knative's `status` block as a *list* named

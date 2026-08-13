@@ -4,6 +4,8 @@
 //! expression is an `Output<PropertyValue>`. These constructors keep the
 //! generated code compact.
 
+use std::fmt::Write as _;
+
 use crate::output::{all, Output, OutputData};
 use crate::value::PropertyValue;
 
@@ -60,49 +62,59 @@ pub fn unsecret(o: Output<PropertyValue>) -> Output<PropertyValue> {
 
 /// A file asset.
 pub fn file_asset(path: Output<PropertyValue>) -> Output<PropertyValue> {
-    path.cast::<String>().map(|p| PropertyValue::Asset(crate::value::Asset::from_path(p)))
+    path.cast::<String>()
+        .map(|p| PropertyValue::Asset(crate::value::Asset::from_path(p)))
         .cast()
 }
 
 /// A string (literal text) asset.
 pub fn string_asset(text: Output<PropertyValue>) -> Output<PropertyValue> {
-    text.cast::<String>().map(|t| PropertyValue::Asset(crate::value::Asset::from_text(t))).cast()
+    text.cast::<String>()
+        .map(|t| PropertyValue::Asset(crate::value::Asset::from_text(t)))
+        .cast()
 }
 
 /// A remote asset.
 pub fn remote_asset(uri: Output<PropertyValue>) -> Output<PropertyValue> {
-    uri.cast::<String>().map(|u| PropertyValue::Asset(crate::value::Asset::from_uri(u))).cast()
+    uri.cast::<String>()
+        .map(|u| PropertyValue::Asset(crate::value::Asset::from_uri(u)))
+        .cast()
 }
 
 /// A file archive.
 pub fn file_archive(path: Output<PropertyValue>) -> Output<PropertyValue> {
-    path.cast::<String>().map(|p| PropertyValue::Archive(crate::value::Archive::from_path(p)))
+    path.cast::<String>()
+        .map(|p| PropertyValue::Archive(crate::value::Archive::from_path(p)))
         .cast()
 }
 
 /// A remote archive.
 pub fn remote_archive(uri: Output<PropertyValue>) -> Output<PropertyValue> {
-    uri.cast::<String>().map(|u| PropertyValue::Archive(crate::value::Archive::from_uri(u))).cast()
+    uri.cast::<String>()
+        .map(|u| PropertyValue::Archive(crate::value::Archive::from_uri(u)))
+        .cast()
 }
 
 /// An asset archive built from a map of assets/archives.
 pub fn asset_archive(entries: Vec<(String, Output<PropertyValue>)>) -> Output<PropertyValue> {
-    object(entries).cast::<crate::value::PropertyMap>().map(|m| {
-        let mut assets = std::collections::BTreeMap::new();
-        for (k, v) in m {
-            match strip_wrappers(&v) {
-                PropertyValue::Asset(a) => {
-                    assets.insert(k, crate::value::AssetOrArchive::Asset(a));
+    object(entries)
+        .cast::<crate::value::PropertyMap>()
+        .map(|m| {
+            let mut assets = std::collections::BTreeMap::new();
+            for (k, v) in m {
+                match strip_wrappers(&v) {
+                    PropertyValue::Asset(a) => {
+                        assets.insert(k, crate::value::AssetOrArchive::Asset(a));
+                    }
+                    PropertyValue::Archive(a) => {
+                        assets.insert(k, crate::value::AssetOrArchive::Archive(a));
+                    }
+                    _ => {}
                 }
-                PropertyValue::Archive(a) => {
-                    assets.insert(k, crate::value::AssetOrArchive::Archive(a));
-                }
-                _ => {}
             }
-        }
-        PropertyValue::Archive(crate::value::Archive::from_assets(assets))
-    })
-    .cast()
+            PropertyValue::Archive(crate::value::Archive::from_assets(assets))
+        })
+        .cast()
 }
 
 /// A builtin that could not produce a value.
@@ -150,7 +162,9 @@ pub fn read_file(path: Output<PropertyValue>) -> Output<PropertyValue> {
 /// Base64-encode a string (PCL `toBase64`).
 pub fn to_base64(v: Output<PropertyValue>) -> Output<PropertyValue> {
     use base64::Engine;
-    v.cast::<String>().map(|s| base64::engine::general_purpose::STANDARD.encode(s)).cast()
+    v.cast::<String>()
+        .map(|s| base64::engine::general_purpose::STANDARD.encode(s))
+        .cast()
 }
 
 /// Base64-decode a string (PCL `fromBase64`).
@@ -175,9 +189,9 @@ pub fn file_base64(path: Output<PropertyValue>) -> Output<PropertyValue> {
     use base64::Engine;
     path.cast::<String>()
         .map(|p: String| match std::fs::read(&p) {
-            Ok(bytes) => PropertyValue::String(
-                base64::engine::general_purpose::STANDARD.encode(bytes),
-            ),
+            Ok(bytes) => {
+                PropertyValue::String(base64::engine::general_purpose::STANDARD.encode(bytes))
+            }
             Err(e) => failed(format!("filebase64({p:?}) failed: {e}")),
         })
         .cast()
@@ -191,9 +205,7 @@ pub fn file_base64_sha256(path: Output<PropertyValue>) -> Output<PropertyValue> 
         .map(|p: String| match std::fs::read(&p) {
             Ok(bytes) => {
                 let digest = sha2::Sha256::digest(&bytes);
-                PropertyValue::String(
-                    base64::engine::general_purpose::STANDARD.encode(digest),
-                )
+                PropertyValue::String(base64::engine::general_purpose::STANDARD.encode(digest))
             }
             Err(e) => failed(format!("filebase64sha256({p:?}) failed: {e}")),
         })
@@ -206,7 +218,10 @@ pub fn sha1_hex(v: Output<PropertyValue>) -> Output<PropertyValue> {
     v.cast::<String>()
         .map(|s: String| {
             let digest = sha1::Sha1::digest(s.as_bytes());
-            digest.iter().map(|b| format!("{b:02x}")).collect::<String>()
+            digest.iter().fold(String::new(), |mut out, b| {
+                let _ = write!(out, "{b:02x}");
+                out
+            })
         })
         .cast()
 }
@@ -253,7 +268,9 @@ fn property_to_json(v: &PropertyValue) -> serde_json::Value {
             serde_json::Value::Array(a.iter().map(property_to_json).collect())
         }
         PropertyValue::Object(m) => serde_json::Value::Object(
-            m.iter().map(|(k, v)| (k.clone(), property_to_json(v))).collect(),
+            m.iter()
+                .map(|(k, v)| (k.clone(), property_to_json(v)))
+                .collect(),
         ),
         PropertyValue::Secret(inner) => property_to_json(inner),
         PropertyValue::Output(o) => match &o.value {
@@ -320,7 +337,8 @@ fn lift_secrets(o: Output<PropertyValue>) -> Output<PropertyValue> {
 /// Join a list of strings with a separator (PCL `join`).
 pub fn join(sep: Output<PropertyValue>, list: Output<PropertyValue>) -> Output<PropertyValue> {
     lift_secrets(array(vec![sep, list]))
-        .cast::<Vec<PropertyValue>>().map(|vals| {
+        .cast::<Vec<PropertyValue>>()
+        .map(|vals| {
             let sep = match strip_wrappers(&vals[0]) {
                 PropertyValue::String(s) => s,
                 _ => String::new(),
@@ -359,7 +377,8 @@ pub fn length(v: Output<PropertyValue>) -> Output<PropertyValue> {
 /// Split a string (PCL `split`).
 pub fn split(sep: Output<PropertyValue>, s: Output<PropertyValue>) -> Output<PropertyValue> {
     lift_secrets(array(vec![sep, s]))
-        .cast::<Vec<PropertyValue>>().map(|vals| {
+        .cast::<Vec<PropertyValue>>()
+        .map(|vals| {
             let sep = match strip_wrappers(&vals[0]) {
                 PropertyValue::String(s) => s,
                 _ => String::new(),
@@ -369,7 +388,9 @@ pub fn split(sep: Output<PropertyValue>, s: Output<PropertyValue>) -> Output<Pro
                 _ => String::new(),
             };
             PropertyValue::Array(
-                s.split(&sep).map(|p| PropertyValue::String(p.to_string())).collect(),
+                s.split(&sep)
+                    .map(|p| PropertyValue::String(p.to_string()))
+                    .collect(),
             )
         })
         .cast()
@@ -391,15 +412,19 @@ pub fn single_value(v: Output<PropertyValue>) -> Output<PropertyValue> {
 
 /// The single element of a one-element list, or null (PCL `singleOrNone`).
 pub fn single_or_none(v: Output<PropertyValue>) -> Output<PropertyValue> {
-    lift_secrets(v).map(|p: PropertyValue| match p {
-        PropertyValue::Array(a) if a.len() == 1 => strip_wrappers(&a[0]),
-        PropertyValue::Array(a) if a.is_empty() => PropertyValue::Null,
-        PropertyValue::Array(a) => {
-            panic!("singleOrNone expected a list with at most one element, got {}", a.len())
-        }
-        _ => PropertyValue::Null,
-    })
-    .cast()
+    lift_secrets(v)
+        .map(|p: PropertyValue| match p {
+            PropertyValue::Array(a) if a.len() == 1 => strip_wrappers(&a[0]),
+            PropertyValue::Array(a) if a.is_empty() => PropertyValue::Null,
+            PropertyValue::Array(a) => {
+                panic!(
+                    "singleOrNone expected a list with at most one element, got {}",
+                    a.len()
+                )
+            }
+            _ => PropertyValue::Null,
+        })
+        .cast()
 }
 
 /// Look up a key in a map with a default (PCL `lookup`).
@@ -425,7 +450,11 @@ pub fn min(items: Vec<Output<PropertyValue>>) -> Output<PropertyValue> {
 
 /// The numeric maximum of the arguments (PCL `max`).
 pub fn max(items: Vec<Output<PropertyValue>>) -> Output<PropertyValue> {
-    fold_numbers(items, f64::NEG_INFINITY, |acc, n| if n > acc { n } else { acc })
+    fold_numbers(
+        items,
+        f64::NEG_INFINITY,
+        |acc, n| if n > acc { n } else { acc },
+    )
 }
 
 fn fold_numbers(
@@ -441,9 +470,7 @@ fn fold_numbers(
             let mut flat = vec![];
             for v in vals {
                 match strip_wrappers(&v) {
-                    PropertyValue::Array(inner) => {
-                        flat.extend(inner.iter().map(strip_wrappers))
-                    }
+                    PropertyValue::Array(inner) => flat.extend(inner.iter().map(strip_wrappers)),
                     other => flat.push(other),
                 }
             }
@@ -548,16 +575,22 @@ pub async fn range_entries(r: Output<PropertyValue>) -> Vec<RangeEntry> {
     match strip_wrappers(&r.data().await.value) {
         PropertyValue::Bool(true) => vec![entry(PropertyValue::Null, PropertyValue::Bool(true))],
         PropertyValue::Number(n) if n > 0.0 => (0..n as i64)
-            .map(|i| entry(PropertyValue::Number(i as f64), PropertyValue::Number(i as f64)))
+            .map(|i| {
+                entry(
+                    PropertyValue::Number(i as f64),
+                    PropertyValue::Number(i as f64),
+                )
+            })
             .collect(),
         PropertyValue::Array(items) => items
             .into_iter()
             .enumerate()
             .map(|(i, v)| entry(PropertyValue::Number(i as f64), v))
             .collect(),
-        PropertyValue::Object(m) => {
-            m.into_iter().map(|(k, v)| entry(PropertyValue::String(k), v)).collect()
-        }
+        PropertyValue::Object(m) => m
+            .into_iter()
+            .map(|(k, v)| entry(PropertyValue::String(k), v))
+            .collect(),
         // A false bool, a zero/negative count, or an unknown range (during a
         // preview) all create nothing.
         _ => vec![],
@@ -609,7 +642,9 @@ mod tests {
     async fn to_json_is_secret_if_anything_inside_is() {
         // The secret is nested, so it is only visible via contains_secret —
         // a JSON document built from a secret is itself a secret.
-        let d = to_json(object(vec![("k".to_string(), secret(s("shh")))])).data().await;
+        let d = to_json(object(vec![("k".to_string(), secret(s("shh")))]))
+            .data()
+            .await;
         assert!(d.secret);
     }
 
@@ -624,7 +659,10 @@ mod tests {
     #[tokio::test]
     async fn join_and_split_round_trip() {
         let joined = join(s(","), array(vec![s("a"), s("b"), s("c")]));
-        assert_eq!(value(joined.clone()).await, PropertyValue::String("a,b,c".into()));
+        assert_eq!(
+            value(joined.clone()).await,
+            PropertyValue::String("a,b,c".into())
+        );
         let back = split(s(","), joined);
         assert_eq!(
             value(back).await,
@@ -638,7 +676,10 @@ mod tests {
 
     #[tokio::test]
     async fn length_counts_arrays_objects_and_strings() {
-        assert_eq!(value(length(array(vec![s("a"), s("b")]))).await, PropertyValue::Number(2.0));
+        assert_eq!(
+            value(length(array(vec![s("a"), s("b")]))).await,
+            PropertyValue::Number(2.0)
+        );
         assert_eq!(value(length(s("abcd"))).await, PropertyValue::Number(4.0));
         assert_eq!(
             value(length(object(vec![("k".to_string(), s("v"))]))).await,
@@ -649,17 +690,26 @@ mod tests {
     #[tokio::test]
     async fn lookup_falls_back_to_the_default() {
         let m = object(vec![("present".to_string(), s("yes"))]);
-        assert_eq!(value(lookup(m.clone(), s("present"), s("dflt"))).await,
-                   PropertyValue::String("yes".into()));
-        assert_eq!(value(lookup(m, s("absent"), s("dflt"))).await,
-                   PropertyValue::String("dflt".into()));
+        assert_eq!(
+            value(lookup(m.clone(), s("present"), s("dflt"))).await,
+            PropertyValue::String("yes".into())
+        );
+        assert_eq!(
+            value(lookup(m, s("absent"), s("dflt"))).await,
+            PropertyValue::String("dflt".into())
+        );
     }
 
     #[tokio::test]
     async fn single_or_none_handles_all_three_cases() {
-        assert_eq!(value(single_or_none(array(vec![s("x")]))).await,
-                   PropertyValue::String("x".into()));
-        assert_eq!(value(single_or_none(array(vec![]))).await, PropertyValue::Null);
+        assert_eq!(
+            value(single_or_none(array(vec![s("x")]))).await,
+            PropertyValue::String("x".into())
+        );
+        assert_eq!(
+            value(single_or_none(array(vec![]))).await,
+            PropertyValue::Null
+        );
     }
 
     #[tokio::test]
@@ -703,8 +753,14 @@ mod tests {
     #[tokio::test]
     async fn base64_round_trips() {
         let encoded = to_base64(s("hello"));
-        assert_eq!(value(encoded.clone()).await, PropertyValue::String("aGVsbG8=".into()));
-        assert_eq!(value(from_base64(encoded)).await, PropertyValue::String("hello".into()));
+        assert_eq!(
+            value(encoded.clone()).await,
+            PropertyValue::String("aGVsbG8=".into())
+        );
+        assert_eq!(
+            value(from_base64(encoded)).await,
+            PropertyValue::String("hello".into())
+        );
     }
 
     #[tokio::test]
@@ -731,7 +787,9 @@ mod tests {
         // inline, so a builtin that strips the element wrapper has to lift
         // the marker onto its own result — otherwise the joined string is
         // written to the state file in plaintext.
-        let d = join(s(","), array(vec![secret(s("pw")), s("x")])).data().await;
+        let d = join(s(","), array(vec![secret(s("pw")), s("x")]))
+            .data()
+            .await;
         assert_eq!(d.value, PropertyValue::String("pw,x".into()));
         assert!(d.secret, "join dropped the element's secretness");
     }
@@ -744,8 +802,18 @@ mod tests {
 
     #[tokio::test]
     async fn min_and_max_of_a_secret_argument_stay_secret() {
-        assert!(min(vec![secret(number(1.0)), number(2.0)]).data().await.secret);
-        assert!(max(vec![secret(number(1.0)), number(2.0)]).data().await.secret);
+        assert!(
+            min(vec![secret(number(1.0)), number(2.0)])
+                .data()
+                .await
+                .secret
+        );
+        assert!(
+            max(vec![secret(number(1.0)), number(2.0)])
+                .data()
+                .await
+                .secret
+        );
     }
 
     #[tokio::test]
@@ -761,8 +829,14 @@ mod tests {
     async fn read_file_reports_a_bad_path_instead_of_an_empty_string() {
         // An empty string here is silently written into real infrastructure
         // as if it were the file's contents.
-        let d = read_file(s("/nonexistent/pulumi-rust/config.json")).data().await;
-        assert!(!d.known(), "a missing file produced a known value: {:?}", d.value);
+        let d = read_file(s("/nonexistent/pulumi-rust/config.json"))
+            .data()
+            .await;
+        assert!(
+            !d.known(),
+            "a missing file produced a known value: {:?}",
+            d.value
+        );
         match d.value {
             PropertyValue::Failed(msg) => {
                 assert!(msg.contains("config.json"), "unhelpful message: {msg}")
@@ -776,8 +850,13 @@ mod tests {
         // The SHA of a missing file used to be the SHA of zero bytes: a
         // stable-looking hash that never changes, so change detection on the
         // file silently stops working.
-        assert!(!file_base64(s("/nonexistent/pulumi-rust/a")).data().await.known());
-        let d = file_base64_sha256(s("/nonexistent/pulumi-rust/a")).data().await;
+        assert!(!file_base64(s("/nonexistent/pulumi-rust/a"))
+            .data()
+            .await
+            .known());
+        let d = file_base64_sha256(s("/nonexistent/pulumi-rust/a"))
+            .data()
+            .await;
         assert!(!d.known(), "a missing file hashed to {:?}", d.value);
     }
 
@@ -791,10 +870,9 @@ mod tests {
     async fn a_failed_builtin_can_be_recovered() {
         // `Failed` is the SDK's marker for a value that never materialised,
         // so `recover` gets the message and a program can supply a fallback.
-        let out = crate::ops::recover(
-            read_file(s("/nonexistent/pulumi-rust/config.json")),
-            |_e| string("{}"),
-        );
+        let out = crate::ops::recover(read_file(s("/nonexistent/pulumi-rust/config.json")), |_e| {
+            string("{}")
+        });
         assert_eq!(value(out).await, PropertyValue::String("{}".into()));
     }
 
@@ -811,7 +889,10 @@ mod tests {
     #[tokio::test]
     async fn urn_name_and_type_split_a_urn() {
         let urn = s("urn:pulumi:dev::proj::simple:index:Resource::res");
-        assert_eq!(value(urn_name(urn.clone())).await, PropertyValue::String("res".into()));
+        assert_eq!(
+            value(urn_name(urn.clone())).await,
+            PropertyValue::String("res".into())
+        );
         assert_eq!(
             value(urn_type(urn)).await,
             PropertyValue::String("simple:index:Resource".into())

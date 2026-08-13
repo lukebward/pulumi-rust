@@ -141,13 +141,15 @@ fn main() {
             storage::ListStorageAccountServiceSASArgs {
                 account_name: Some(account.name()),
                 resource_group_name: Some(resource_group.name()),
-                canonicalized_resource: Some(pulumi::pv::concat(vec![
-                    pulumi::pv::string("/blob/"),
-                    account.name().cast(),
-                    pulumi::pv::string("/"),
-                    code_container.name().cast(),
-                ])
-                .cast()),
+                canonicalized_resource: Some(
+                    pulumi::pv::concat(vec![
+                        pulumi::pv::string("/blob/"),
+                        account.name().cast(),
+                        pulumi::pv::string("/"),
+                        code_container.name().cast(),
+                    ])
+                    .cast(),
+                ),
                 resource: Some(pulumi::pv::string("c").cast()),
                 permissions: Some(pulumi::pv::string("r").cast()),
                 protocols: Some(pulumi::pv::string("https").cast()),
@@ -345,8 +347,14 @@ fn main() {
         // a random suffix, so export them: `az sql` and `sqlcmd` against the
         // deployed database need the real ones. Neither is sensitive — the
         // credential is the password, which is never exported.
-        ctx.export("sqlServerName", sql_server.name().cast::<pulumi::PropertyValue>());
-        ctx.export("databaseName", database.name().cast::<pulumi::PropertyValue>());
+        ctx.export(
+            "sqlServerName",
+            sql_server.name().cast::<pulumi::PropertyValue>(),
+        );
+        ctx.export(
+            "databaseName",
+            database.name().cast::<pulumi::PropertyValue>(),
+        );
 
         Ok(())
     });

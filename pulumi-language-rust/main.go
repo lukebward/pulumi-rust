@@ -55,10 +55,8 @@ import (
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 
 	"github.com/lukebward/pulumi-rust/pulumi-language-rust/codegen"
+	"github.com/lukebward/pulumi-rust/pulumi-language-rust/version"
 )
-
-// Version is the language host version.
-var Version = "0.1.0"
 
 // exitStatusLoggedError is the exit code a Rust SDK program uses to signal
 // "the error was already logged to the engine".
@@ -211,7 +209,8 @@ func cargoCommand(ctx context.Context, dir string, extraEnv []string, args ...st
 }
 
 func (host *rustLanguageHost) GetPluginInfo(ctx context.Context, req *pbempty.Empty) (*pulumirpc.PluginInfo, error) {
-	return &pulumirpc.PluginInfo{Version: Version}, nil
+	// Empty in an unreleased build; the linker stamps it for a release.
+	return &pulumirpc.PluginInfo{Version: version.Version}, nil
 }
 
 func (host *rustLanguageHost) About(ctx context.Context, req *pulumirpc.AboutRequest) (*pulumirpc.AboutResponse, error) {

@@ -38,7 +38,11 @@ impl OutputData {
                 d.secret = true;
                 d
             }
-            PropertyValue::Output(OutputValue { value, secret, dependencies }) => {
+            PropertyValue::Output(OutputValue {
+                value,
+                secret,
+                dependencies,
+            }) => {
                 let mut d = match value {
                     Some(inner) => OutputData::from_value(*inner),
                     None => OutputData {
@@ -51,7 +55,11 @@ impl OutputData {
                 d.deps.extend(dependencies);
                 d
             }
-            value => OutputData { value, secret: false, deps: vec![] },
+            value => OutputData {
+                value,
+                secret: false,
+                deps: vec![],
+            },
         }
     }
 
@@ -63,8 +71,10 @@ impl OutputData {
         // A failed value is unknown, like a computed one: the output value
         // must carry no value at all, or the engine reads the unknown
         // sentinel as an ordinary string.
-        let top_unknown =
-            matches!(self.value, PropertyValue::Computed | PropertyValue::Failed(_));
+        let top_unknown = matches!(
+            self.value,
+            PropertyValue::Computed | PropertyValue::Failed(_)
+        );
         if self.deps.is_empty() && !top_unknown {
             if self.secret {
                 return PropertyValue::Secret(Box::new(self.value));
@@ -72,7 +82,11 @@ impl OutputData {
             return self.value;
         }
         PropertyValue::Output(OutputValue {
-            value: if top_unknown { None } else { Some(Box::new(self.value)) },
+            value: if top_unknown {
+                None
+            } else {
+                Some(Box::new(self.value))
+            },
             secret: self.secret,
             dependencies: self.deps,
         })
@@ -89,7 +103,10 @@ pub struct Output<T> {
 
 impl<T> Clone for Output<T> {
     fn clone(&self) -> Self {
-        Output { data: self.data.clone(), _t: PhantomData }
+        Output {
+            data: self.data.clone(),
+            _t: PhantomData,
+        }
     }
 }
 
@@ -102,7 +119,10 @@ impl<T> std::fmt::Debug for Output<T> {
 impl<T> Output<T> {
     /// Build an output from a future resolving to [`OutputData`].
     pub fn from_data_future(fut: impl Future<Output = OutputData> + Send + 'static) -> Self {
-        Output { data: fut.boxed().shared(), _t: PhantomData }
+        Output {
+            data: fut.boxed().shared(),
+            _t: PhantomData,
+        }
     }
 
     /// Build an output from already-resolved data.
@@ -147,7 +167,10 @@ impl<T> Output<T> {
     /// Reinterpret the element type. The dynamic payload is untouched; this
     /// is a typed-layer cast used by generated code.
     pub fn cast<U>(&self) -> Output<U> {
-        Output { data: self.data.clone(), _t: PhantomData }
+        Output {
+            data: self.data.clone(),
+            _t: PhantomData,
+        }
     }
 
     /// Index into an object (by key) or array (by position), producing the
@@ -306,9 +329,10 @@ pub(crate) fn index_value(v: &PropertyValue, key: &PropIndex) -> PropertyValue {
                 Err(_) => PropertyValue::Null,
             }
         }
-        (PropertyValue::Object(m), PropIndex::Index(i)) => {
-            m.get(&i.to_string()).cloned().unwrap_or(PropertyValue::Null)
-        }
+        (PropertyValue::Object(m), PropIndex::Index(i)) => m
+            .get(&i.to_string())
+            .cloned()
+            .unwrap_or(PropertyValue::Null),
         _ => PropertyValue::Null,
     }
 }
@@ -339,12 +363,20 @@ impl<T: IntoPropertyValue> Output<T> {
 /// kept intact, because `recover`/`try`/`can` read the failure message off
 /// the value itself; collapsing it would silently disarm them.
 fn short_circuit(d: OutputData) -> OutputData {
-    let OutputData { value, secret, deps } = d;
+    let OutputData {
+        value,
+        secret,
+        deps,
+    } = d;
     let value = match value {
         failed @ PropertyValue::Failed(_) => failed,
         _ => PropertyValue::Computed,
     };
-    OutputData { value, secret, deps }
+    OutputData {
+        value,
+        secret,
+        deps,
+    }
 }
 
 impl<T: FromPropertyValue + Send + 'static> Output<T> {
@@ -425,7 +457,11 @@ pub fn all(outputs: Vec<Output<PropertyValue>>) -> Output<Vec<PropertyValue>> {
             deps.extend(d.deps.clone());
             values.push(d.into_value());
         }
-        OutputData { value: PropertyValue::Array(values), secret: false, deps }
+        OutputData {
+            value: PropertyValue::Array(values),
+            secret: false,
+            deps,
+        }
     })
 }
 
@@ -448,7 +484,11 @@ pub fn concat(parts: Vec<Output<PropertyValue>>) -> Output<String> {
             deps.extend(d.deps);
         }
         OutputData {
-            value: if known { PropertyValue::String(s) } else { PropertyValue::Computed },
+            value: if known {
+                PropertyValue::String(s)
+            } else {
+                PropertyValue::Computed
+            },
             secret,
             deps,
         }
@@ -505,12 +545,46 @@ pub fn object(fields: Vec<(String, Output<PropertyValue>)>) -> Output<PropertyVa
             deps.extend(d.deps.clone());
             m.insert(k, d.into_value());
         }
-        OutputData { value: PropertyValue::Object(m), secret: false, deps }
+        OutputData {
+            value: PropertyValue::Object(m),
+            secret: false,
+            deps,
+        }
     })
 }
 
 /// A pinned boxed future, the shape SDK async helpers return.
 pub type PulumiFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
+
+/// Resolves a [`deferred_output`] once the producing value is available.
+pub struct DeferredResolver {
+    tx: tokio::sync::oneshot::Sender<Output<PropertyValue>>,
+}
+
+impl DeferredResolver {
+    /// Supply the value the deferred output stands for.
+    pub fn resolve(self, value: Output<PropertyValue>) {
+        let _ = self.tx.send(value);
+    }
+}
+
+/// An output whose value arrives later, used to break the cycle between two
+/// components that each consume the other's outputs. An unresolved deferred
+/// output reads as unknown rather than hanging.
+pub fn deferred_output() -> (Output<PropertyValue>, DeferredResolver) {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Output<PropertyValue>>();
+    let out = Output::from_data_future(async move {
+        match rx.await {
+            Ok(o) => o.data().await,
+            Err(_) => OutputData {
+                value: PropertyValue::Computed,
+                secret: false,
+                deps: vec![],
+            },
+        }
+    });
+    (out, DeferredResolver { tx })
+}
 
 #[cfg(test)]
 mod tests {
@@ -555,7 +629,11 @@ mod tests {
     // refactor cannot quietly drop one.
 
     fn data(value: PropertyValue, secret: bool, deps: &[&str]) -> OutputData {
-        OutputData { value, secret, deps: deps.iter().map(|s| s.to_string()).collect() }
+        OutputData {
+            value,
+            secret,
+            deps: deps.iter().map(|s| s.to_string()).collect(),
+        }
     }
 
     #[tokio::test]
@@ -577,7 +655,10 @@ mod tests {
     #[tokio::test]
     async fn map_keeps_secret_of_a_known_value() {
         let o: Output<i64> = Output::from_data(data(PropertyValue::Number(1.0), true, &[]));
-        assert!(o.map(|v| v + 1).data().await.secret, "secretness is not sticky");
+        assert!(
+            o.map(|v| v + 1).data().await.secret,
+            "secretness is not sticky"
+        );
     }
 
     #[tokio::test]
@@ -638,8 +719,15 @@ mod tests {
             true,
             &["urn:a"],
         ));
-        let d = src.map(|_| PropertyValue::String("joined".into())).data().await;
-        assert_eq!(d.value, PropertyValue::Computed, "the source array leaked through");
+        let d = src
+            .map(|_| PropertyValue::String("joined".into()))
+            .data()
+            .await;
+        assert_eq!(
+            d.value,
+            PropertyValue::Computed,
+            "the source array leaked through"
+        );
         assert!(d.secret, "the short-circuit dropped secretness");
         assert_eq!(d.deps, vec!["urn:a".to_string()]);
     }
@@ -667,11 +755,18 @@ mod tests {
         // `join` must turn that into an unknown string.
         let joined = crate::pv::join(
             crate::pv::string(", "),
-            all(vec![Output::unknown(), Output::from_value(PropertyValue::String("x".into()))])
-                .cast(),
+            all(vec![
+                Output::unknown(),
+                Output::from_value(PropertyValue::String("x".into())),
+            ])
+            .cast(),
         );
         let d = joined.data().await;
-        assert_eq!(d.value, PropertyValue::Computed, "join leaked its argument list");
+        assert_eq!(
+            d.value,
+            PropertyValue::Computed,
+            "join leaked its argument list"
+        );
     }
 
     #[tokio::test]
@@ -697,7 +792,10 @@ mod tests {
     #[test]
     fn into_value_wraps_a_bare_secret() {
         let v = data(PropertyValue::String("s".into()), true, &[]).into_value();
-        assert_eq!(v, PropertyValue::Secret(Box::new(PropertyValue::String("s".into()))));
+        assert_eq!(
+            v,
+            PropertyValue::Secret(Box::new(PropertyValue::String("s".into())))
+        );
     }
 
     #[test]
@@ -742,7 +840,9 @@ mod tests {
     #[test]
     fn from_value_lifts_a_nested_secret_output() {
         let v = PropertyValue::Output(OutputValue {
-            value: Some(Box::new(PropertyValue::Secret(Box::new(PropertyValue::Number(1.0))))),
+            value: Some(Box::new(PropertyValue::Secret(Box::new(
+                PropertyValue::Number(1.0),
+            )))),
             secret: false,
             dependencies: vec!["urn:a".into()],
         });
@@ -764,10 +864,7 @@ mod tests {
 
     #[test]
     fn known_sees_through_containers() {
-        let v = PropertyValue::Array(vec![
-            PropertyValue::Number(1.0),
-            PropertyValue::Computed,
-        ]);
+        let v = PropertyValue::Array(vec![PropertyValue::Number(1.0), PropertyValue::Computed]);
         assert!(!data(v, false, &[]).known());
     }
 
@@ -812,7 +909,10 @@ mod tests {
         ])
         .data()
         .await;
-        assert!(!d.known(), "one unknown part must make the whole string unknown");
+        assert!(
+            !d.known(),
+            "one unknown part must make the whole string unknown"
+        );
     }
 
     #[tokio::test]
@@ -841,7 +941,10 @@ mod tests {
 
     fn obj(pairs: &[(&str, PropertyValue)]) -> PropertyValue {
         PropertyValue::Object(
-            pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect(),
+            pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect(),
         )
     }
 
@@ -858,9 +961,10 @@ mod tests {
     #[tokio::test]
     async fn index_accepts_a_numeric_string_key_on_an_array() {
         // PCL indexes arrays with string keys; the SDK has to accept both.
-        let o = Output::<PropertyValue>::from_value(PropertyValue::Array(vec![
-            PropertyValue::Number(7.0),
-        ]));
+        let o =
+            Output::<PropertyValue>::from_value(PropertyValue::Array(vec![PropertyValue::Number(
+                7.0,
+            )]));
         assert_eq!(o.index("0").data().await.value, PropertyValue::Number(7.0));
     }
 
@@ -876,7 +980,10 @@ mod tests {
         // absent key from a null one. It must stay inside index_checked —
         // leaking it into ordinary indexing broke `== null` comparisons.
         let o = Output::<PropertyValue>::from_value(obj(&[]));
-        assert_eq!(o.index_checked("nope").data().await.value, PropertyValue::Missing);
+        assert_eq!(
+            o.index_checked("nope").data().await.value,
+            PropertyValue::Missing
+        );
     }
 
     #[tokio::test]
@@ -892,7 +999,10 @@ mod tests {
             PropertyValue::Secret(Box::new(PropertyValue::Number(1.0))),
         )]));
         let d = o.index("k").data().await;
-        assert!(d.secret, "a secret element must make the indexed output secret");
+        assert!(
+            d.secret,
+            "a secret element must make the indexed output secret"
+        );
         assert_eq!(d.value, PropertyValue::Number(1.0));
     }
 
@@ -911,8 +1021,14 @@ mod tests {
     #[tokio::test]
     async fn object_builds_a_map_and_unions_deps() {
         let d = object(vec![
-            ("a".to_string(), Output::from_data(data(PropertyValue::Number(1.0), false, &["urn:a"]))),
-            ("b".to_string(), Output::from_value(PropertyValue::Number(2.0))),
+            (
+                "a".to_string(),
+                Output::from_data(data(PropertyValue::Number(1.0), false, &["urn:a"])),
+            ),
+            (
+                "b".to_string(),
+                Output::from_value(PropertyValue::Number(2.0)),
+            ),
         ])
         .data()
         .await;
@@ -948,34 +1064,4 @@ mod tests {
         assert!(d.secret);
         assert_eq!(d.deps, vec!["urn:a".to_string()]);
     }
-}
-
-/// Resolves a [`deferred_output`] once the producing value is available.
-pub struct DeferredResolver {
-    tx: tokio::sync::oneshot::Sender<Output<PropertyValue>>,
-}
-
-impl DeferredResolver {
-    /// Supply the value the deferred output stands for.
-    pub fn resolve(self, value: Output<PropertyValue>) {
-        let _ = self.tx.send(value);
-    }
-}
-
-/// An output whose value arrives later, used to break the cycle between two
-/// components that each consume the other's outputs. An unresolved deferred
-/// output reads as unknown rather than hanging.
-pub fn deferred_output() -> (Output<PropertyValue>, DeferredResolver) {
-    let (tx, rx) = tokio::sync::oneshot::channel::<Output<PropertyValue>>();
-    let out = Output::from_data_future(async move {
-        match rx.await {
-            Ok(o) => o.data().await,
-            Err(_) => OutputData {
-                value: PropertyValue::Computed,
-                secret: false,
-                deps: vec![],
-            },
-        }
-    });
-    (out, DeferredResolver { tx })
 }

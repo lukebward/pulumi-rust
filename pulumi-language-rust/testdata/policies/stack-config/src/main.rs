@@ -7,7 +7,9 @@
 // the stack configuration the engine sends before it asks what policies
 // exist, which is what `policyx.Main`'s factory does on the Go side.
 
-use pulumi::{EnforcementLevel, Error, Policy, PolicyPack, PropertyValue, ResourceValidationArgs, StackInfo};
+use pulumi::{
+    EnforcementLevel, Error, Policy, PolicyPack, PropertyValue, ResourceValidationArgs, StackInfo,
+};
 
 /// Read a required boolean out of the stack's configuration. Stack config
 /// arrives keyed `<project>:<key>`, which is what `config.New(pctx, "")`
@@ -18,7 +20,11 @@ fn require_bool(stack: &StackInfo, key: &str) -> pulumi::Result<bool> {
         .config
         .get(&namespaced)
         .or_else(|| stack.config.get(key))
-        .ok_or_else(|| Error::new(format!("missing required configuration variable '{namespaced}'")))?;
+        .ok_or_else(|| {
+            Error::new(format!(
+                "missing required configuration variable '{namespaced}'"
+            ))
+        })?;
     match raw.trim() {
         "true" => Ok(true),
         "false" => Ok(false),
@@ -45,9 +51,11 @@ fn build(stack: StackInfo) -> pulumi::Result<PolicyPack> {
                         return Ok(());
                     }
 
-                    if let Some(PropertyValue::Bool(actual)) = args.resource.properties.get("value") {
+                    if let Some(PropertyValue::Bool(actual)) = args.resource.properties.get("value")
+                    {
                         if *actual != value {
-                            args.manager.report_violation(format!("Property was {actual}"), "");
+                            args.manager
+                                .report_violation(format!("Property was {actual}"), "");
                         }
                     }
                     Ok(())

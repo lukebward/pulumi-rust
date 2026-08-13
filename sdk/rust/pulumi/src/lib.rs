@@ -9,10 +9,10 @@ pub mod config;
 pub mod context;
 pub mod convert;
 pub mod error;
-pub mod ops;
 pub mod hooks;
 #[cfg(test)]
 mod monitor_test_support;
+pub mod ops;
 pub mod output;
 pub mod policy;
 pub mod provider;
@@ -28,10 +28,15 @@ pub use context::{
 };
 pub use convert::{FromPropertyValue, IntoPropertyValue};
 pub use error::{Error, Result};
-pub use output::{deferred_output, DeferredResolver, Output, OutputData};
 pub use hooks::{ResourceHook, ResourceHookBinding};
-pub use policy::{policy_main, policy_main_with, AnalyzerResource, StackInfo, ConfigSchema, EnforcementLevel, Policy, PolicyPack, ResourceRemediationArgs, ResourceValidationArgs, ViolationManager};
-pub use provider::{component_provider_host, ComponentProviderOptions, ConstructArgs, ConstructResult};
+pub use output::{deferred_output, DeferredResolver, Output, OutputData};
+pub use policy::{
+    policy_main, policy_main_with, AnalyzerResource, ConfigSchema, EnforcementLevel, Policy,
+    PolicyPack, ResourceRemediationArgs, ResourceValidationArgs, StackInfo, ViolationManager,
+};
+pub use provider::{
+    component_provider_host, ComponentProviderOptions, ConstructArgs, ConstructResult,
+};
 pub use pv::{range_entries, RangeEntry};
 pub use runtime::run;
 pub use stack_reference::StackReference;

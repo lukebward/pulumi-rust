@@ -66,10 +66,7 @@ async fn connect(addr: &str) -> Result<Channel> {
     Ok(endpoint.connect().await?)
 }
 
-async fn supports_feature(
-    monitor: &mut ResourceMonitorClient<Channel>,
-    id: &str,
-) -> Result<bool> {
+async fn supports_feature(monitor: &mut ResourceMonitorClient<Channel>, id: &str) -> Result<bool> {
     let resp = monitor
         .supports_feature(pulumirpc::SupportsFeatureRequest { id: id.to_string() })
         .await?;
@@ -106,9 +103,10 @@ pub async fn connect_context(settings: RunSettings) -> Result<Context> {
     // older ones return Unimplemented, which leaves the flags off.
     if let Ok(info) = monitor.get_deployment_info(()).await {
         let info = info.into_inner();
-        features.invoke_depends_on = info.supported_features.iter().any(|f| {
-            *f == pulumirpc::ResourceMonitorFeature::InvokeDependsOn as i32
-        });
+        features.invoke_depends_on = info
+            .supported_features
+            .iter()
+            .any(|f| *f == pulumirpc::ResourceMonitorFeature::InvokeDependsOn as i32);
     }
 
     let config = Config::new(
@@ -245,7 +243,8 @@ where
             0
         }
         Err(e) => {
-            ctx.log_error(format!("an unhandled error occurred: {e}")).await;
+            ctx.log_error(format!("an unhandled error occurred: {e}"))
+                .await;
             EXIT_STATUS_LOGGED_ERROR
         }
     }

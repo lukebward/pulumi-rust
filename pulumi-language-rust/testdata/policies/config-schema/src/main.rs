@@ -10,7 +10,12 @@ use pulumi::{
 
 /// A JSON schema fragment, expressed as a property-value object.
 fn fragment(entries: Vec<(&str, PropertyValue)>) -> PropertyValue {
-    PropertyValue::Object(entries.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+    PropertyValue::Object(
+        entries
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(),
+    )
 }
 
 fn config_schema() -> ConfigSchema {
@@ -23,11 +28,17 @@ fn config_schema() -> ConfigSchema {
         "names".to_string(),
         fragment(vec![
             ("type", PropertyValue::String("array".into())),
-            ("items", fragment(vec![("type", PropertyValue::String("string".into()))])),
+            (
+                "items",
+                fragment(vec![("type", PropertyValue::String("string".into()))]),
+            ),
             ("minItems", PropertyValue::Number(1.0)),
         ]),
     );
-    ConfigSchema { properties, required: vec!["value".to_string(), "names".to_string()] }
+    ConfigSchema {
+        properties,
+        required: vec!["value".to_string(), "names".to_string()],
+    }
 }
 
 #[tokio::main]
@@ -59,16 +70,17 @@ async fn run() -> pulumi::Result<()> {
                     let Some(PropertyValue::Array(names)) = args.config.get("names") else {
                         return Ok(());
                     };
-                    let named = names.iter().any(|n| {
-                        matches!(n, PropertyValue::String(s) if *s == args.resource.name)
-                    });
+                    let named = names
+                        .iter()
+                        .any(|n| matches!(n, PropertyValue::String(s) if *s == args.resource.name));
 
                     if named {
                         if let Some(PropertyValue::Bool(actual)) =
                             args.resource.properties.get("value")
                         {
                             if actual != expected {
-                                args.manager.report_violation(format!("Property was {actual}"), "");
+                                args.manager
+                                    .report_violation(format!("Property was {actual}"), "");
                             }
                         }
                     }

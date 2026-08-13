@@ -81,9 +81,7 @@ fn main() {
                     ])
                     .cast(),
                 ),
-                source: Some(
-                    pulumi::pv::file_archive(pulumi::pv::string(FUNCTION_DIR)).cast(),
-                ),
+                source: Some(pulumi::pv::file_archive(pulumi::pv::string(FUNCTION_DIR)).cast()),
                 ..Default::default()
             },
             pulumi::ResourceOptions::default(),
@@ -161,7 +159,10 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        ctx.export("functionName", greeting.name().cast::<pulumi::PropertyValue>());
+        ctx.export(
+            "functionName",
+            greeting.name().cast::<pulumi::PropertyValue>(),
+        );
         // gen2 has no flat `https_trigger_url`: the URL is the Cloud Run
         // service's, reported under `service_config`.
         ctx.export(

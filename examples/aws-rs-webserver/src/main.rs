@@ -16,9 +16,10 @@ nohup python3 -m http.server 80 &
 fn main() {
     pulumi::run(|ctx| async move {
         // `pulumi config set instanceType t3.small` to override.
-        let instance_type = ctx
-            .config()
-            .get_string_or("instanceType", pulumi::PropertyValue::String("t3.micro".into()));
+        let instance_type = ctx.config().get_string_or(
+            "instanceType",
+            pulumi::PropertyValue::String("t3.micro".into()),
+        );
 
         // Look up the newest Amazon Linux 2023 AMI in the current region
         // rather than hard-coding an image ID that only exists in one.
@@ -29,7 +30,9 @@ fn main() {
                 owners: Some(pulumi::Output::known(vec!["amazon".to_string()])),
                 filters: Some(vec![pulumi_aws::types::Ec2GetAmiFilterArgs {
                     name: Some(pulumi::Output::known("name".to_string())),
-                    values: Some(pulumi::Output::known(vec!["al2023-ami-2023.*-x86_64".to_string()])),
+                    values: Some(pulumi::Output::known(vec![
+                        "al2023-ami-2023.*-x86_64".to_string()
+                    ])),
                     ..Default::default()
                 }]),
                 ..Default::default()
@@ -85,8 +88,14 @@ fn main() {
             pulumi::ResourceOptions::default(),
         );
 
-        ctx.export("publicIp", server.public_ip().cast::<pulumi::PropertyValue>());
-        ctx.export("publicDns", server.public_dns().cast::<pulumi::PropertyValue>());
+        ctx.export(
+            "publicIp",
+            server.public_ip().cast::<pulumi::PropertyValue>(),
+        );
+        ctx.export(
+            "publicDns",
+            server.public_dns().cast::<pulumi::PropertyValue>(),
+        );
         ctx.export(
             "url",
             pulumi::pv::concat(vec![
