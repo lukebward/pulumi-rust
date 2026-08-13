@@ -17,14 +17,14 @@ None outstanding. Two were recorded here and both are fixed:
   package matches the resource's — otherwise the map decides. `Resource`
   records the package a provider serves to make that possible.
 
-  The roadmap previously claimed no conformance test covered this. That was
+  This file previously claimed no conformance test covered this. That was
   wrong: `l2-resource-provider-inheritance` asserts exactly the child case.
   It passed anyway, because the engine's own `inheritFromParent` copies a
   parent's provider onto a child, and the monitor falls back to the
   receiver's goal state for `Call`. What was genuinely unmasked — and still
   untested by the suite — is an invoke parented to a resource whose provider
   came from the singular option, plus the package-match rule, which was a
-  second divergence the roadmap never recorded.
+  second divergence this file never recorded.
 
 - `do_call` seeded the result's secretness and dependencies from the call
   arguments. Go and Python both take both solely from the `Call` response:

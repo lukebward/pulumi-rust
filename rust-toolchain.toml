@@ -1,0 +1,30 @@
+# Pins the Rust toolchain for this repository.
+#
+# CONTRIBUTING.md and README.md document a floor of Rust 1.85; this file turns
+# that floor into one concrete version so that a contributor's laptop, CI, and
+# the conformance harness all compile with the same compiler and agree on what
+# `cargo fmt` and `cargo clippy` consider correct.
+#
+# Why this cannot be folded into .mise.toml: rustup reads rust-toolchain.toml
+# itself. Every rustup-shimmed `cargo`/`rustc` invocation resolves its toolchain
+# by walking up from its working directory, so this applies to cargo runs
+# anywhere in the tree without anything having to activate them first --
+# including the ones spawned as subprocesses rather than typed at a prompt: the
+# language host's `cargo build`/`cargo run` for sdk/rust/pulumi, examples/ and
+# templates/, and the cargo builds the conformance harness drives underneath
+# `go test`. A mise entry would only bind tools for shells and tasks that mise
+# has activated, and it would do nothing for a contributor using plain rustup,
+# for rust-analyzer, or for the `dtolnay/rust-toolchain` step in CI -- all of
+# which honour this file.
+#
+# Caveat worth knowing: pulumi-test-language writes each generated conformance
+# program into a temporary directory outside this repo, so those builds fall
+# back to the machine's default toolchain rather than the pin below. Keep the
+# default at or above the 1.85 floor.
+#
+# Bumping the floor means updating this channel, CONTRIBUTING.md and README.md
+# together.
+
+[toolchain]
+channel = "1.85.0"
+components = ["rustfmt", "clippy"]

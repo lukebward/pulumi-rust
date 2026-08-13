@@ -1,0 +1,162 @@
+# Copyright 2026, Pulumi Corporation.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Lint configuration for the Go language host (./pulumi-language-rust).
+#
+# Adapted from pulumi/pulumi-dotnet's .golangci.yml, which is the closest
+# comparator: an out-of-tree Pulumi language host with a codegen package.
+# See CONTRIBUTING.md for how to run this locally.
+#
+# NOTE: the Rust SDK and examples are linted by clippy/rustfmt, not by this
+# file. golangci-lint only ever sees ./pulumi-language-rust.
+version: "2"
+
+linters:
+  enable:
+    - depguard
+    - durationcheck
+    - exhaustive
+    - goheader
+    - goprintffuncname
+    - gosec
+    - importas
+    - misspell
+    - nakedret
+    - nolintlint
+    - perfsprint
+    - prealloc
+    - revive
+    - unconvert
+    - usetesting
+    - wastedassign
+    - whitespace
+
+  settings:
+    depguard:
+      rules:
+        protobuf:
+          deny:
+            - pkg: github.com/golang/protobuf
+              desc: Use google.golang.org/protobuf instead
+
+    goheader:
+      values:
+        regexp:
+          # Accepts both a single year ("2026") and a range ("2016-2026").
+          COPYRIGHT_YEARS: (\d{4}-)?\d{4}
+          WHITESPACE: \s*
+      template: |-
+        Copyright {{ COPYRIGHT_YEARS }}, Pulumi Corporation.
+
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+
+        {{ WHITESPACE }}http://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+
+    govet:
+      enable:
+        - nilness
+        # Reject comparisons of reflect.Value with DeepEqual or '=='.
+        - reflectvaluecompare
+        # Reject sort.Slice calls with a non-slice argument.
+        - sortslice
+        # Detect write to struct/arrays by-value that aren't read again.
+        - unusedwrite
+
+    importas:
+      alias:
+        - pkg: github.com/pulumi/pulumi/sdk/v3/proto/go
+          alias: pulumirpc
+        - pkg: github.com/pulumi/pulumi/sdk/v3/proto/go/testing
+          alias: testingrpc
+
+    nakedret:
+      # Make an issue if func has more lines of code than this setting, and it has naked returns.
+      # Default: 30
+      max-func-lines: 60
+
+    nolintlint:
+      # Some linter exclusions are added to generated or templated files
+      # pre-emptively. Don't complain about these.
+      allow-unused: true
+
+    usetesting:
+      os-temp-dir: true
+      context-background: true
+      context-todo: true
+
+  exclusions:
+    generated: lax
+    # NOTE: `std-error-handling` is deliberately NOT in this list. The language
+    # host shells out to cargo and writes generated SDK files, so an ignored
+    # error from Close/Write is a real truncated-output bug, not noise. See the
+    # onboarding notes in CONTRIBUTING.md.
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+    rules:
+      # Don't warn on unused parameters. Parameter names are useful;
+      # replacing them with '_' is undesirable.
+      - linters:
+          - revive
+        text: 'unused-parameter: parameter \S+ seems to be unused, consider removing or renaming it as _'
+      # staticcheck already has smarter checks for empty blocks.
+      # revive's empty-block linter has false positives.
+      # For example, as of writing this, the following is not allowed.
+      #   for foo() { }
+      - linters:
+          - revive
+        text: 'empty-block: this block is empty, you can remove it'
+      # We *frequently* use the term 'new' in the context of properties
+      # (new and old properties), and we rarely use the 'new' built-in
+      # function. It's fine to ignore these cases.
+      - linters:
+          - revive
+        text: 'redefines-builtin-id: redefinition of the built-in function new'
+    paths:
+      - Godeps$
+      - builtin$
+      - node_modules
+      - testdata$
+      - third_party$
+      - vendor$
+
+issues:
+  # Report every finding. The defaults (max-issues-per-linter: 50,
+  # max-same-issues: 3) silently truncate, which makes the reported issue count
+  # vary between a warm and a cold cache and hides real work while this repo is
+  # still being brought up to a clean lint baseline.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofumpt
+  exclusions:
+    generated: lax
+    paths:
+      - Godeps$
+      - builtin$
+      - node_modules
+      - testdata$
+      - third_party$
+      - vendor$

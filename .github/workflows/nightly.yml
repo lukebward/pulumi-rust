@@ -1,0 +1,95 @@
+name: Nightly
+
+# Everything here is too slow, too network-dependent, or too noisy to gate a
+# pull request, but stops being useful if nobody ever runs it. Each job is
+# independent: a red canary says "go and look", not "the tree is broken".
+on:
+  schedule:
+    # 04:17 UTC. Off the hour because everything else in the world runs at :00.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  # The real-schema canary. See CONTRIBUTING.md, "The real-schema canary":
+  # what this finds gets distilled into a fast test under codegen/, rather
+  # than left for the canary to re-find.
+  full-sdks:
+    name: Full provider SDKs
+    runs-on: ubuntu-latest
+    # Local runs take about twenty minutes with a warm cargo cache. A cold
+    # runner generates seven provider SDKs and cargo-checks 22 examples, so
+    # the ceiling is much higher than the typical figure.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: pulumi-language-rust/go.mod
+          cache-dependency-path: "**/go.sum"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdk/rust/pulumi
+      - uses: pulumi/action-install-pulumi-cli@v2
+      - name: Build the language host
+        run: make build_language_host
+      - name: Generate and compile every pinned provider SDK
+        run: |
+          export PATH="$PWD/pulumi-language-rust:$PATH"
+          make check_full_sdks
+
+  # Nothing else compiles the examples or the project template. The canary
+  # above compiles the examples that pin a provider; these are the ones that
+  # do not, plus the template `pulumi new rust` would hand a user.
+  examples:
+    name: Provider-less examples and template
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdk/rust/pulumi
+      - name: cargo check
+        run: |
+          set -e
+          for dir in examples/component examples/config-and-outputs templates/rust; do
+            echo "== $dir"
+            (cd "$dir" && cargo check --locked)
+          done
+
+  # CI is pinned entirely by pulumi-language-rust/go.mod, so a breaking change
+  # upstream is invisible until someone bumps by hand. This is the equivalent
+  # of the `pulumi-version: dev` the other language repos test against.
+  # Advisory: a red run here is upstream's news, not this repository's.
+  upstream-drift:
+    name: Upstream drift (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: pulumi-language-rust/go.mod
+          cache-dependency-path: "**/go.sum"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdk/rust/pulumi
+      - name: Bump pulumi/pulumi to master
+        run: |
+          cd pulumi-language-rust
+          go get github.com/pulumi/pulumi/pkg/v3@master
+          go get github.com/pulumi/pulumi/sdk/v3@master
+          go mod tidy
+          git --no-pager diff --stat go.mod go.sum
+      - name: Conformance smoke subset against master
+        run: |
+          cd pulumi-language-rust
+          go test -timeout 40m -run 'TestLanguage/(l1-empty|l2-resource-simple|l2-invoke-simple)$' .

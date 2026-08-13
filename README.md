@@ -46,8 +46,14 @@ fn main() {
 * **[Docs](https://www.pulumi.com/docs/)**: Learn about Pulumi concepts,
   follow user-guides, and consult the reference documentation.
 
-* **[Roadmap](./docs/roadmap.md)**: What a green conformance suite does not
-  cover, and what is deliberately left out.
+* **[Known limitations](./docs/known-limitations.md)**: What a green
+  conformance suite does not cover, and what is deliberately left out.
+
+* **[Community Slack](https://slack.pulumi.com)**: Join us in Pulumi
+  Community Slack. All things Pulumi are discussed there.
+
+* **[GitHub Discussions](https://github.com/pulumi/pulumi/discussions)**:
+  Ask questions and share ideas with the Pulumi community.
 
 * **[Contributing](./CONTRIBUTING.md)**: How this is built, how to run the
   conformance suite, and how the pieces fit together.

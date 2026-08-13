@@ -1,0 +1,26 @@
+# Developer tool versions, shared with CI.
+#
+# `mise install` provisions everything below; `mise exec -- <cmd>` or an
+# activated shell then puts the pinned versions on PATH.
+#
+# The Rust toolchain is deliberately absent: rust-toolchain.toml at the repo
+# root owns it, because rustup honours that file for every cargo invocation
+# inside the tree -- including the ones the language host and the conformance
+# harness spawn -- which a tool entry here could not do. Do not add a `rust`
+# key; a pin in two places is a pin that drifts.
+
+[tools]
+# Matches the `go` directive in pulumi-language-rust/go.mod. Bump both together.
+go = "1.25.11"
+
+# Same version pinned by pulumi-dotnet, pulumi-java and pulumi-hcl.
+golangci-lint = "2.9.0"
+
+# Changelog fragments, same version as pulumi-dotnet, pulumi-java and
+# pulumi-yaml.
+changie = "1.24.2"
+
+# scripts/check-full-sdks.sh drives the `pulumi` CLI to generate and compile an
+# SDK per provider the examples pin. Left floating, as the other language repos
+# do, so it tracks the engine that the conformance suite is tested against.
+pulumi = "latest"

@@ -1,3 +1,5 @@
 name: ${PROJECT}
 runtime: rust
 description: ${DESCRIPTION}
+template:
+  description: A minimal Rust Pulumi program

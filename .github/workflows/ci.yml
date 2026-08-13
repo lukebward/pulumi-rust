@@ -4,28 +4,74 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Lets the release workflow gate on a green CI run of the same commit.
+  workflow_call:
+
+# This workflow only checks out and tests; it never writes to the repository.
+permissions:
+  contents: read
+
+# The Rust toolchain is not installed by an action. rust-toolchain.toml pins
+# it, and the rustup preinstalled on GitHub's runners honours that file on the
+# first cargo invocation, so CI and a contributor's laptop resolve the same
+# compiler by the same mechanism. An action pinned to `stable` would quietly
+# disagree with the file.
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: pulumi-language-rust/go.mod
+          cache-dependency-path: "**/go.sum"
+      - name: rustfmt and clippy
+        run: |
+          rustup show
+          cd sdk/rust/pulumi
+          cargo fmt --check
+          cargo clippy --all-targets --locked -- -D warnings
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.9.0
+          working-directory: pulumi-language-rust
+          args: --config ../.golangci.yml
+      - name: go mod tidy
+        run: cd pulumi-language-rust && go mod tidy -diff
+      # Catches a malformed changelog fragment at PR time rather than at
+      # release time. Needs no credentials.
+      - uses: miniscruff/changie-action@v2
+        with:
+          version: latest
+          args: batch auto --dry-run
+
   sdk:
     name: Rust SDK tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sdk/rust/pulumi
-      - run: cargo test
+      # --locked so a lockfile that no longer resolves the manifest fails here
+      # rather than silently resolving to something else.
+      - run: cargo test --locked
         working-directory: sdk/rust/pulumi
 
   codegen:
     name: Codegen tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: pulumi-language-rust/go.mod
+          cache-dependency-path: "**/go.sum"
       # The generator's own tests: naming, recursive types, type-name
       # collisions, args shape, defaults. They need neither cargo nor a
       # plugin, so they run on every PR in seconds.
@@ -35,33 +81,62 @@ jobs:
   conformance:
     name: Conformance (smoke subset)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
-      - uses: dtolnay/rust-toolchain@stable
+          go-version-file: pulumi-language-rust/go.mod
+          cache-dependency-path: "**/go.sum"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sdk/rust/pulumi
+      # Chosen to reach a distinct generated-SDK shape apiece rather than to
+      # be a short prefix of the suite: enums and doc comments (l2-docs),
+      # unions, provider config, plain types, secrets, and nested objects
+      # (l2-resource-option-ignore-changes) are all shapes the previous
+      # five-test filter never generated. The full suite still runs on push.
       - name: Run a representative conformance subset
         run: |
-          go test -run 'TestLanguage/(l1-empty|l1-output-string|l2-resource-simple|l2-invoke-simple|l2-primitive-ref)$' -timeout 30m -v .
+          go test -timeout 40m -v -run 'TestLanguage/(l1-empty|l1-output-string|l2-resource-simple|l2-invoke-simple|l2-primitive-ref|l2-docs|l2-union|l2-resource-config|l2-plain|l2-resource-secret|l2-resource-option-ignore-changes)$' .
         working-directory: pulumi-language-rust
 
   conformance-full:
     name: Conformance (full suite)
     runs-on: ubuntu-latest
+    timeout-minutes: 170
     # The full suite builds a few hundred cargo projects; keep it off PRs.
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
-      - uses: dtolnay/rust-toolchain@stable
+          go-version-file: pulumi-language-rust/go.mod
+          cache-dependency-path: "**/go.sum"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sdk/rust/pulumi
       - run: go test -run TestLanguage -timeout 150m -v .
         working-directory: pulumi-language-rust
+
+  # One status to require in branch protection. Without this, adding a job
+  # means updating the protection rules, and a job that never starts reads as
+  # "not failed". conformance-full is skipped on pull requests, and a skipped
+  # dependency must count as success.
+  ci-ok:
+    name: CI OK
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs: [lint, sdk, codegen, conformance, conformance-full]
+    steps:
+      - name: Verify all jobs succeeded or were skipped
+        run: |
+          results='${{ join(needs.*.result, " ") }}'
+          echo "job results: $results"
+          for r in $results; do
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
+              echo "a required job reported '$r'"
+              exit 1
+            fi
+          done

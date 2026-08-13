@@ -3,6 +3,9 @@
 Building Pulumi Rust support from source, running the tests, and how the
 pieces fit together.
 
+Please make sure to read and observe our
+[Code of Conduct](https://github.com/pulumi/pulumi/blob/master/CODE-OF-CONDUCT.md).
+
 ## What's here
 
 | Component | Path | Description |
@@ -47,7 +50,15 @@ make build              # core SDK + language host
 make test_sdk           # the Rust SDK's own tests
 make test_codegen       # the generator's tests: naming, recursive types,
                         # type-name collisions, args shape, defaults
+make test_fast          # both of the above: everything needing no network
+make lint               # gofmt/vet/golangci-lint, plus rustfmt and clippy
+make format             # format the hand-written Rust and Go
 ```
+
+The toolchains are pinned: `rust-toolchain.toml` fixes the Rust compiler (so
+`cargo fmt` and `cargo clippy` agree everywhere, including in the cargo runs
+the conformance harness spawns), and `.mise.toml` fixes Go and the linters.
+`make lint` is what CI runs; a clean run locally means a clean run there.
 
 ### The conformance suite
 
@@ -195,9 +206,39 @@ properties.
   language host grows `Link` and `RunPlugin` to build and launch the latter
   two as plugins.
 
+## Changelog
+
+Every user-visible change carries a changelog fragment, assembled by
+[changie](https://changie.dev). Add one with:
+
+```sh
+make changelog          # or: changie new
+```
+
+It asks for a component (`sdk`, `language` or `codegen`), a kind, and the PR
+number, then writes a YAML fragment under `.changes/unreleased/`. Commit that
+fragment with the change. `CHANGELOG.md` is generated — never edit it by hand.
+
+## Releasing
+
+A release is cut from the changelog rather than from a tag push, so the
+version in `CHANGELOG.md` and the version on the tag cannot disagree:
+
+```sh
+changie batch auto      # fold the unreleased fragments into a version
+changie merge           # regenerate CHANGELOG.md
+git commit -m "Changelog for $(changie latest)"
+```
+
+Landing that commit on `main` triggers `.github/workflows/release.yml`, which
+re-runs CI, then has GoReleaser create the tag and publish the language plugin
+binaries. The archive names are load-bearing — the CLI computes the asset name
+it wants and compares it for exact equality — so `.goreleaser.yml` is the one
+file to change carefully. It documents the contract at the top.
+
 ## Known limitations
 
-[`docs/roadmap.md`](./docs/roadmap.md) records what a green conformance
+[`docs/known-limitations.md`](./docs/known-limitations.md) records what a green conformance
 suite does not: the behaviours that used to differ from the Go SDK, the
 generator defects real provider schemas surfaced, and what `Construct`
 deliberately omits.

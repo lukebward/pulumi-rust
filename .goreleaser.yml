@@ -1,0 +1,98 @@
+# GoReleaser configuration for the Rust language plugin.
+#
+# Modelled on pulumi-dotnet's .goreleaser.yml, which is the closest structural
+# match: like this repo, it keeps the language host in a nested Go module and
+# points the build at it with `dir:` rather than `main:`.
+#
+# The archive name is load-bearing. The Pulumi CLI does not search a release for
+# something that looks close enough -- it computes the asset name it wants and
+# compares it for exact equality. See standardAssetName() in
+# sdk/go/common/workspace/plugins.go:
+#
+#     return fmt.Sprintf("pulumi-%s-%s-v%s-%s-%s.tar.gz",
+#         kind, name, version, opSy, arch)
+#
+# and the matching loop in githubSource.downloadViaAPI():
+#
+#     for _, asset := range release.Assets {
+#         if asset.Name == assetName {
+#
+# For this plugin kind="language" and name="rust", opSy/arch are GOOS/GOARCH
+# verbatim, so the CLI asks for exactly:
+#
+#     pulumi-language-rust-v0.1.0-darwin-arm64.tar.gz
+#
+# GoReleaser appends the `.tar.gz` itself, so `name_template` below stops at the
+# arch. Do not translate amd64 to x64 or darwin to macOS: those substitutions
+# are conventional in some Pulumi repos' SDK artifacts, but the plugin loader
+# compares against raw GOOS/GOARCH and would stop finding the plugin.
+#
+# The same function pins the release tag: the direct-download path builds
+# `releases/download/v<version>/<asset>`, so a release must be tagged
+# `v<semver>` and `{{ .Tag }}` is therefore exactly `v` + the version the CLI
+# asks for. All of pulumi-dotnet, pulumi-java, pulumi-yaml and pulumi-hcl use
+# `{{ .Tag }}` here for that reason.
+version: 2
+
+project_name: pulumi-rust
+
+env:
+  - CGO_ENABLED=0
+
+builds:
+  - id: pulumi-language-rust
+    binary: pulumi-language-rust
+    # The Go code lives in a nested module -- there is no go.mod at the repo
+    # root -- so the build runs from this directory and `main` is relative to
+    # it. Mirrors `cd pulumi-language-rust && go build .` in the Makefile.
+    dir: ./pulumi-language-rust
+    main: .
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    ldflags:
+      # Stamps `var Version string` in pulumi-language-rust/version, which
+      # main.go reports back to the engine as the plugin's version.
+      #
+      # The symbol path must match that package's import path exactly -- the Go
+      # linker silently ignores a -X it cannot resolve, so a stale path here
+      # produces a plugin that reports an empty version rather than a build
+      # error. The Makefile stamps the same symbol via its VERSION_PKG.
+      #
+      # NOTE: this is the module path as it exists TODAY. When the repo is
+      # transferred to the pulumi org the module path becomes
+      # github.com/pulumi/pulumi-rust/pulumi-language-rust and this flag, the
+      # `module` line in pulumi-language-rust/go.mod, and VERSION_PKG in the
+      # Makefile all have to be updated together.
+      - -w -s -X github.com/lukebward/pulumi-rust/pulumi-language-rust/version.Version={{.Tag}}
+
+archives:
+  - id: pulumi-language-rust
+    ids:
+      - pulumi-language-rust
+    # Yields pulumi-language-rust-v<version>-<goos>-<goarch>.tar.gz. Spelled out
+    # rather than using {{ .Binary }} so the name the CLI depends on is readable
+    # here without resolving a template against the build above.
+    name_template: "pulumi-language-rust-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
+    # Deliberately no `format_overrides`. GoReleaser defaults every platform to
+    # tar.gz, and the Pulumi plugin loader requires .tar.gz on Windows too --
+    # switching Windows to zip, which is the usual reflex, breaks installation.
+
+snapshot:
+  version_template: "{{ .Tag }}-SNAPSHOT"
+
+checksum:
+  name_template: 'checksums.txt'
+
+# CHANGELOG.md is assembled from changie fragments in .changes (see
+# .changie.yaml), so GoReleaser must not also derive release notes from the git
+# log -- that would publish a second, conflicting changelog.
+changelog:
+  disable: true

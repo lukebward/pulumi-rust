@@ -1,0 +1,81 @@
+name: Release
+
+# Releases are cut from the changelog, not from a tag push: changie assembles
+# CHANGELOG.md from the fragments in .changes, and landing that file on main is
+# the signal. GoReleaser creates the tag itself. This is what pulumi-dotnet,
+# pulumi-java, pulumi-yaml and pulumi-hcl all do, and it means the version in
+# the changelog and the version on the tag cannot disagree.
+on:
+  push:
+    branches: [main]
+    paths:
+      - CHANGELOG.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # A release must not be cut from a red tree. Reusing ci.yml rather than
+  # duplicating its jobs is why ci.yml carries a workflow_call trigger.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Release
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # GoReleaser creates the tag and the GitHub release.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # GoReleaser needs full history to resolve the previous tag.
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: pulumi-language-rust/go.mod
+          cache-dependency-path: "**/go.sum"
+      - uses: jdx/mise-action@v3
+        with:
+          version: 2025.1.9
+
+      - name: Resolve the version from the changelog
+        id: version
+        run: |
+          version="$(changie latest)"
+          if [ -z "$version" ]; then
+            echo "changie latest produced nothing; is .changes populated?" >&2
+            exit 1
+          fi
+          echo "tag=${version}" >> "$GITHUB_OUTPUT"
+          echo "notes=.changes/${version}.md" >> "$GITHUB_OUTPUT"
+          echo "Resolved ${version}"
+
+      # A touch-up commit to CHANGELOG.md must not try to re-release a version
+      # that already exists. Without this guard the workflow would fail deep
+      # inside GoReleaser with a tag collision instead of stopping cleanly.
+      - name: Skip if the tag already exists
+        id: guard
+        run: |
+          if [ -n "$(git tag -l '${{ steps.version.outputs.tag }}')" ]; then
+            echo "already released, nothing to do"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check the release notes exist
+        if: steps.guard.outputs.release == 'true'
+        run: test -f '${{ steps.version.outputs.notes }}'
+
+      - uses: goreleaser/goreleaser-action@v6
+        if: steps.guard.outputs.release == 'true'
+        with:
+          version: latest
+          args: release --clean --release-notes=${{ steps.version.outputs.notes }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.tag }}

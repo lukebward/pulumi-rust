@@ -1,0 +1,47 @@
+changesDir: .changes
+unreleasedDir: unreleased
+# Resolved relative to changesDir, i.e. .changes/header.tpl.md
+headerPath: header.tpl.md
+changelogPath: CHANGELOG.md
+versionExt: md
+versionFormat: '## {{.Version}} - {{.Time.Format "2006-01-02"}}'
+kindFormat: '### {{.Kind}}'
+kinds:
+  - label: Improvements
+    key: improvements
+    auto: minor
+  - label: Bug Fixes
+    key: bug-fixes
+    auto: patch
+  - label: Dependencies
+    key: dependencies
+    auto: patch
+# The component is a custom field rather than changie's built-in `components:` list.
+# With `components:` set, changie sorts changes by component *before* kind, which
+# splits a release into repeated "### Improvements" headers, one per component.
+# Keeping the component out of the built-in field sorts purely by kind, so each
+# kind header appears exactly once.
+#
+# `changie new` writes changesDir/unreleasedDir/<fragmentFileFormat>.yaml with
+# os.Create, which truncates an existing file. Component and PR must both appear
+# in the file name or two fragments from one PR silently overwrite each other.
+fragmentFileFormat: '{{.Custom.Component}}-{{.Kind}}-{{.Custom.PR}}'
+changeFormat: '- [{{.Custom.Component}}] {{.Body}} [#{{.Custom.PR}}](https://github.com/lukebward/pulumi-rust/pull/{{.Custom.PR}})'
+custom:
+  - key: Component
+    label: Component
+    type: enum
+    enumOptions:
+      - sdk
+      - language
+      - codegen
+  - key: PR
+    label: GitHub Pull Request or Issue Number
+    type: int
+newlines:
+  afterVersion: 1
+  afterChange: 1
+  afterKind: 1
+  afterChangelogHeader: 1
+  endOfVersion: 1
+envPrefix: CHANGIE_
