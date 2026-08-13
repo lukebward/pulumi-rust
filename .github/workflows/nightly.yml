@@ -56,13 +56,30 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sdk/rust/pulumi
-      - name: cargo check
+      - name: cargo check the provider-less examples
         run: |
           set -e
-          for dir in examples/component examples/config-and-outputs templates/rust; do
+          for dir in examples/component examples/config-and-outputs; do
             echo "== $dir"
-            (cd "$dir" && cargo check --locked)
+            (cd "$dir" && cargo check)
           done
+
+      # The template cannot be compiled where it sits: Cargo.toml carries the
+      # ${PROJECT} placeholder `pulumi new` substitutes, and its `pulumi`
+      # path dependency is written relative to where a new project would be
+      # created, not to templates/rust. Instantiate it the way the CLI would
+      # and compile that, so a template that has drifted from the SDK is
+      # caught here rather than by the first person running `pulumi new`.
+      - name: cargo check the project template
+        run: |
+          set -e
+          work="$(mktemp -d)"
+          cp -r templates/rust "$work/demo"
+          sed -i 's|\${PROJECT}|demo|g; s|\${DESCRIPTION}|A minimal Rust Pulumi program|g' \
+            "$work/demo/Cargo.toml" "$work/demo/Pulumi.yaml"
+          sed -i "s|path = \"../pulumi-rust/sdk/rust/pulumi\"|path = \"$PWD/sdk/rust/pulumi\"|" \
+            "$work/demo/Cargo.toml"
+          (cd "$work/demo" && cargo check)
 
   # CI is pinned entirely by pulumi-language-rust/go.mod, so a breaking change
   # upstream is invisible until someone bumps by hand. This is the equivalent
