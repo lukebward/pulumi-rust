@@ -41,7 +41,7 @@ func GenerateProgram(program *pcl.Program) (map[string][]byte, hcl.Diagnostics, 
 
 	// Each component directory becomes its own module beside main.rs.
 	components := program.CollectComponents()
-	var dirs []string
+	dirs := make([]string, 0, len(components))
 	for dir := range components {
 		dirs = append(dirs, dir)
 	}
@@ -336,7 +336,7 @@ func (g *programGenerator) generate() ([]byte, hcl.Diagnostics) {
 		g.writeComponentModule(&w, &body)
 		return w.Bytes(), g.diagnostics
 	}
-	var mods []string
+	mods := make([]string, 0, len(g.componentModules))
 	for _, m := range g.componentModules {
 		mods = append(mods, m)
 	}
@@ -468,6 +468,24 @@ func (g *programGenerator) refVar(pclName string) string {
 		return existing
 	}
 	return varName(pclName)
+}
+
+// declarationName returns the name a resource is declared under in the PCL
+// source. pcl deprecates Name in favour of LogicalName, but the two part
+// company the moment a resource sets the `name` option: LogicalName then
+// reports the Pulumi resource name, while the declaration name stays as
+// written. The rest of the program refers to a resource by its declaration
+// name, so that is what the generated Rust binding is derived from and what a
+// diagnostic has to quote for the reader to find the block being complained
+// about.
+func declarationName(r *pcl.Resource) string {
+	return r.Name() //nolint:staticcheck // LogicalName answers a different question; see above.
+}
+
+// readDeclarationName is declarationName for a read, which pcl models with a
+// separate type carrying the same pair of accessors.
+func readDeclarationName(r *pcl.ReadResource) string {
+	return r.Name() //nolint:staticcheck // LogicalName answers a different question; see declarationName.
 }
 
 // ---------------------------------------------------------------------------
@@ -605,11 +623,11 @@ func (g *programGenerator) resourcePath(r *pcl.Resource) (structPath, pkgName st
 func (g *programGenerator) genRangedResource(w *bytes.Buffer, r *pcl.Resource) {
 	subject := r.Definition.Syntax.DefRange()
 	if r.Schema == nil {
-		g.errorf(subject, "resource %q has no schema", r.Name())
+		g.errorf(subject, "resource %q has no schema", declarationName(r))
 		return
 	}
 	token, _ := r.GetToken()
-	if token == "pulumi:pulumi:StackReference" || isBuiltinResourceToken(token) {
+	if token == "pulumi:pulumi:StackReference" || isBuiltinResourceToken(token) { //nolint:gosec // A Pulumi type token, not a credential; gosec matches on the variable name.
 		g.errorf(subject, "range is not supported on %s", token)
 		return
 	}
@@ -621,7 +639,7 @@ func (g *programGenerator) genRangedResource(w *bytes.Buffer, r *pcl.Resource) {
 	}
 	rangeExpr := g.expr(r.Options.Range)
 
-	name := g.declareVar(r.Name())
+	name := g.declareVar(declarationName(r))
 	g.declaredVars = append(g.declaredVars, name)
 	g.rangedVars[name] = true
 	g.boolRanged[name] = isBool
@@ -702,7 +720,7 @@ func (g *programGenerator) rangedDynamicConstruct(r *pcl.Resource, options strin
 	if r.Schema.IsComponent {
 		custom, remote = false, true
 	}
-	var inputs []string
+	inputs := make([]string, 0, len(r.Inputs))
 	for _, input := range r.Inputs {
 		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
 			rustString(input.Name), g.expr(input.Value)))
@@ -718,7 +736,7 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 		return
 	}
 
-	if token, _ := r.GetToken(); token == "pulumi:pulumi:StackReference" {
+	if token, _ := r.GetToken(); token == "pulumi:pulumi:StackReference" { //nolint:gosec // A Pulumi type token, not a credential; gosec matches on the variable name.
 		g.genStackReference(w, r)
 		return
 	}
@@ -728,7 +746,7 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 	}
 
 	structPath, _ := g.resourcePath(r)
-	name := g.declareVar(r.Name())
+	name := g.declareVar(declarationName(r))
 
 	// Insert conversion intrinsics so e.g. string IDs flowing into number
 	// properties coerce at runtime, mirroring PCL conversion semantics.
@@ -745,7 +763,7 @@ func (g *programGenerator) genResource(w *bytes.Buffer, r *pcl.Resource) {
 	// the program's expressions don't fit the typed shapes (e.g. inputs
 	// computed by for-expressions), fall back to dynamic registration.
 	if r.Schema == nil {
-		g.errorf(r.Definition.Syntax.DefRange(), "resource %q has no schema", r.Name())
+		g.errorf(r.Definition.Syntax.DefRange(), "resource %q has no schema", declarationName(r))
 		return
 	}
 	mark := len(g.diagnostics)
@@ -787,12 +805,12 @@ func (g *programGenerator) genDynamicResource(w *bytes.Buffer, r *pcl.Resource) 
 		remote = true
 	}
 
-	var inputs []string
+	inputs := make([]string, 0, len(r.Inputs))
 	for _, input := range r.Inputs {
 		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
 			rustString(input.Name), g.expr(input.Value)))
 	}
-	name := g.declareVar(r.Name())
+	name := g.declareVar(declarationName(r))
 	g.builtinVars[name] = true
 	g.declaredVars = append(g.declaredVars, name)
 	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: %v, remote: %v, version: %s.to_string(), plugin_download_url: %s.to_string(), inputs: vec![%s], options: %s, package: None, deferred_inputs: vec![], required: &[] });\n",
@@ -826,12 +844,12 @@ func (g *programGenerator) genBuiltinResource(w *bytes.Buffer, r *pcl.Resource) 
 	token, _ := r.GetToken()
 	canonical := strings.Join(canonicalTokenParts(token), ":")
 
-	var inputs []string
+	inputs := make([]string, 0, len(r.Inputs))
 	for _, input := range r.Inputs {
 		inputs = append(inputs, fmt.Sprintf("(%s.to_string(), %s)",
 			rustString(input.Name), g.expr(input.Value)))
 	}
-	name := g.declareVar(r.Name())
+	name := g.declareVar(declarationName(r))
 	g.builtinVars[name] = true
 	g.declaredVars = append(g.declaredVars, name)
 	fmt.Fprintf(w, "let %s = ctx.register_resource(pulumi::RegisterRequest { type_: %s.to_string(), name: %s.to_string(), custom: true, remote: false, version: String::new(), plugin_download_url: String::new(), inputs: vec![%s], options: %s, package: None, deferred_inputs: vec![], required: &[] });\n",
@@ -862,7 +880,7 @@ func (g *programGenerator) genReadResource(w *bytes.Buffer, r *pcl.ReadResource)
 	}
 
 	idExpr := "pulumi::pv::null()"
-	var inputs []string
+	inputs := make([]string, 0, len(r.Inputs))
 	for _, input := range r.Inputs {
 		if input.Name == "id" {
 			idExpr = g.expr(input.Value)
@@ -876,7 +894,7 @@ func (g *programGenerator) genReadResource(w *bytes.Buffer, r *pcl.ReadResource)
 	// name folds to the same identifier would otherwise shadow it) and be
 	// visible to captureClones (a move closure referencing it would otherwise
 	// consume it).
-	name := g.declareVar(r.Name())
+	name := g.declareVar(readDeclarationName(r))
 	g.builtinVars[name] = true
 	g.declaredVars = append(g.declaredVars, name)
 	fmt.Fprintf(w, "let %s = ctx.read_resource(%s, %s, %s, vec![%s], %s, %s);\n",
@@ -947,7 +965,7 @@ func (g *programGenerator) genStackReference(w *bytes.Buffer, r *pcl.Resource) {
 		g.errorf(r.Definition.Syntax.DefRange(), "stack reference requires a name input")
 		nameExpr = "pulumi::pv::null()"
 	}
-	name := g.declareVar(r.Name())
+	name := g.declareVar(declarationName(r))
 	g.builtinVars[name] = true
 	g.declaredVars = append(g.declaredVars, name)
 	fmt.Fprintf(w, "let %s = pulumi::StackReference::new(&ctx, %s, %s, %s);\n",
@@ -965,7 +983,7 @@ func (g *programGenerator) typedArgsLiteral(
 	}
 
 	names := fieldNamesFor(props)
-	var fields []string
+	fields := make([]string, 0, len(props))
 	for _, p := range props {
 		expr, has := values[p.Name]
 		if !has {
@@ -1074,7 +1092,7 @@ func (g *programGenerator) typedObjectLiteral(
 	pg := g.sdkGenerator(packageOfObject(obj))
 	argsPath := g.typesPathFor(obj) + pg.typeNameForToken(obj.Token) + "Args"
 
-	var inputs []*model.Attribute
+	inputs := make([]*model.Attribute, 0, len(object.Items))
 	for _, item := range object.Items {
 		key, ok := keyString(item.Key)
 		if !ok {
@@ -1234,7 +1252,7 @@ func (g *programGenerator) genComponent(w *bytes.Buffer, c *pcl.Component) {
 	name := g.declareVar(c.Name())
 	g.declaredVars = append(g.declaredVars, name)
 
-	var fields []string
+	fields := make([]string, 0, len(c.Inputs))
 	var deferredKeys []string
 	var mine []int
 	for _, attr := range c.Inputs {
@@ -1271,7 +1289,7 @@ func (g *programGenerator) genComponent(w *bytes.Buffer, c *pcl.Component) {
 		}
 		fields = append(fields, fmt.Sprintf("pulumi_deferred: vec![%s]", strings.Join(quoted, ", ")))
 	}
-	args := fmt.Sprintf("%sArgs { ..Default::default() }", path)
+	args := path + "Args { ..Default::default() }"
 	if len(fields) > 0 {
 		args = fmt.Sprintf("%sArgs { %s, ..Default::default() }", path, strings.Join(fields, ", "))
 	}
@@ -1501,7 +1519,6 @@ func (g *programGenerator) resourceOptions(r *pcl.Resource) string {
 // optionsLiteral renders a pulumi::ResourceOptions literal from bound PCL
 // options. Inside a component the enclosing component is the default parent.
 func (g *programGenerator) optionsLiteral(opts *pcl.ResourceOptions, subject hcl.Range) string {
-
 	var fields []string
 	setField := func(name, value string) {
 		fields = append(fields, fmt.Sprintf("%s: %s", name, value))
@@ -1532,7 +1549,7 @@ func (g *programGenerator) optionsLiteral(opts *pcl.ResourceOptions, subject hcl
 			var elems []string
 			for _, e := range tuple.Expressions {
 				if res, ok := g.resourceRef(e); ok {
-					elems = append(elems, fmt.Sprintf("%s.pulumi_resource().clone()", res))
+					elems = append(elems, res+".pulumi_resource().clone()")
 				} else {
 					g.errorf(subject, "unsupported dependsOn element")
 				}
@@ -1642,7 +1659,7 @@ func (g *programGenerator) optionsLiteral(opts *pcl.ResourceOptions, subject hcl
 			var elems []string
 			for _, e := range tuple.Expressions {
 				if res, ok := g.resourceRef(e); ok {
-					elems = append(elems, fmt.Sprintf("%s.pulumi_resource().clone()", res))
+					elems = append(elems, res+".pulumi_resource().clone()")
 				} else {
 					g.errorf(subject, "unsupported replaceWith element")
 				}
@@ -1763,7 +1780,7 @@ func (g *programGenerator) stringList(expr model.Expression) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	var elems []string
+	elems := make([]string, 0, len(tuple.Expressions))
 	for _, e := range tuple.Expressions {
 		s, ok := literalString(e)
 		if !ok {
@@ -2084,7 +2101,7 @@ func (g *programGenerator) templateExpr(expr *model.TemplateExpression) string {
 			return fmt.Sprintf("pulumi::pv::string(%s)", rustString(lit.Value.AsString()))
 		}
 	}
-	var parts []string
+	parts := make([]string, 0, len(expr.Parts))
 	for _, part := range expr.Parts {
 		parts = append(parts, g.expr(part))
 	}
@@ -2685,7 +2702,7 @@ func (g *programGenerator) invokeOptions(expr model.Expression, subject hcl.Rang
 				var elems []string
 				for _, e := range tuple.Expressions {
 					if res, ok := g.resourceRef(e); ok {
-						elems = append(elems, fmt.Sprintf("%s.pulumi_resource().clone()", res))
+						elems = append(elems, res+".pulumi_resource().clone()")
 					} else {
 						g.errorf(subject, "unsupported invoke dependsOn element")
 					}

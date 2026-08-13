@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -209,7 +208,7 @@ func TestGetRequiredPackagesFindsSubTableDependency(t *testing.T) {
 			"[dependencies.pulumi_aws]\npath=\"../sdk\"\n"), 0o600))
 
 	host := newLanguageHost("")
-	resp, err := host.GetRequiredPackages(context.Background(), &pulumirpc.GetRequiredPackagesRequest{
+	resp, err := host.GetRequiredPackages(t.Context(), &pulumirpc.GetRequiredPackagesRequest{
 		Info: &pulumirpc.ProgramInfo{ProgramDirectory: program},
 	})
 	require.NoError(t, err)

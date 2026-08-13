@@ -32,6 +32,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,6 +49,7 @@ import (
 	"github.com/pulumi/pulumi/pkg/v3/codegen/schema"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource/plugin"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/cmdutil"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/util/contract"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/executable"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/logging"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/util/rpcutil"
@@ -309,7 +311,7 @@ func constructRunEnv(req *pulumirpc.RunRequest, engineAddress string) ([]string,
 	maybeAppend("PULUMI_PWD", req.GetPwd())
 	// Always set explicitly so an inherited PULUMI_DRY_RUN can't leak in.
 	env = append(env, fmt.Sprintf("PULUMI_DRY_RUN=%v", req.GetDryRun()))
-	maybeAppend("PULUMI_PARALLEL", fmt.Sprint(req.GetParallel()))
+	maybeAppend("PULUMI_PARALLEL", strconv.Itoa(int(req.GetParallel())))
 	maybeAppend("PULUMI_CONFIG", string(config))
 	maybeAppend("PULUMI_CONFIG_SECRET_KEYS", string(configSecretKeys))
 	return env, nil
@@ -323,7 +325,11 @@ func (host *rustLanguageHost) InstallDependencies(
 	if err != nil {
 		return err
 	}
-	defer closer.Close()
+	// Closing flushes the last of cargo's output down the gRPC stream and
+	// tears the pipes down. The only way that fails is a stream the engine
+	// has already stopped reading, which it learns about from its own end of
+	// the call, so there is nothing useful to report from here.
+	defer contract.IgnoreClose(closer)
 
 	dir := req.GetInfo().GetProgramDirectory()
 	cmd, err := cargoCommand(server.Context(), dir, nil, "build")
@@ -514,7 +520,10 @@ func (host *rustLanguageHost) RunPlugin(
 	if err != nil {
 		return err
 	}
-	defer closer.Close()
+	// As in InstallDependencies: the close only tears the output pipes down
+	// once the plugin has exited, and it can only fail on a stream the engine
+	// has already abandoned.
+	defer contract.IgnoreClose(closer)
 
 	dir := req.GetInfo().GetProgramDirectory()
 	if dir == "" {
@@ -540,8 +549,12 @@ func (host *rustLanguageHost) RunPlugin(
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
 		if asExitError(err, &exitErr) {
+			// The RunPlugin response types an exit status as int32, so the
+			// conversion is to the width the protocol itself defines; a POSIX
+			// status is eight bits regardless.
+			code := int32(exitErr.ExitCode()) //nolint:gosec // Narrowing to the int32 the wire format defines.
 			return server.Send(&pulumirpc.RunPluginResponse{
-				Output: &pulumirpc.RunPluginResponse_Exitcode{Exitcode: int32(exitErr.ExitCode())},
+				Output: &pulumirpc.RunPluginResponse_Exitcode{Exitcode: code},
 			})
 		}
 		return fmt.Errorf("running plugin in %s: %w", dir, err)
@@ -764,7 +777,7 @@ func (host *rustLanguageHost) GetProgramDependencies(
 	if err != nil {
 		return nil, err
 	}
-	var out []*pulumirpc.DependencyInfo
+	out := make([]*pulumirpc.DependencyInfo, 0, len(deps))
 	for _, dep := range deps {
 		if pj, err := readPluginJSON(dep.path); err == nil {
 			// A parameterized package's plugin JSON names the base plugin;
@@ -795,7 +808,7 @@ func (host *rustLanguageHost) GetRequiredPackages(
 	if err != nil {
 		return nil, err
 	}
-	var packages []*pulumirpc.PackageDependency
+	packages := make([]*pulumirpc.PackageDependency, 0, len(deps))
 	for _, dep := range deps {
 		pj, err := readPluginJSON(dep.path)
 		if err != nil || !pj.Resource {
@@ -875,7 +888,10 @@ func copyCrate(src, dst string) error {
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(filepath.Join(dst, rel), contents, 0o644)
+		// The artifact is a crate source tree, not a secret: cargo, and anyone
+		// reading the vendored SDK, needs the same access a checked-out crate
+		// gives them.
+		return os.WriteFile(filepath.Join(dst, rel), contents, 0o644) //nolint:gosec // Public source, mode matches a checked-out crate.
 	})
 }
 
@@ -886,7 +902,7 @@ func (host *rustLanguageHost) GeneratePackage(
 	if err != nil {
 		return nil, err
 	}
-	defer loader.Close()
+	defer contract.IgnoreClose(loader)
 
 	var spec schema.PackageSpec
 	if err := json.Unmarshal([]byte(req.Schema), &spec); err != nil {
@@ -925,7 +941,7 @@ func (host *rustLanguageHost) GenerateProject(
 	if err != nil {
 		return nil, err
 	}
-	defer loader.Close()
+	defer contract.IgnoreClose(loader)
 
 	var extraOptions []pcl.BindOption
 	if !req.Strict {
@@ -959,7 +975,7 @@ func (host *rustLanguageHost) GenerateProgram(
 	if err != nil {
 		return nil, err
 	}
-	defer loader.Close()
+	defer contract.IgnoreClose(loader)
 
 	parser := syntax.NewParser()
 	for path, contents := range req.Source {

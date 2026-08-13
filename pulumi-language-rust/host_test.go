@@ -56,6 +56,7 @@ func TestSharedTargetDirIsPrivateToTheUser(t *testing.T) {
 		"target dir %s should live under the user cache dir %s", dir, cache)
 
 	// Specifically not the old world-guessable path.
+	//nolint:usetesting // The point of the assertion is the system temp dir the old path used; t.TempDir would test nothing.
 	assert.NotEqual(t, filepath.Join(os.TempDir(), fmt.Sprintf("pulumi-language-rust-target-%d", os.Getuid())), dir)
 
 	info, err := os.Stat(dir)
@@ -97,6 +98,7 @@ func TestExitSeven(t *testing.T) {
 func TestAsExitError(t *testing.T) {
 	t.Parallel()
 
+	//nolint:gosec // The subprocess is this test binary re-invoked on a fixed test name; nothing here comes from outside.
 	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestExitSeven$")
 	cmd.Env = append(os.Environ(), "PULUMI_RUST_TEST_EXIT_SEVEN=1")
 	runErr := cmd.Run()

@@ -354,7 +354,7 @@ func (g *pkgGenerator) closesCycle(owner string, t schema.Type) bool {
 }
 
 func (g *pkgGenerator) allResources() []*schema.Resource {
-	var resources []*schema.Resource
+	resources := make([]*schema.Resource, 0, len(g.pkg.Resources)+1)
 	if g.pkg.Provider != nil {
 		resources = append(resources, g.pkg.Provider)
 	}
