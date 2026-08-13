@@ -84,10 +84,10 @@ Builds share a cargo target directory
 (`$TMPDIR/pulumi-language-rust-target-$UID`) so the dependency graph
 compiles once per machine, not once per test.
 
-### Checking against real provider schemas
+### The real-schema canary
 
 The conformance suite uses small synthetic schemas. Real ones are larger by
-four orders of magnitude and surface defects the suite cannot:
+four orders of magnitude and contain shapes the suite never produces:
 
 ```sh
 make check_full_sdks                        # every provider the examples pin
@@ -96,10 +96,44 @@ scripts/check-full-sdks.sh aws@7.41.0       # just one
 
 This generates and compiles the *whole* SDK for each provider — azure-native's
 from the default-version schema its provider checks into its repository —
-then compiles every example that pins it against that whole crate. It needs
-`pulumi` on `PATH` and a network, so CI does not run it. See
+then compiles every example that pins it against that whole crate. See
 [`examples/README.md`](./examples/README.md) for why a subset check is not a
 substitute, and for what "whole" means for azure-native.
+
+**Run it periodically, not per-change.** It needs `pulumi` on `PATH`, a
+network, and about twenty minutes, so it is a canary rather than a gate:
+nothing in CI depends on it, and a red run is a prompt to go and look, not a
+broken build. Worth running when the generator changes shape, when a provider
+pin moves, and before a release.
+
+**A defect it finds does not stay here.** Discovery is the canary's whole
+job — it is the only thing in the repo that reads schemas big enough to
+contain the pathological cases — but it is far too slow and too
+network-dependent to be what keeps a defect from coming back. When it
+surfaces one, shrink the schema to the smallest shape that still reproduces
+it and land that as a test under `pulumi-language-rust/codegen/`, where it
+runs on every pull request in seconds. All four generator defects the canary
+has found were retired that way:
+
+| Found against | Retired into |
+|---|---|
+| `kubernetes` — `JSONSchemaProps.not`, a self-referential type, gave a struct an infinitely sized field | `recursive_test.go` |
+| `aws` — two schema tokens deriving one Rust type name | `typenames_test.go` |
+| property names that did not word-break like the other SDKs (`ipv4Address`, `podCIDRs`) | `naming_vectors_test.go` |
+| schema properties such as `$ref`, which are not valid Rust identifiers | `TestSnakeCaseDropsNonIdentifierRunes` |
+
+`naming_vectors_test.go` states the discipline in its header comment: every
+case is "either a real provider property name or the shortest name
+exhibiting a shape that appears in one." A case distilled that far is worth
+more than the provider it came from — it says what the rule is, and it says
+it in milliseconds.
+
+This is the division of labour pulumi/pulumi uses. Its SDK codegen tests are
+~70 hand-authored schemas under `pkg/codegen/testing/test/testdata`, several
+distilled from real providers — `naming-collisions`, and
+`azure-native-nested-types`, described there as a "condensed example of
+nested collection types from Azure Native". Nothing regenerates a whole
+published provider on every pull request, and neither should this repo.
 
 ## What a generated program looks like
 
