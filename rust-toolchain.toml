@@ -14,8 +14,10 @@
 # templates/, and the cargo builds the conformance harness drives underneath
 # `go test`. A mise entry would only bind tools for shells and tasks that mise
 # has activated, and it would do nothing for a contributor using plain rustup,
-# for rust-analyzer, or for the `dtolnay/rust-toolchain` step in CI -- all of
-# which honour this file.
+# for rust-analyzer, or for a toolchain-installing CI action such as
+# `dtolnay/rust-toolchain` -- all of which honour this file. This repository's
+# CI deliberately installs no such action and relies on the runner's rustup
+# reading this file; see .github/workflows/ci.yml.
 #
 # Caveat worth knowing: pulumi-test-language writes each generated conformance
 # program into a temporary directory outside this repo, so those builds fall

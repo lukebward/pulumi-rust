@@ -1,4 +1,4 @@
-# Roadmap
+# Known limitations
 
 The conformance suite passes in full, so this file records what a green
 suite does not: behaviours that differed from the Go SDK, defects the real

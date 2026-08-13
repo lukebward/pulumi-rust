@@ -660,15 +660,14 @@ func (m cargoManifest) table(path ...string) map[string]any {
 // actually resolves. dev- and build-dependencies are deliberately excluded:
 // neither is linked into the program the engine runs.
 func (m cargoManifest) dependencyTables() []map[string]any {
-	tables := []map[string]any{
-		m.table("dependencies"),
-		m.table("workspace", "dependencies"),
-	}
 	targets := make([]string, 0, len(m.table("target")))
 	for cfg := range m.table("target") {
 		targets = append(targets, cfg)
 	}
 	sort.Strings(targets)
+
+	tables := make([]map[string]any, 0, 2+len(targets))
+	tables = append(tables, m.table("dependencies"), m.table("workspace", "dependencies"))
 	for _, cfg := range targets {
 		tables = append(tables, m.table("target", cfg, "dependencies"))
 	}

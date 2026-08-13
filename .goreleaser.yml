@@ -91,8 +91,10 @@ snapshot:
 checksum:
   name_template: 'checksums.txt'
 
-# CHANGELOG.md is assembled from changie fragments in .changes (see
-# .changie.yaml), so GoReleaser must not also derive release notes from the git
-# log -- that would publish a second, conflicting changelog.
-changelog:
-  disable: true
+# The changelog pipe must stay enabled, even though CHANGELOG.md is assembled
+# from changie fragments rather than from the git log. Disabling it does not
+# just suppress git-log notes -- it skips the only code that reads
+# --release-notes into the release body, so the GitHub release would publish
+# with an empty description. Passing --release-notes is itself what stops a
+# second, git-log-derived changelog being built: the pipe returns as soon as
+# it sees a notes file.

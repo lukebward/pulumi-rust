@@ -1724,7 +1724,7 @@ func (g *programGenerator) optionsLiteral(opts *pcl.ResourceOptions, subject hcl
 	}
 	if opts.Aliases != nil {
 		if tuple, ok := unwrapConvert(opts.Aliases).(*model.TupleConsExpression); ok {
-			var elems []string
+			elems := make([]string, 0, len(tuple.Expressions))
 			for _, e := range tuple.Expressions {
 				elems = append(elems, g.alias(subject, e))
 			}

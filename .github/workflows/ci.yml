@@ -34,16 +34,34 @@ jobs:
           cd sdk/rust/pulumi
           cargo fmt --check
           cargo clippy --all-targets --locked -- -D warnings
-      - uses: golangci/golangci-lint-action@v6
+      # v7 or newer is required: v6 supports golangci-lint v1 only and rejects
+      # a v2 version string outright, before installing anything.
+      - uses: golangci/golangci-lint-action@v7
         with:
           version: v2.9.0
           working-directory: pulumi-language-rust
           args: --config ../.golangci.yml
       - name: go mod tidy
         run: cd pulumi-language-rust && go mod tidy -diff
+
       # Catches a malformed changelog fragment at PR time rather than at
       # release time. Needs no credentials.
+      #
+      # Only when there is a fragment to check: `changie batch` treats an empty
+      # unreleased directory as an error, not a no-op, so running it
+      # unconditionally would fail every pull request that carries no
+      # user-visible change — and every release commit, since batching is what
+      # empties the directory.
+      - name: Look for changelog fragments
+        id: fragments
+        run: |
+          if compgen -G '.changes/unreleased/*.yaml' > /dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: miniscruff/changie-action@v2
+        if: steps.fragments.outputs.present == 'true'
         with:
           version: latest
           args: batch auto --dry-run
@@ -132,7 +150,10 @@ jobs:
     steps:
       - name: Verify all jobs succeeded or were skipped
         run: |
-          results='${{ join(needs.*.result, " ") }}'
+          # Single quotes inside the expression, double outside: an Actions
+          # expression accepts only single-quoted string literals, and a double
+          # quote there is a lexer error that invalidates the whole file.
+          results="${{ join(needs.*.result, ' ') }}"
           echo "job results: $results"
           for r in $results; do
             if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then

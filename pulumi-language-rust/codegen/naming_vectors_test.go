@@ -14,7 +14,10 @@
 
 package codegen
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Every case here is either a real provider property name or the shortest
 // name exhibiting a shape that appears in one. The comment says why the case
@@ -98,23 +101,25 @@ func TestSnakeCaseOnlyInsertsSeparators(t *testing.T) {
 		"isIPv6Enabled", "parseJSON", "$ref", "some-name", "HTTP2Server",
 	} {
 		got := snakeCase(name)
-		stripped := ""
+		var strippedB strings.Builder
 		for _, r := range got {
 			if r != '_' {
-				stripped += string(r)
+				strippedB.WriteRune(r)
 			}
 		}
-		lettersOnly := ""
+		stripped := strippedB.String()
+		var lettersB strings.Builder
 		for _, r := range name {
 			if isNameSeparator(r) {
 				continue
 			}
 			if r >= 'A' && r <= 'Z' {
-				lettersOnly += string(r + 32)
+				lettersB.WriteRune(r + 32)
 			} else if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-				lettersOnly += string(r)
+				lettersB.WriteRune(r)
 			}
 		}
+		lettersOnly := lettersB.String()
 		if stripped != lettersOnly {
 			t.Errorf("snakeCase(%q) = %q: letters changed (%q vs %q)",
 				name, got, stripped, lettersOnly)

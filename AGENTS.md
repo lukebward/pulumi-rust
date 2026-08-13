@@ -34,8 +34,8 @@ make accept           # test_conformance with PULUMI_ACCEPT=1: rewrites testdata
 make check_full_sdks  # The canary. Needs `pulumi` on PATH, network, ~20 minutes.
 make test_fast        # test_sdk + test_codegen. The pair to run before pushing.
 make test_all         # test_sdk + test_codegen + test_conformance. Excludes the canary.
-make lint             # go vet + golangci-lint + go mod tidy -diff; cargo fmt --check + clippy
-make format           # cargo fmt and gofmt. Excludes generated testdata by design.
+make lint             # go vet + golangci-lint + go mod tidy -diff; rustfmt --check + clippy
+make format           # rustfmt + golangci-lint fmt. Excludes generated testdata.
 make changelog        # changie new
 make clean            # cargo clean plus the shared cargo target dir
 ```

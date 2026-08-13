@@ -23,9 +23,13 @@ kinds:
 # kind header appears exactly once.
 #
 # `changie new` writes changesDir/unreleasedDir/<fragmentFileFormat>.yaml with
-# os.Create, which truncates an existing file. Component and PR must both appear
-# in the file name or two fragments from one PR silently overwrite each other.
-fragmentFileFormat: '{{.Custom.Component}}-{{.Kind}}-{{.Custom.PR}}'
+# os.Create, which truncates an existing file, so the name has to be unique per
+# fragment rather than per change. The timestamp is what guarantees that: one PR
+# can legitimately carry two improvements to the same component, and component
+# and PR alone would collide. They are still in the name because a directory of
+# timestamps is unreadable. `changie batch` globs the directory and never parses
+# these names, so the format is free to change.
+fragmentFileFormat: '{{.Custom.Component}}-{{.Kind}}-{{.Custom.PR}}-{{.Time.Format "20060102150405"}}'
 changeFormat: '- [{{.Custom.Component}}] {{.Body}} [#{{.Custom.PR}}](https://github.com/lukebward/pulumi-rust/pull/{{.Custom.PR}})'
 custom:
   - key: Component

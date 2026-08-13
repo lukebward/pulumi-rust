@@ -13,7 +13,12 @@
 // limitations under the License.
 
 // Package version carries the language host's version.
-package version
+//
+// The name shadows the standard library's go/version, which revive objects
+// to. pulumi-language-dotnet's equivalent package suppresses the same rule
+// for the same reason: every Pulumi language host calls this package
+// `version`, and matching them is worth more than avoiding the shadow.
+package version //nolint:revive // Deliberately named to match every other Pulumi language host.
 
 // Version is initialized by the Go linker to contain the semver of this build.
 //

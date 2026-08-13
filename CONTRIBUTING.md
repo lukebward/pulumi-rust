@@ -51,7 +51,7 @@ make test_sdk           # the Rust SDK's own tests
 make test_codegen       # the generator's tests: naming, recursive types,
                         # type-name collisions, args shape, defaults
 make test_fast          # both of the above: everything needing no network
-make lint               # gofmt/vet/golangci-lint, plus rustfmt and clippy
+make lint               # go vet, golangci-lint, go mod tidy -diff, rustfmt, clippy
 make format             # format the hand-written Rust and Go
 ```
 
@@ -227,11 +227,24 @@ version in `CHANGELOG.md` and the version on the tag cannot disagree:
 ```sh
 changie batch auto      # fold the unreleased fragments into a version
 changie merge           # regenerate CHANGELOG.md
-git commit -m "Changelog for $(changie latest)"
+
+# The crate version is a literal in the manifest and nothing derives it from
+# the changelog, so bump it here or the publish job will refuse the release.
+version="$(changie latest)"
+sed -i '0,/^version = /s//version = "'"${version#v}"'"\n/' sdk/rust/pulumi/Cargo.toml
+(cd sdk/rust/pulumi && cargo update --workspace)   # refresh the locked version
+
+git add -A .changes CHANGELOG.md sdk/rust/pulumi/Cargo.toml sdk/rust/pulumi/Cargo.lock
+git commit -m "Changelog for $version"
+git push
 ```
 
+`git add -A .changes` matters: `changie batch` both writes a new
+`.changes/<version>.md` and deletes the fragments it consumed, and the release
+workflow checks that version file exists.
+
 Landing that commit on `main` triggers `.github/workflows/release.yml`, which
-re-runs CI, then has GoReleaser create the tag and publish the language plugin
+re-runs CI, tags the release and has GoReleaser publish the language plugin
 binaries. The archive names are load-bearing — the CLI computes the asset name
 it wants and compares it for exact equality — so `.goreleaser.yml` is the one
 file to change carefully. It documents the contract at the top.

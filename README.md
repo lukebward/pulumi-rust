@@ -115,7 +115,7 @@ fn main() {
 
     ```toml
     # in ./sdks/aws/rust/Cargo.toml
-    pulumi = { path = "../../../../../sdk/rust/pulumi" }
+    pulumi = { path = "../../../../pulumi-rust/sdk/rust/pulumi" }
     ```
 
     Both paths have to resolve to the *same* checkout. If they do not — a

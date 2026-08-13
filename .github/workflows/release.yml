@@ -27,12 +27,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      # GoReleaser creates the tag and the GitHub release.
+      # The tag and the GitHub release are both created here.
       contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      released: ${{ steps.guard.outputs.release }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # GoReleaser needs full history to resolve the previous tag.
+          # GoReleaser needs full history, and the tag guard below needs the
+          # tags themselves — neither of which a shallow default checkout has.
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
@@ -46,30 +50,50 @@ jobs:
         id: version
         run: |
           version="$(changie latest)"
-          if [ -z "$version" ]; then
-            echo "changie latest produced nothing; is .changes populated?" >&2
-            exit 1
-          fi
+          echo "changie latest -> '${version}'"
           echo "tag=${version}" >> "$GITHUB_OUTPUT"
           echo "notes=.changes/${version}.md" >> "$GITHUB_OUTPUT"
-          echo "Resolved ${version}"
 
-      # A touch-up commit to CHANGELOG.md must not try to re-release a version
-      # that already exists. Without this guard the workflow would fail deep
-      # inside GoReleaser with a tag collision instead of stopping cleanly.
-      - name: Skip if the tag already exists
+      # Decide whether there is anything to release, and end green when there
+      # is not. Three ways there is nothing to do, all of them normal:
+      #   - v0.0.0 is what changie prints when it has never batched a version,
+      #     which is the state of this repository until the first release. It
+      #     is a sentinel, not a version: changie exits 0 and prints it rather
+      #     than printing nothing, so an empty-string check never fires.
+      #   - no notes file for the resolved version, i.e. CHANGELOG.md moved
+      #     without changie having batched.
+      #   - the tag already exists, i.e. this push was a touch-up to a
+      #     changelog that has already shipped.
+      - name: Decide whether to release
         id: guard
         run: |
-          if [ -n "$(git tag -l '${{ steps.version.outputs.tag }}')" ]; then
-            echo "already released, nothing to do"
+          version='${{ steps.version.outputs.tag }}'
+          notes='${{ steps.version.outputs.notes }}'
+          if [ -z "$version" ] || [ "$version" = "v0.0.0" ]; then
+            echo "no batched version yet — nothing to release"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          elif [ ! -f "$notes" ]; then
+            echo "no $notes — did changie batch/merge run? nothing to release"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$(git tag -l "$version")" ]; then
+            echo "$version is already tagged — nothing to release"
             echo "release=false" >> "$GITHUB_OUTPUT"
           else
+            echo "releasing $version"
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check the release notes exist
+      # GoReleaser does not create the tag; its git pipe requires HEAD to be
+      # tagged already and aborts otherwise. Nothing else in this workflow
+      # tagged it, so it has to happen here — before GoReleaser runs, and
+      # after the guard has established the tag does not already exist.
+      - name: Tag the release
         if: steps.guard.outputs.release == 'true'
-        run: test -f '${{ steps.version.outputs.notes }}'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag -a '${{ steps.version.outputs.tag }}' -m 'Release ${{ steps.version.outputs.tag }}'
+          git push origin '${{ steps.version.outputs.tag }}'
 
       - uses: goreleaser/goreleaser-action@v6
         if: steps.guard.outputs.release == 'true'
@@ -90,7 +114,7 @@ jobs:
   crate:
     name: Publish the pulumi crate
     needs: release
-    if: vars.PUBLISH_CRATE == 'true'
+    if: vars.PUBLISH_CRATE == 'true' && needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -99,6 +123,23 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+
+      # The crate version is not derived from the tag; it is a literal in
+      # Cargo.toml that the release commit has to bump (see CONTRIBUTING.md).
+      # Fail loudly when the two disagree rather than publishing something
+      # mislabelled or silently skipping: a drifted manifest would otherwise
+      # make every release after the first quietly stop publishing the crate,
+      # since the probe below would keep finding the already-published
+      # version.
+      - name: Check the crate version matches the release
+        run: |
+          manifest="$(grep -m1 '^version = ' sdk/rust/pulumi/Cargo.toml | cut -d'"' -f2)"
+          tag='${{ needs.release.outputs.tag }}'
+          if [ "$manifest" != "${tag#v}" ]; then
+            echo "sdk/rust/pulumi/Cargo.toml is at $manifest but the release is $tag." >&2
+            echo "Bump the crate version (and refresh Cargo.lock) in the release commit." >&2
+            exit 1
+          fi
 
       # crates.io rejects requests without a User-Agent. Publishing the same
       # version twice is an error, so check first and skip if it is already up.

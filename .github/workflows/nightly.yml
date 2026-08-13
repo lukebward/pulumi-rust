@@ -24,8 +24,8 @@ jobs:
     name: Full provider SDKs
     runs-on: ubuntu-latest
     # Local runs take about twenty minutes with a warm cargo cache. A cold
-    # runner generates seven provider SDKs and cargo-checks 22 examples, so
-    # the ceiling is much higher than the typical figure.
+    # runner generates seven provider SDKs and cargo-checks the 20 examples
+    # that pin one, so the ceiling is much higher than the typical figure.
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4

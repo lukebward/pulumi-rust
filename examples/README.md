@@ -114,7 +114,9 @@ The everyday check builds each example against a crate generated from the
 large crates are tens of megabytes of Rust apiece and the loop is much
 faster. Separately, the **whole** schema of every provider in the table is
 generated, compiled, and then every example that pins that provider is
-compiled against the whole crate — all 22 do:
+compiled against the whole crate — all 20 that pin one do. The remaining
+two, `component` and `config-and-outputs`, need no provider and are compiled
+by the nightly workflow instead:
 
 | Provider | Generated types | `lib.rs` |
 |---|---|---|
@@ -176,8 +178,10 @@ is fine right up until the moment a cloud provider retires something, and
 none of the three will ever tell you. Treat each example's Notes section as
 a claim to re-check, not a guarantee — including after the dates above.
 
-CI does not run any of this, because it needs `pulumi package gen-sdk` and a
-network. The whole-schema half is scripted —
+No pull-request check runs this: it needs `pulumi package gen-sdk` and a
+network. `.github/workflows/nightly.yml` runs it on a schedule, where a red
+run is a prompt to go and look rather than a broken build. The whole-schema
+half is scripted —
 
 ```sh
 make check_full_sdks              # every provider the examples pin
