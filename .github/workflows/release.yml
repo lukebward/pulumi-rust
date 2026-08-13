@@ -79,3 +79,52 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.tag }}
+
+  # Publishing the `pulumi` crate is deliberately gated on the repository
+  # variable PUBLISH_CRATE being "true", because it cannot work until someone
+  # has configured crates.io trusted publishing for this repository. The crate
+  # name is already registered to the Pulumi organisation, so this is an
+  # organisation-side setup step, not something a workflow can bootstrap.
+  # Until then a release publishes plugin binaries only, and this job is
+  # skipped rather than failing every release.
+  crate:
+    name: Publish the pulumi crate
+    needs: release
+    if: vars.PUBLISH_CRATE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # Required to mint the short-lived crates.io token via OIDC.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # crates.io rejects requests without a User-Agent. Publishing the same
+      # version twice is an error, so check first and skip if it is already up.
+      - name: Skip if this version is already published
+        id: published
+        run: |
+          version="$(grep -m1 '^version = ' sdk/rust/pulumi/Cargo.toml | cut -d'"' -f2)"
+          code="$(curl -s -o /dev/null -w '%{http_code}' \
+            -A 'pulumi-rust-release-workflow' \
+            "https://crates.io/api/v1/crates/pulumi/${version}")"
+          echo "pulumi ${version} -> HTTP ${code}"
+          if [ "$code" = "200" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: rust-lang/crates-io-auth-action@v1
+        if: steps.published.outputs.publish == 'true'
+        id: auth
+
+      # The token goes in the environment, never on the command line: an
+      # argument is visible in the process table and in any shell trace.
+      - name: cargo publish
+        if: steps.published.outputs.publish == 'true'
+        working-directory: sdk/rust/pulumi
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --locked
