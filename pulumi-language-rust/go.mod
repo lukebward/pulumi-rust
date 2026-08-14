@@ -1,4 +1,4 @@
-module github.com/lukebward/pulumi-rust/pulumi-language-rust
+module github.com/pulumi-labs/pulumi-rust/pulumi-language-rust
 
 go 1.25.11
 

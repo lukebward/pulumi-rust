@@ -80,7 +80,7 @@ real-schema canary" in `CONTRIBUTING.md` for the full table.
 
 ## Key invariants
 
-- The Go module path is `github.com/lukebward/pulumi-rust/pulumi-language-rust`. The
+- The Go module path is `github.com/pulumi-labs/pulumi-rust/pulumi-language-rust`. The
   repo has **not** moved to the pulumi org — never write `github.com/pulumi/...` as
   if it had.
 - `VERSION_PKG` in the `Makefile` must match `pulumi-language-rust/go.mod` exactly:
