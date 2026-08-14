@@ -4,7 +4,7 @@ Building Pulumi Rust support from source, running the tests, and how the
 pieces fit together.
 
 Please make sure to read and observe our
-[Code of Conduct](https://github.com/pulumi/pulumi/blob/master/CODE-OF-CONDUCT.md).
+[Code of Conduct](./CODE-OF-CONDUCT.md).
 
 ## What's here
 
