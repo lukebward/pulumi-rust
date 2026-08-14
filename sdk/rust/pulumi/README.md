@@ -52,13 +52,13 @@ path dependency.
    `pulumi-language-<runtime>` on `PATH`:
 
    ```bash
-   $ git clone https://github.com/lukebward/pulumi-rust
+   $ git clone https://github.com/pulumi-labs/pulumi-rust
    $ (cd pulumi-rust/pulumi-language-rust && go build .)
    $ export PATH="$PWD/pulumi-rust/pulumi-language-rust:$PATH"
    ```
 
 3. Start from
-   [`templates/rust`](https://github.com/lukebward/pulumi-rust/tree/main/templates/rust).
+   [`templates/rust`](https://github.com/pulumi-labs/pulumi-rust/tree/main/templates/rust).
    A project is an ordinary crate with a `Pulumi.yaml` beside its `Cargo.toml`;
    Pulumi recognizes `runtime: rust` and runs `cargo` against it. Point the
    `pulumi` dependency at the checkout from step 2:
@@ -69,7 +69,7 @@ path dependency.
 
 The full walkthrough — generating a provider SDK, wiring up the path
 dependencies and deploying — is in the
-[repository README](https://github.com/lukebward/pulumi-rust#readme).
+[repository README](https://github.com/pulumi-labs/pulumi-rust#readme).
 
 ## Requirements
 
@@ -81,9 +81,9 @@ Rust 1.85 or higher, and Go 1.25 or higher to build the language plugin.
   and reference documentation.
 * [Programming model concepts](https://www.pulumi.com/docs/concepts/) —
   resources, inputs and outputs, stacks and configuration.
-* [Repository](https://github.com/lukebward/pulumi-rust) — source, known
+* [Repository](https://github.com/pulumi-labs/pulumi-rust) — source, known
   limitations and contributing guide.
-* [Examples](https://github.com/lukebward/pulumi-rust/tree/main/examples) —
+* [Examples](https://github.com/pulumi-labs/pulumi-rust/tree/main/examples) —
   cloud programs across AWS, Azure, GCP, Kubernetes, DigitalOcean and Docker.
 
 ## License

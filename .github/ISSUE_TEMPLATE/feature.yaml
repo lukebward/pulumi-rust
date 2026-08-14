@@ -1,0 +1,37 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["kind/enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion!
+        You can also discuss ideas on our [Community Slack](https://slack.pulumi.com/).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case; what you want to do and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Describe the solution you'd like
+      description: What would you like to see happen? Sample code for how you'd want the API to look is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: ctx
+    attributes:
+      label: Additional context
+      description: Alternatives you've considered, links to related issues, anything else.
+    validations:
+      required: false
+  - type: textarea
+    id: voting
+    attributes:
+      label: Contributing
+      value: |
+        Vote on this issue by adding a 👍 reaction.
+        To contribute a fix for this issue, leave a comment (and link to your pull request, if you've opened one already).

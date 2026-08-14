@@ -73,7 +73,7 @@ fn main() {
     of this repository:
 
     ```bash
-    $ git clone https://github.com/lukebward/pulumi-rust
+    $ git clone https://github.com/pulumi-labs/pulumi-rust
     $ (cd pulumi-rust/pulumi-language-rust && go build .)
     $ export PATH="$PWD/pulumi-rust/pulumi-language-rust:$PATH"
     ```

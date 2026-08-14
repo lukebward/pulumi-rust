@@ -30,7 +30,7 @@ kinds:
 # timestamps is unreadable. `changie batch` globs the directory and never parses
 # these names, so the format is free to change.
 fragmentFileFormat: '{{.Custom.Component}}-{{.Kind}}-{{.Custom.PR}}-{{.Time.Format "20060102150405"}}'
-changeFormat: '- [{{.Custom.Component}}] {{.Body}} [#{{.Custom.PR}}](https://github.com/lukebward/pulumi-rust/pull/{{.Custom.PR}})'
+changeFormat: '- [{{.Custom.Component}}] {{.Body}} [#{{.Custom.PR}}](https://github.com/pulumi-labs/pulumi-rust/pull/{{.Custom.PR}})'
 custom:
   - key: Component
     label: Component

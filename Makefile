@@ -4,7 +4,7 @@ GO_TEST_FILTER_FLAG := $(if $(TEST_FILTER),-run 'TestLanguage/$(TEST_FILTER)$$',
 # pulumi-language-rust/go.mod exactly: the linker ignores a -X whose symbol it
 # cannot resolve, silently producing an unstamped binary. Update both together
 # if the repository moves.
-VERSION_PKG := github.com/lukebward/pulumi-rust/pulumi-language-rust/version
+VERSION_PKG := github.com/pulumi-labs/pulumi-rust/pulumi-language-rust/version
 
 # An unreleased build stamps a dev version derived from the pending changelog,
 # so a locally built host reports something more useful than an empty string.

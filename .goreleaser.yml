@@ -71,7 +71,7 @@ builds:
       # github.com/pulumi/pulumi-rust/pulumi-language-rust and this flag, the
       # `module` line in pulumi-language-rust/go.mod, and VERSION_PKG in the
       # Makefile all have to be updated together.
-      - -w -s -X github.com/lukebward/pulumi-rust/pulumi-language-rust/version.Version={{.Tag}}
+      - -w -s -X github.com/pulumi-labs/pulumi-rust/pulumi-language-rust/version.Version={{.Tag}}
 
 archives:
   - id: pulumi-language-rust

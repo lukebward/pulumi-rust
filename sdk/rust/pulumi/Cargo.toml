@@ -6,7 +6,7 @@ edition = "2021"
 # The floor CONTRIBUTING.md states and rust-toolchain.toml pins.
 rust-version = "1.85"
 license = "Apache-2.0"
-repository = "https://github.com/lukebward/pulumi-rust"
+repository = "https://github.com/pulumi-labs/pulumi-rust"
 homepage = "https://www.pulumi.com"
 documentation = "https://docs.rs/pulumi"
 # Beside the manifest, not the repository root: the root README is not part of

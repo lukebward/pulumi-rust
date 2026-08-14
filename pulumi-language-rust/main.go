@@ -56,8 +56,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/workspace"
 	pulumirpc "github.com/pulumi/pulumi/sdk/v3/proto/go"
 
-	"github.com/lukebward/pulumi-rust/pulumi-language-rust/codegen"
-	"github.com/lukebward/pulumi-rust/pulumi-language-rust/version"
+	"github.com/pulumi-labs/pulumi-rust/pulumi-language-rust/codegen"
+	"github.com/pulumi-labs/pulumi-rust/pulumi-language-rust/version"
 )
 
 // exitStatusLoggedError is the exit code a Rust SDK program uses to signal
