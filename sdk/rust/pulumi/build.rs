@@ -11,6 +11,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "pulumi/source.proto",
         "pulumi/callback.proto",
         "pulumi/analyzer.proto",
+        "pulumi/language.proto",
+        "pulumi/codegen/hcl.proto",
     ]
     .iter()
     .map(|f| proto_dir.join(f))

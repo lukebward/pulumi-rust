@@ -43,6 +43,10 @@ fn main() {
   GCP, Kubernetes, DigitalOcean and Docker, plus language examples for
   config, outputs and components.
 
+* **[Automation API](./sdk/rust/pulumi/src/auto)**: Embed Pulumi in a
+  larger Rust system — drive deployments programmatically, with programs on
+  disk in any language or as Rust closures running in your own process.
+
 * **[Docs](https://www.pulumi.com/docs/)**: Learn about Pulumi concepts,
   follow user-guides, and consult the reference documentation.
 

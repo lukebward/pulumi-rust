@@ -43,6 +43,34 @@ provider's schema, per project, with `pulumi package gen-sdk aws@7.41.0
 --language rust --out ./sdks/aws`, and added to the program's `Cargo.toml` as a
 path dependency.
 
+## Automation API
+
+The `pulumi::auto` module is the other direction: instead of the CLI running
+your program, your program runs deployments — from a service, an operator, a
+CLI of your own. It drives the `pulumi` CLI underneath, against either a
+Pulumi project on disk (in any language) or an **inline program**, a Rust
+closure the engine calls back into over an in-process language host:
+
+```rust
+use pulumi::auto::{self, Stack, LocalWorkspaceOptions, UpOptions};
+
+let program = auto::program(|ctx| async move {
+    ctx.export("greeting", pulumi::pv::string("hello"));
+    Ok(())
+});
+let stack = Stack::create_or_select_inline_source(
+    "dev", "my-project", program, LocalWorkspaceOptions::default(),
+).await?;
+let up = stack.up(UpOptions::default()).await?;
+println!("greeting: {:?}", up.outputs["greeting"].value);
+```
+
+Stack lifecycle, configuration, `up`/`preview`/`refresh`/`destroy` with typed
+results, outputs with secret marking, history, state export/import and
+structured engine events are covered; the module documentation lists what is
+not yet ported from the Go `auto` package. Unlike writing programs, embedding
+needs no language plugin on `PATH` — the CLI alone is enough.
+
 ## Getting Started
 
 1. Install the Pulumi CLI — see

@@ -10,7 +10,7 @@ programs. Runtime name is `rust`; the plugin binary is `pulumi-language-rust`.
 
 | Path | Contents |
 |---|---|
-| `sdk/rust/pulumi/` | The `pulumi` crate (v0.1.0): resource-monitor client, `Output<T>`, property-value encoding, config, policy packs (`policy.rs`), component providers (`provider.rs`) |
+| `sdk/rust/pulumi/` | The `pulumi` crate (v0.1.0): resource-monitor client, `Output<T>`, property-value encoding, config, policy packs (`policy.rs`), component providers (`provider.rs`), automation API (`auto/` — drives the CLI; integration tests in `tests/auto.rs` skip without `pulumi` on PATH) |
 | `pulumi-language-rust/` | Go module — language host binary (`main.go`), conformance entry point (`language_test.go`) |
 | `pulumi-language-rust/codegen/` | `gen.go` (schema → Rust SDK crate), `gen_program.go` (PCL → Rust program), plus the fast generator tests |
 | `pulumi-language-rust/testdata/` | Committed golden output: `sdks/`, `projects/`, plus `policies/` and `providers/` (real crates the engine launches as plugins) |

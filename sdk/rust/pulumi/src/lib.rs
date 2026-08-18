@@ -4,6 +4,7 @@
 //! Pulumi engine: connecting to the resource monitor, registering resources,
 //! flowing `Output` values between them, and exporting stack outputs.
 
+pub mod auto;
 pub mod callbacks;
 pub mod config;
 pub mod context;
@@ -46,4 +47,11 @@ pub use value::{Archive, Asset, AssetOrArchive, PropertyMap, PropertyValue};
 pub mod pulumirpc {
     #![allow(clippy::all)]
     tonic::include_proto!("pulumirpc");
+
+    /// Bindings for the `pulumirpc.codegen` package, which
+    /// `pulumi/language.proto` pulls in for its codegen methods.
+    pub mod codegen {
+        #![allow(clippy::all)]
+        tonic::include_proto!("pulumirpc.codegen");
+    }
 }

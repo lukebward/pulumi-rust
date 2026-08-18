@@ -147,3 +147,34 @@ that our `ResourceOptions` has no engine-side path for: `inputDependencies`
 Stack-level policies are not modelled: `AnalyzeStack` returns no
 diagnostics, matching the Go SDK, since resource policies have already run
 per resource.
+
+## Automation API coverage
+
+The conformance suite exercises the SDK as a program the CLI runs; the
+automation API (`pulumi::auto`) inverts that relationship and is therefore
+outside the suite entirely. Its own gates are the unit tests beside the
+module (argument assembly against a recorded mock, event-grammar and
+settings serialization, error classification — no CLI involved) and
+`sdk/rust/pulumi/tests/auto.rs`, integration tests that drive a real
+`pulumi` CLI against a local file backend, exercising local YAML programs
+and inline Rust programs end to end. Those integration tests skip
+themselves when `pulumi` is not on `PATH`, so `make test_sdk` stays
+hermetic; run them with the CLI installed to get the full check.
+
+Deliberately not ported from the Go `auto` package, in rough order of
+likely demand: remote workspaces and git-sourced programs, preview-only
+refresh/destroy variants, `pulumi import` (`Stack.ImportResources`) and
+`stack rename`, per-command tee'd progress writers (captured output and
+engine events cover the same need), the gRPC event transport newer CLIs
+offer — the file-based `--event-log` works on every CLI version the SDK
+supports — and a tail of smaller options: `UserAgent` (`--exec-agent`),
+`AttachDebugger`, preview's `ImportFile`, refresh's
+`ClearPendingCreates`/`ImportPendingCreates`, `SetAllConfigJson`,
+`org get-default`/`set-default`, `stack ls --all`, and installing a
+plugin from a custom server.
+
+One behavior is stricter than Go's: inline programs in a single process
+are serialized, because the SDK keeps one active program context per
+process for resource-reference hydration. Concurrent inline stack
+operations queue rather than cross-wire; local-program operations run
+concurrently without restriction.

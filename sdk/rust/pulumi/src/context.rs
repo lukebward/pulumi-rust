@@ -1146,12 +1146,14 @@ async fn package_ref(inner: &Arc<ContextInner>, pkg: &PackageDescriptor) -> Stri
 }
 
 /// The running program's context, so value-level operations that need the
-/// monitor (hydrating a resource reference) can reach it. A program has
-/// exactly one context.
-static ACTIVE: std::sync::OnceLock<Arc<ContextInner>> = std::sync::OnceLock::new();
+/// monitor (hydrating a resource reference) can reach it. A program run by
+/// the CLI has exactly one context for its lifetime; an automation-API
+/// process can run several programs in sequence, so each new context
+/// replaces the previous one here.
+static ACTIVE: std::sync::RwLock<Option<Arc<ContextInner>>> = std::sync::RwLock::new(None);
 
 pub(crate) fn set_active(inner: Arc<ContextInner>) {
-    let _ = ACTIVE.set(inner);
+    *ACTIVE.write().unwrap() = Some(inner);
 }
 
 /// Fetch a referenced resource's outputs through the engine's built-in
@@ -1182,7 +1184,7 @@ pub(crate) async fn touch_reference(v: PropertyValue) -> PropertyValue {
 /// Fetch a resource's outputs through the engine's built-in `getResource`,
 /// once per URN.
 async fn resource_state(urn: &str) -> Option<PropertyValue> {
-    let inner = ACTIVE.get().cloned()?;
+    let inner = ACTIVE.read().unwrap().clone()?;
     {
         let cache = inner.hydrated.lock().await;
         if let Some(v) = cache.get(urn) {
