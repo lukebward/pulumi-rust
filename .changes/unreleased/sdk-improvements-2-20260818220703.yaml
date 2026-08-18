@@ -8,4 +8,4 @@ body: Add the Automation API (`pulumi::auto`), driving deployments from Rust cod
 time: 2026-08-18T22:07:03.000000000Z
 custom:
   Component: sdk
-  PR: "2"
+  PR: "3"
