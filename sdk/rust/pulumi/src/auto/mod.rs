@@ -55,8 +55,10 @@
 //! Inline programs in one process are serialized: concurrent stack
 //! operations whose programs are closures queue and run one at a time
 //! (the SDK keeps one active program context per process). Operations on
-//! local programs run concurrently without restriction. Do not start a
-//! stack operation from inside an inline program.
+//! local programs run concurrently without restriction. Starting an
+//! inline-program stack operation from inside an inline program is
+//! guarded, as in Go: it fails fast with Go's "nested stack operations
+//! are not supported" error. A local-source operation nests freely.
 //!
 //! Not yet ported from Go: remote workspaces and git sources, the
 //! `pulumi import`/`stack rename` operations, preview-only refresh and

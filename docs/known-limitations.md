@@ -178,3 +178,9 @@ are serialized, because the SDK keeps one active program context per
 process for resource-reference hydration. Concurrent inline stack
 operations queue rather than cross-wire; local-program operations run
 concurrently without restriction.
+
+One guard is narrower than Go's: the "nested stack operations are not
+supported" error fires only inside inline programs. Go's
+`isNestedInvocation` also blocks an inline-program operation started
+from a normal program the CLI runs (`pulumi::run` here); the Rust guard
+does not detect that shape yet.

@@ -256,10 +256,12 @@ async fn failed_up_does_not_poison_the_stack() {
         .expect("destroy");
 }
 
-/// A local-source stack operation started from inside another inline
-/// program's up completes without deadlocking either operation.
+/// As in Go, a nested local-source operation started from inside an
+/// inline program completes without deadlocking, while a nested inline
+/// operation (which used to deadlock) fails fast with Go's
+/// nested-operation error.
 #[tokio::test]
-async fn nested_local_source_op_inside_inline_program_completes() {
+async fn nested_stack_operations_match_go_inside_inline_programs() {
     require_cli!();
     let env = TestEnv::new();
 
@@ -280,18 +282,36 @@ async fn nested_local_source_op_inside_inline_program_completes() {
         .await
         .expect("inner stack");
 
-    let (outcome_tx, mut outcome_rx) = unbounded_channel::<Result<(), String>>();
-    let nested = inner.clone();
+    let inline_program = auto::program(|ctx| async move {
+        ctx.export("n", pulumi::pv::string("1"));
+        Ok(())
+    });
+    let inner_inline_ws = env
+        .workspace(LocalWorkspaceOptions {
+            program: Some(inline_program),
+            project_settings: Some(ProjectSettings::new("inner-inline", "rust")),
+            ..Default::default()
+        })
+        .await;
+    let inner_inline = Stack::create_or_select("dev", inner_inline_ws)
+        .await
+        .expect("inner inline stack");
+
+    let (outcome_tx, mut outcome_rx) = unbounded_channel::<(String, String)>();
+    let nested_local = inner.clone();
+    let nested_inline = inner_inline.clone();
     let program = auto::program(move |ctx| {
-        let nested = nested.clone();
+        let nested_local = nested_local.clone();
+        let nested_inline = nested_inline.clone();
         let outcome_tx = outcome_tx.clone();
         async move {
-            let outcome = nested
-                .up(UpOptions::default())
-                .await
-                .map(|_| ())
-                .map_err(|e| e.to_string());
-            let _ = outcome_tx.send(outcome);
+            let describe = |outcome: Result<_, auto::Error>| match outcome {
+                Ok(_) => "success".to_string(),
+                Err(e) => e.to_string(),
+            };
+            let local = describe(nested_local.up(UpOptions::default()).await);
+            let inline = describe(nested_inline.up(UpOptions::default()).await);
+            let _ = outcome_tx.send((local, inline));
             ctx.export("outer", pulumi::pv::string("done"));
             Ok(())
         }
@@ -312,10 +332,12 @@ async fn nested_local_source_op_inside_inline_program_completes() {
         .expect("nested operation deadlocked")
         .expect("outer up");
     assert_eq!(up.outputs["outer"].value, serde_json::json!("done"));
-    // Unlike Go's "nested stack operations are not supported" guard, the
-    // nested local-source operation runs to completion here.
-    let nested_outcome = outcome_rx.recv().await.expect("nested outcome");
-    assert_eq!(nested_outcome, Ok(()));
+    let (local, inline) = outcome_rx.recv().await.expect("nested outcomes");
+    assert_eq!(local, "success", "local-source outcome: {local}");
+    assert!(
+        inline.contains("nested stack operations are not supported"),
+        "inline outcome: {inline}"
+    );
 
     inner
         .destroy(DestroyOptions {
@@ -324,6 +346,12 @@ async fn nested_local_source_op_inside_inline_program_completes() {
         })
         .await
         .expect("inner destroy");
+    // The nested inline op never ran, so removing its stack suffices.
+    inner_inline
+        .workspace()
+        .remove_stack("dev", false)
+        .await
+        .expect("inner inline remove");
     outer
         .destroy(DestroyOptions {
             remove: true,

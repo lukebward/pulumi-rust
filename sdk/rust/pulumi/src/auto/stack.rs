@@ -74,6 +74,7 @@ impl Stack {
 
     /// Create or update the stack's resources (`pulumi up`).
     pub async fn up(&self, options: UpOptions) -> Result<UpResult> {
+        ensure_not_nested(&self.workspace)?;
         let mut args = svec(["up", "--yes", "--skip-preview"]);
         args.extend(options.debug.args());
 
@@ -143,6 +144,7 @@ impl Stack {
 
     /// Preview the changes an `up` would perform (`pulumi preview`).
     pub async fn preview(&self, options: PreviewOptions) -> Result<PreviewResult> {
+        ensure_not_nested(&self.workspace)?;
         let mut shared = options.debug.args();
         push_shared_options(
             &mut shared,
@@ -176,6 +178,9 @@ impl Stack {
         let server = self.start_language_server_unchecked().await?;
         push_exec_kind(&mut args, &server);
         args.extend(shared);
+        if options.json {
+            args.push("--json".to_string());
+        }
 
         // The preview's change summary only exists as an engine event, so
         // the event log is always tailed, with an internal subscription
@@ -216,6 +221,7 @@ impl Stack {
     /// Compare the stack's state against the real resources and update the
     /// state to match (`pulumi refresh`).
     pub async fn refresh(&self, options: RefreshOptions) -> Result<RefreshResult> {
+        ensure_not_nested(&self.workspace)?;
         let mut args = svec(["refresh"]);
         args.extend(options.debug.args());
         args.extend(svec(["--yes", "--skip-preview"]));
@@ -286,6 +292,7 @@ impl Stack {
 
     /// Delete every resource in the stack (`pulumi destroy`).
     pub async fn destroy(&self, options: DestroyOptions) -> Result<DestroyResult> {
+        ensure_not_nested(&self.workspace)?;
         let mut args = svec(["destroy"]);
         args.extend(options.debug.args());
         push_shared_options(
@@ -314,6 +321,9 @@ impl Stack {
         );
         if options.diff {
             args.push("--diff".to_string());
+        }
+        if options.exclude_protected {
+            args.push("--exclude-protected".to_string());
         }
 
         let server = self.start_language_server(&["destroy"]).await?;
@@ -500,6 +510,18 @@ impl Stack {
     }
 }
 
+/// Refuse to start an inline-program operation from inside an inline
+/// program, with the Go SDK's error message. As in Go, only workspaces
+/// carrying a program are guarded; local-source operations nest freely.
+fn ensure_not_nested(workspace: &LocalWorkspace) -> Result<()> {
+    if workspace.program().is_some() && crate::runtime::in_inline_program() {
+        return Err(Error::setup(
+            "nested stack operations are not supported https://github.com/pulumi/pulumi/issues/5058",
+        ));
+    }
+    Ok(())
+}
+
 fn push_exec_kind(args: &mut Vec<String>, server: &Option<LanguageServer>) {
     match server {
         Some(server) => {
@@ -649,6 +671,8 @@ pub struct PreviewOptions {
     pub color: Option<String>,
     /// Save the computed plan for a later `up` to apply.
     pub save_plan: Option<PathBuf>,
+    /// Emit machine-readable stdout (`--json`).
+    pub json: bool,
     pub refresh: bool,
     pub suppress_outputs: bool,
     pub suppress_progress: bool,
@@ -697,6 +721,8 @@ pub struct DestroyOptions {
     pub config_file: Option<PathBuf>,
     pub run_program: Option<bool>,
     pub diff: bool,
+    /// Leave protected resources (and their parents) in place.
+    pub exclude_protected: bool,
     /// Remove the stack itself after destroying its resources.
     pub remove: bool,
     pub show_secrets: Option<bool>,
@@ -1123,6 +1149,105 @@ mod tests {
             ])
         );
         assert_eq!(args[2], svec(["stack", "rm", "--yes", "dev"]));
+    }
+
+    #[tokio::test]
+    async fn destroy_maps_exclude_protected_to_its_flag() {
+        let (recorder, stack) = recording_stack().await;
+        recorder.push_result(Ok(CommandResult::default())); // destroy
+        recorder.push_result(ok_json("[]")); // history
+        stack
+            .destroy(DestroyOptions {
+                exclude_protected: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            recorder.recorded_args()[0],
+            svec([
+                "destroy",
+                "--exclude-protected",
+                "--exec-kind=auto.local",
+                "--yes",
+                "--skip-preview",
+                "--stack",
+                "dev"
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn preview_json_flag_precedes_the_event_log() {
+        let (recorder, stack) = recording_stack().await;
+        // No events are written, so the op fails after recording its args.
+        let _ = stack
+            .preview(PreviewOptions {
+                json: true,
+                ..Default::default()
+            })
+            .await;
+        let args = &recorder.recorded_args()[0];
+        let json_at = args.iter().position(|a| a == "--json").unwrap();
+        let log_at = args.iter().position(|a| a == "--event-log").unwrap();
+        assert!(json_at < log_at, "args: {args:?}");
+    }
+
+    #[tokio::test]
+    async fn nested_operations_error_inside_an_inline_program() {
+        let (recorder, mut stack) = recording_stack().await;
+        stack
+            .workspace_mut()
+            .set_program(crate::auto::program(|_ctx| async { Ok(()) }));
+        let assert_nested = |err: Error| {
+            assert!(
+                err.to_string()
+                    .contains("nested stack operations are not supported"),
+                "unexpected error: {err}"
+            );
+        };
+        let scoped = &crate::runtime::INLINE_PROGRAM;
+        assert_nested(
+            scoped
+                .scope((), stack.up(UpOptions::default()))
+                .await
+                .unwrap_err(),
+        );
+        assert_nested(
+            scoped
+                .scope((), stack.preview(PreviewOptions::default()))
+                .await
+                .unwrap_err(),
+        );
+        assert_nested(
+            scoped
+                .scope((), stack.refresh(RefreshOptions::default()))
+                .await
+                .unwrap_err(),
+        );
+        assert_nested(
+            scoped
+                .scope((), stack.destroy(DestroyOptions::default()))
+                .await
+                .unwrap_err(),
+        );
+        assert!(recorder.recorded_args().is_empty(), "no CLI run expected");
+    }
+
+    /// Local-source operations nest freely inside an inline program, as
+    /// in Go: only a workspace carrying a program is guarded.
+    #[tokio::test]
+    async fn nested_local_source_operations_are_permitted() {
+        let (recorder, stack) = recording_stack().await;
+        recorder.push_result(Ok(CommandResult::default())); // up
+        recorder.push_result(ok_json("{}")); // outputs masked
+        recorder.push_result(ok_json("{}")); // outputs shown
+        recorder.push_result(ok_json("[]")); // history
+        crate::runtime::INLINE_PROGRAM
+            .scope((), stack.up(UpOptions::default()))
+            .await
+            .unwrap();
+        assert!(!recorder.recorded_args().is_empty(), "the CLI never ran");
     }
 
     #[tokio::test]

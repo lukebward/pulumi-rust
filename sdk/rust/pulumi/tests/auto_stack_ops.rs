@@ -8,8 +8,8 @@ mod common;
 
 use common::TestEnv;
 use pulumi::auto::{
-    self, DestroyOptions, LocalWorkspaceOptions, PreviewOptions, ProjectSettings, RefreshOptions,
-    Stack, UpOptions,
+    self, ConfigValue, DestroyOptions, LocalWorkspaceOptions, PreviewOptions, ProjectSettings,
+    RefreshOptions, Stack, UpOptions,
 };
 
 /// Refresh on an inline-program stack returns a succeeded summary.
@@ -493,6 +493,128 @@ async fn run_program_flag_on_every_operation() {
         destroy.summary.expect("destroy summary").result.as_deref(),
         Some("succeeded")
     );
+}
+
+/// destroy with exclude_protected removes only unprotected resources;
+/// unprotecting via a re-up lets a plain destroy clean up fully.
+#[tokio::test]
+async fn destroy_with_exclude_protected_spares_protected_resources() {
+    require_cli!();
+    let env = TestEnv::new();
+    let program = auto::program(|ctx| async move {
+        let protect = ctx.config().get("protect").as_deref() == Some("true");
+        ctx.register_resource(pulumi::RegisterRequest {
+            type_: "my:module:MyResource".to_string(),
+            name: "protected".to_string(),
+            custom: false,
+            options: pulumi::ResourceOptions {
+                protect: Some(protect),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        ctx.register_resource(pulumi::RegisterRequest {
+            type_: "my:module:MyResource".to_string(),
+            name: "unprotected".to_string(),
+            custom: false,
+            ..Default::default()
+        });
+        Ok(())
+    });
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            program: Some(program),
+            project_settings: Some(ProjectSettings::new("excl-prot", "rust")),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create_or_select("dev", ws).await.expect("stack");
+
+    stack
+        .set_config("excl-prot:protect", &ConfigValue::plain("true"))
+        .await
+        .expect("set config");
+    stack.up(UpOptions::default()).await.expect("protected up");
+
+    let destroy = stack
+        .destroy(DestroyOptions {
+            exclude_protected: true,
+            ..Default::default()
+        })
+        .await
+        .expect("destroy with exclude_protected");
+    let summary = destroy.summary.expect("destroy summary");
+    assert_eq!(summary.kind, "destroy");
+    assert_eq!(summary.result.as_deref(), Some("succeeded"));
+    assert!(
+        destroy
+            .stdout
+            .contains("All unprotected resources were destroyed"),
+        "stdout: {}",
+        destroy.stdout
+    );
+
+    stack
+        .remove_config("excl-prot:protect")
+        .await
+        .expect("remove config");
+    stack
+        .up(UpOptions::default())
+        .await
+        .expect("unprotecting up");
+    stack
+        .destroy(DestroyOptions {
+            remove: true,
+            ..Default::default()
+        })
+        .await
+        .expect("final destroy");
+}
+
+/// preview with json=true emits stdout that parses as JSON, while the
+/// event-log change summary keeps working.
+#[tokio::test]
+async fn preview_json_output_parses() {
+    require_cli!();
+    let env = TestEnv::new();
+    let program = auto::program(|ctx| async move {
+        ctx.export("greeting", pulumi::pv::string("hello"));
+        Ok(())
+    });
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            program: Some(program),
+            project_settings: Some(ProjectSettings::new("prev-json", "rust")),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create_or_select("dev", ws).await.expect("stack");
+    stack.up(UpOptions::default()).await.expect("up");
+
+    let preview = stack
+        .preview(PreviewOptions {
+            json: true,
+            ..Default::default()
+        })
+        .await
+        .expect("preview with json");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&preview.stdout).expect("stdout parses as JSON");
+    assert!(parsed.is_object(), "stdout was: {}", preview.stdout);
+    assert_eq!(
+        preview.change_summary.get(&auto::events::OpType::Same),
+        Some(&1),
+        "changes: {:?}",
+        preview.change_summary
+    );
+
+    stack
+        .destroy(DestroyOptions {
+            remove: true,
+            ..Default::default()
+        })
+        .await
+        .expect("destroy");
 }
 
 /// Stack tags round-trip on the file backend; the v3.242.0 CLI reports no

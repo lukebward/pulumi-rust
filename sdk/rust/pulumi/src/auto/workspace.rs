@@ -23,7 +23,8 @@ use super::ProgramFn;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectSettings {
     pub name: String,
-    pub runtime: ProjectRuntimeInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<ProjectRuntimeInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub main: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -36,7 +37,7 @@ impl ProjectSettings {
     pub fn new(name: impl Into<String>, runtime: impl Into<String>) -> Self {
         ProjectSettings {
             name: name.into(),
-            runtime: ProjectRuntimeInfo::Name(runtime.into()),
+            runtime: Some(ProjectRuntimeInfo::Name(runtime.into())),
             main: None,
             description: None,
             extra: BTreeMap::new(),
@@ -310,11 +311,22 @@ impl LocalWorkspace {
     /// Create a workspace from `options`.
     pub async fn new(options: LocalWorkspaceOptions) -> Result<Self> {
         let work_dir = match &options.work_dir {
+            // An explicit work_dir must already exist, as in Node.
+            Some(dir) if !dir.exists() => {
+                return Err(Error::setup(format!(
+                    "invalid work_dir passed to local workspace: '{}' does not exist",
+                    dir.display()
+                )))
+            }
+            Some(dir) if !dir.is_dir() => {
+                return Err(Error::setup(format!(
+                    "invalid work_dir passed to local workspace: '{}' is not a directory",
+                    dir.display()
+                )))
+            }
             Some(dir) => dir.clone(),
             None => super::scratch_dir("pulumi-auto")?,
         };
-        std::fs::create_dir_all(&work_dir)
-            .map_err(|e| Error::setup(format!("failed to create workspace dir: {e}")))?;
 
         let command: SharedCommand = match options.pulumi_command {
             Some(command) => command,
@@ -479,8 +491,15 @@ impl LocalWorkspace {
     }
 
     fn require_version(&self, major: u64, minor: u64, what: &str) -> Result<()> {
+        let version = self.command.version();
+        // 0.0.0 is the unparsable-version sentinel an explicit
+        // PULUMI_AUTOMATION_API_SKIP_VERSION_CHECK stores; the skip
+        // bypasses feature gates the way it bypasses the minimum check.
+        if version == Version::new(0, 0, 0) {
+            return Ok(());
+        }
         let minimum = Version::new(major, minor, 0);
-        if self.command.version() < minimum {
+        if version < minimum {
             return Err(Error::setup(format!(
                 "{what} requires Pulumi CLI version >= {minimum}"
             )));
@@ -781,8 +800,10 @@ impl LocalWorkspace {
         Ok(serde_json::from_str(&result.stdout)?)
     }
 
-    /// `pulumi install`: restore the project's dependencies and plugins.
+    /// `pulumi install`: restore the project's dependencies and plugins;
+    /// requires CLI >= 3.91.0.
     pub async fn install(&self, options: &InstallOptions) -> Result<()> {
+        self.require_version(3, 91, "Install")?;
         let mut args = svec(["install"]);
         if options.use_language_version_tools {
             self.require_version(3, 130, "InstallOptions.use_language_version_tools")?;
@@ -1076,7 +1097,7 @@ mod tests {
         let yaml = "name: demo\nruntime: rust\ndescription: a demo\nbackend:\n  url: file://~\n";
         let settings: ProjectSettings = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(settings.name, "demo");
-        assert_eq!(settings.runtime.name(), "rust");
+        assert_eq!(settings.runtime.as_ref().unwrap().name(), "rust");
         let out = serde_yaml_ng::to_string(&settings).unwrap();
         assert!(out.contains("url: file://~"), "kept unknown keys: {out}");
     }
@@ -1087,16 +1108,22 @@ mod tests {
             "name: a\nruntime:\n  name: nodejs\n  options:\n    binary: x\n",
         )
         .unwrap();
-        assert_eq!(s.runtime.name(), "nodejs");
+        assert_eq!(s.runtime.as_ref().unwrap().name(), "nodejs");
         let s: ProjectSettings = serde_yaml_ng::from_str("name: a\nruntime: rust\n").unwrap();
-        assert_eq!(s.runtime.name(), "rust");
+        assert_eq!(s.runtime.as_ref().unwrap().name(), "rust");
     }
 
-    /// A project file without a runtime key is rejected; Node and Python
-    /// accept such files, so this pins a deliberate divergence.
+    /// A project file without a runtime key is accepted and round trips
+    /// without inventing one, as in Node and Python.
     #[test]
-    fn project_settings_require_a_runtime() {
-        serde_yaml_ng::from_str::<ProjectSettings>("name: demo\n").unwrap_err();
+    fn project_settings_permit_a_missing_runtime() {
+        let settings: ProjectSettings = serde_yaml_ng::from_str("name: demo\n").unwrap();
+        assert!(settings.runtime.is_none());
+        let out = serde_yaml_ng::to_string(&settings).unwrap();
+        assert!(!out.contains("runtime"), "no runtime key: {out}");
+        let reloaded: ProjectSettings = serde_yaml_ng::from_str(&out).unwrap();
+        assert_eq!(reloaded.name, "demo");
+        assert!(reloaded.runtime.is_none());
     }
 
     #[test]
@@ -1243,7 +1270,11 @@ mod tests {
             let ws = workspace_in(dir.path()).await;
             let settings = ws.project_settings().unwrap();
             assert_eq!(settings.name, name, "extension {ext}");
-            assert_eq!(settings.runtime.name(), runtime, "extension {ext}");
+            assert_eq!(
+                settings.runtime.as_ref().unwrap().name(),
+                runtime,
+                "extension {ext}"
+            );
             assert_eq!(
                 settings.description.as_deref(),
                 Some(description),
@@ -1300,7 +1331,7 @@ mod tests {
 
     #[tokio::test]
     async fn workspace_new_reports_uncreatable_work_dir_as_setup_error() {
-        // A path routed through a regular file cannot be created.
+        // A path routed through a regular file cannot exist.
         let dir = TempDir::new("bad-work-dir");
         let file = dir.path().join("plain-file");
         std::fs::write(&file, "not a directory").unwrap();
@@ -1312,24 +1343,44 @@ mod tests {
         .await
         .unwrap_err();
         assert!(matches!(err, Error::Setup(_)), "unexpected error: {err}");
-        assert!(err.to_string().contains("failed to create workspace dir"));
+        assert!(err.to_string().contains("does not exist"));
     }
 
-    /// A nonexistent work_dir is created rather than rejected; Node errors
-    /// on a missing directory, so this pins a deliberate divergence.
+    /// A nonexistent explicit work_dir is rejected rather than created,
+    /// as in Node; only the generated scratch directory is created.
     #[tokio::test]
-    async fn workspace_new_creates_a_missing_work_dir() {
+    async fn workspace_new_rejects_a_missing_work_dir() {
         let dir = TempDir::new("missing-work-dir");
         let missing = dir.path().join("nested").join("deeper");
-        let ws = LocalWorkspace::new(LocalWorkspaceOptions {
+        let err = LocalWorkspace::new(LocalWorkspaceOptions {
             work_dir: Some(missing.clone()),
             pulumi_command: Some(Arc::new(RecordingCommand::default())),
             ..Default::default()
         })
         .await
-        .unwrap();
-        assert_eq!(ws.work_dir(), missing);
-        assert!(missing.is_dir(), "work_dir was not created");
+        .unwrap_err();
+        assert!(matches!(err, Error::Setup(_)), "unexpected error: {err}");
+        assert!(err.to_string().contains("does not exist"), "error: {err}");
+        assert!(!missing.exists(), "work_dir must not be created");
+    }
+
+    #[tokio::test]
+    async fn workspace_new_rejects_a_work_dir_that_is_a_file() {
+        let dir = TempDir::new("file-work-dir");
+        let file = dir.path().join("plain-file");
+        std::fs::write(&file, "not a directory").unwrap();
+        let err = LocalWorkspace::new(LocalWorkspaceOptions {
+            work_dir: Some(file),
+            pulumi_command: Some(Arc::new(RecordingCommand::default())),
+            ..Default::default()
+        })
+        .await
+        .unwrap_err();
+        assert!(matches!(err, Error::Setup(_)), "unexpected error: {err}");
+        assert!(
+            err.to_string().contains("is not a directory"),
+            "error: {err}"
+        );
     }
 
     #[tokio::test]
@@ -1385,6 +1436,41 @@ mod tests {
                 "--reinstall"
             ])
         );
+    }
+
+    #[tokio::test]
+    async fn install_requires_cli_3_91() {
+        let recorder = Arc::new(RecordingCommand {
+            version: Version::new(3, 90, 0),
+            ..Default::default()
+        });
+        let ws = LocalWorkspace::new(LocalWorkspaceOptions {
+            pulumi_command: Some(recorder.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        let err = ws.install(&InstallOptions::default()).await.unwrap_err();
+        assert!(err.to_string().contains(">= 3.91.0"), "unexpected: {err}");
+        assert!(recorder.recorded_args().is_empty(), "no CLI run expected");
+    }
+
+    /// The 0.0.0 sentinel a skipped, unparsable version check stores must
+    /// pass the feature gates: the skip is an explicit opt-out.
+    #[tokio::test]
+    async fn skipped_version_check_bypasses_feature_gates() {
+        let recorder = Arc::new(RecordingCommand {
+            version: Version::new(0, 0, 0),
+            ..Default::default()
+        });
+        let ws = LocalWorkspace::new(LocalWorkspaceOptions {
+            pulumi_command: Some(recorder.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        ws.install(&InstallOptions::default()).await.unwrap();
+        assert_eq!(recorder.recorded_args()[0][0], "install");
     }
 
     #[tokio::test]

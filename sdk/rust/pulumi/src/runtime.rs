@@ -270,6 +270,17 @@ where
 /// queue here instead. Local-program operations are unaffected.
 static INLINE_RUN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+tokio::task_local! {
+    /// Present while an inline program's body runs, so stack operations
+    /// can refuse to nest the way the Go Automation API does.
+    pub(crate) static INLINE_PROGRAM: ();
+}
+
+/// Whether the current task is executing an inline program.
+pub(crate) fn in_inline_program() -> bool {
+    INLINE_PROGRAM.try_with(|_| ()).is_ok()
+}
+
 /// Run an inline automation-API program against explicit settings, inside
 /// this process. Unlike [`run`], connection failures and program failures
 /// alike come back as errors — the in-process language host reports them
@@ -280,7 +291,10 @@ pub(crate) async fn run_inline(
 ) -> Result<()> {
     let _serialized = INLINE_RUN.lock().await;
     let ctx = connect_context(settings).await?;
-    match program_body(&ctx, |ctx| program(ctx)).await {
+    let outcome = INLINE_PROGRAM
+        .scope((), program_body(&ctx, |ctx| program(ctx)))
+        .await;
+    match outcome {
         Ok(Ok(())) => {
             let mut monitor = ctx.inner.monitor.clone();
             let _ = monitor.signal_and_wait_for_shutdown(()).await;
