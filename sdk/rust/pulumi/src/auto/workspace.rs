@@ -662,6 +662,28 @@ impl LocalWorkspace {
         }
     }
 
+    /// `pulumi org get-default`: the default organization for the current
+    /// backend. Needs Pulumi Cloud; a file backend rejects org commands.
+    pub async fn org_get_default(&self) -> Result<String> {
+        let result = self
+            .run_cmd(svec(["org", "get-default"]))
+            .await
+            .map_err(|e| e.with_context("could not get default organization"))?;
+        Ok(result.stdout.trim().to_string())
+    }
+
+    /// `pulumi org set-default`. Needs Pulumi Cloud; a file backend
+    /// rejects org commands. The name travels after a `--` separator, as
+    /// in Go.
+    pub async fn org_set_default(&self, org_name: &str) -> Result<()> {
+        let mut args = svec(["org", "set-default", "--"]);
+        args.push(org_name.to_string());
+        self.run_cmd(args)
+            .await
+            .map_err(|e| e.with_context("could not set default organization"))?;
+        Ok(())
+    }
+
     // ---- config ----
 
     /// `pulumi config get <key> --json`.
@@ -883,6 +905,23 @@ impl LocalWorkspace {
     /// `pulumi plugin install resource`.
     pub async fn install_plugin(&self, name: &str, version: &str) -> Result<()> {
         let args = svec(["plugin", "install", "resource", name, version]);
+        self.run_cmd(args)
+            .await
+            .map_err(|e| e.with_context("failed to install plugin"))?;
+        Ok(())
+    }
+
+    /// `pulumi plugin install resource --server`: install from a third
+    /// party server.
+    pub async fn install_plugin_from_server(
+        &self,
+        name: &str,
+        version: &str,
+        server: &str,
+    ) -> Result<()> {
+        let args = svec([
+            "plugin", "install", "resource", name, version, "--server", server,
+        ]);
         self.run_cmd(args)
             .await
             .map_err(|e| e.with_context("failed to install plugin"))?;
@@ -1355,6 +1394,52 @@ mod tests {
                 "--template-mode",
                 "--",
                 "yaml"
+            ])
+        );
+    }
+
+    /// Ports go:TestOrgGetDefaultDelegatesToCLIAPI: exact argv, and the
+    /// returned org is trimmed.
+    #[tokio::test]
+    async fn org_get_default_uses_exact_args_and_trims() {
+        let (recorder, ws) = recording_workspace().await;
+        recorder.push_result(Ok(CommandResult {
+            stdout: "my-org\n".to_string(),
+            ..Default::default()
+        }));
+        let org = ws.org_get_default().await.unwrap();
+        assert_eq!(org, "my-org");
+        assert_eq!(recorder.recorded_args()[0], svec(["org", "get-default"]));
+    }
+
+    /// Ports go:TestOrgSetDefaultDelegatesToCLIAPI: the org name is a
+    /// positional after `--`.
+    #[tokio::test]
+    async fn org_set_default_places_name_after_separator() {
+        let (recorder, ws) = recording_workspace().await;
+        ws.org_set_default("my-org").await.unwrap();
+        assert_eq!(
+            recorder.recorded_args()[0],
+            svec(["org", "set-default", "--", "my-org"])
+        );
+    }
+
+    #[tokio::test]
+    async fn install_plugin_from_server_uses_exact_args() {
+        let (recorder, ws) = recording_workspace().await;
+        ws.install_plugin_from_server("scaleway", "1.2.0", "https://example.com/plugins")
+            .await
+            .unwrap();
+        assert_eq!(
+            recorder.recorded_args()[0],
+            svec([
+                "plugin",
+                "install",
+                "resource",
+                "scaleway",
+                "1.2.0",
+                "--server",
+                "https://example.com/plugins"
             ])
         );
     }

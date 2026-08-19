@@ -154,21 +154,18 @@ The conformance suite exercises the SDK as a program the CLI runs; the
 automation API (`pulumi::auto`) inverts that relationship and is therefore
 outside the suite entirely. Its own gates are the unit tests beside the
 module (argument assembly against a recorded mock, event-grammar and
-settings serialization, error classification — no CLI involved) and
-`sdk/rust/pulumi/tests/auto.rs`, integration tests that drive a real
-`pulumi` CLI against a local file backend, exercising local YAML programs
-and inline Rust programs end to end. Those integration tests skip
-themselves when `pulumi` is not on `PATH`, so `make test_sdk` stays
-hermetic; run them with the CLI installed to get the full check.
+settings serialization, error classification — no CLI involved) and the
+integration tests spread across `sdk/rust/pulumi/tests/auto*.rs` (seven
+binaries), which drive a real `pulumi` CLI against a local file backend,
+exercising local YAML programs and inline Rust programs end to end.
+Those integration tests skip themselves when `pulumi` is not on `PATH`,
+so `make test_sdk` stays hermetic; run them with the CLI installed to
+get the full check.
 
-Deliberately not ported from the Go `auto` package, in rough order of
-likely demand: per-command tee'd progress writers (captured output and
-engine events cover the same need), the gRPC event transport newer CLIs
-offer — the file-based `--event-log` works on every CLI version the SDK
-supports — and a tail of smaller options:
-`AttachDebugger`, preview's `ImportFile`,
-`org get-default`/`set-default`, and installing a
-plugin from a custom server.
+Deliberately not ported from the Go `auto` package: per-command tee'd
+progress writers (captured output and engine events cover the same
+need), and the gRPC event transport newer CLIs offer — the file-based
+`--event-log` works on every CLI version the SDK supports.
 
 Remote workspaces (Pulumi Deployments) are ported: the `RemoteStack`
 surface, the client-side validation (Go's exact error strings and

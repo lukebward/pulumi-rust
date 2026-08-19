@@ -4,7 +4,11 @@ body: Add the Automation API (`pulumi::auto`), driving deployments from Rust cod
   lifecycle, configuration, up/preview/refresh/destroy with typed results, stack
   outputs with secret marking, history, state export/import, and structured engine
   events. Programs can be Pulumi projects on disk in any language, or inline Rust
-  closures served to the engine from an in-process language host.
+  closures served to the engine from an in-process language host. The surface
+  tracks the Go SDK, including preview-only refresh and destroy, resource import,
+  stack rename, `pulumi new`, bulk and JSON config, stack tags and plugins, CLI
+  installation, git-sourced workspaces, and the remote (Pulumi Deployments)
+  surface with Go's validation and flag serialization.
 time: 2026-08-18T22:07:03.000000000Z
 custom:
   Component: sdk

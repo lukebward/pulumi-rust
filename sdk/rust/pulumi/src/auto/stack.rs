@@ -176,7 +176,9 @@ impl Stack {
                 refresh: options.refresh,
                 suppress_outputs: options.suppress_outputs,
                 suppress_progress: options.suppress_progress,
+                import_file: &None,
                 continue_on_error: options.continue_on_error,
+                attach_debugger: options.attach_debugger,
                 config_file: &options.config_file,
                 run_program: options.run_program,
             },
@@ -233,7 +235,9 @@ impl Stack {
                 refresh: options.refresh,
                 suppress_outputs: options.suppress_outputs,
                 suppress_progress: options.suppress_progress,
+                import_file: &options.import_file,
                 continue_on_error: false,
+                attach_debugger: options.attach_debugger,
                 config_file: &options.config_file,
                 run_program: options.run_program,
             },
@@ -381,7 +385,9 @@ impl Stack {
                 refresh: false,
                 suppress_outputs: options.suppress_outputs,
                 suppress_progress: options.suppress_progress,
+                import_file: &None,
                 continue_on_error: false,
+                attach_debugger: false,
                 config_file: &options.config_file,
                 run_program: options.run_program,
             },
@@ -460,7 +466,9 @@ impl Stack {
                 refresh: false,
                 suppress_outputs: options.suppress_outputs,
                 suppress_progress: options.suppress_progress,
+                import_file: &None,
                 continue_on_error: false,
+                attach_debugger: false,
                 config_file: &options.config_file,
                 run_program: options.run_program,
             },
@@ -542,7 +550,9 @@ impl Stack {
                 refresh: options.refresh,
                 suppress_outputs: options.suppress_outputs,
                 suppress_progress: options.suppress_progress,
+                import_file: &None,
                 continue_on_error: options.continue_on_error,
+                attach_debugger: false,
                 config_file: &options.config_file,
                 run_program: options.run_program,
             },
@@ -629,7 +639,9 @@ impl Stack {
                 refresh: options.refresh,
                 suppress_outputs: options.suppress_outputs,
                 suppress_progress: options.suppress_progress,
+                import_file: &None,
                 continue_on_error: options.continue_on_error,
+                attach_debugger: false,
                 config_file: &options.config_file,
                 run_program: options.run_program,
             },
@@ -874,7 +886,9 @@ struct SharedOptions<'a> {
     refresh: bool,
     suppress_outputs: bool,
     suppress_progress: bool,
+    import_file: &'a Option<PathBuf>,
     continue_on_error: bool,
+    attach_debugger: bool,
     config_file: &'a Option<PathBuf>,
     run_program: Option<bool>,
 }
@@ -931,8 +945,14 @@ fn push_shared_options(args: &mut Vec<String>, options: SharedOptions<'_>) {
     if options.suppress_progress {
         args.push("--suppress-progress".to_string());
     }
+    if let Some(file) = options.import_file {
+        args.push(format!("--import-file={}", file.display()));
+    }
     if options.continue_on_error {
         args.push("--continue-on-error".to_string());
+    }
+    if options.attach_debugger {
+        args.push("--attach-debugger".to_string());
     }
     if let Some(file) = options.config_file {
         args.push(format!("--config-file={}", file.display()));
@@ -971,6 +991,8 @@ pub struct UpOptions {
     pub suppress_outputs: bool,
     pub suppress_progress: bool,
     pub continue_on_error: bool,
+    /// Run the program under a debugger, pausing until one attaches.
+    pub attach_debugger: bool,
     pub config_file: Option<PathBuf>,
     pub run_program: Option<bool>,
     /// Whether the returned summary decrypts secrets; defaults to yes.
@@ -1005,6 +1027,11 @@ pub struct PreviewOptions {
     pub refresh: bool,
     pub suppress_outputs: bool,
     pub suppress_progress: bool,
+    /// Save any creates seen during the preview into an import file for
+    /// `pulumi import` (`--import-file`).
+    pub import_file: Option<PathBuf>,
+    /// Run the program under a debugger, pausing until one attaches.
+    pub attach_debugger: bool,
     pub config_file: Option<PathBuf>,
     pub run_program: Option<bool>,
     pub event_senders: Vec<UnboundedSender<EngineEvent>>,
@@ -1559,6 +1586,71 @@ mod tests {
             .unwrap();
         let history = &recorder.recorded_args()[3];
         assert!(!history.contains(&"--show-secrets".to_string()));
+    }
+
+    /// Go's up order: --continue-on-error, --attach-debugger, --config-file.
+    #[tokio::test]
+    async fn up_orders_attach_debugger_after_continue_on_error() {
+        let (recorder, stack) = recording_stack().await;
+        recorder.push_result(Ok(CommandResult::default())); // up
+        recorder.push_result(ok_json("{}")); // outputs masked
+        recorder.push_result(ok_json("{}")); // outputs shown
+        recorder.push_result(ok_json("[]")); // history
+
+        stack
+            .up(UpOptions {
+                continue_on_error: true,
+                attach_debugger: true,
+                config_file: Some(PathBuf::from("cfg.yaml")),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            recorder.recorded_args()[0],
+            svec([
+                "up",
+                "--yes",
+                "--skip-preview",
+                "--exec-kind=auto.local",
+                "--continue-on-error",
+                "--attach-debugger",
+                "--config-file=cfg.yaml",
+                "--stack",
+                "dev"
+            ])
+        );
+    }
+
+    /// Go's preview order: --import-file, --attach-debugger, --config-file.
+    #[tokio::test]
+    async fn preview_orders_import_file_before_attach_debugger() {
+        let (recorder, stack) = recording_stack().await;
+        // No events are written, so the op fails after recording its args.
+        let _ = stack
+            .preview(PreviewOptions {
+                import_file: Some(PathBuf::from("imports.json")),
+                attach_debugger: true,
+                config_file: Some(PathBuf::from("cfg.yaml")),
+                ..Default::default()
+            })
+            .await;
+
+        let args = &recorder.recorded_args()[0];
+        assert_eq!(
+            args[..6],
+            svec([
+                "preview",
+                "--exec-kind=auto.local",
+                "--import-file=imports.json",
+                "--attach-debugger",
+                "--config-file=cfg.yaml",
+                "--event-log"
+            ])
+        );
+        assert!(args[6].ends_with("eventlog.txt"));
+        assert_eq!(&args[7..], &["--stack", "dev"]);
     }
 
     #[tokio::test]

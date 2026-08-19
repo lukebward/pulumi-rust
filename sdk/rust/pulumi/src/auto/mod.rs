@@ -60,8 +60,9 @@
 //! guarded, as in Go: it fails fast with Go's "nested stack operations
 //! are not supported" error. A local-source operation nests freely.
 //!
-//! Not yet ported from Go: a handful of smaller options —
-//! `docs/known-limitations.md` keeps the complete list. Git-sourced local
+//! Deliberately not ported from Go: per-command tee'd progress writers
+//! and the gRPC event transport — `docs/known-limitations.md` has the
+//! details. Git-sourced local
 //! workspaces are supported via [`GitRepo`], shelling out to the system
 //! `git` binary; remote workspaces (Pulumi Deployments) via
 //! [`RemoteStack`].

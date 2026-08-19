@@ -363,6 +363,44 @@ async fn refresh_option_runs_a_refresh() {
     );
 }
 
+/// preview with import_file writes the import file, even when the preview
+/// sees no importable creates.
+#[tokio::test]
+async fn preview_import_file_writes_the_file() {
+    require_cli!();
+    let env = TestEnv::new();
+    let program = auto::program(|ctx| async move {
+        ctx.export("greeting", pulumi::pv::string("hello"));
+        Ok(())
+    });
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            program: Some(program),
+            project_settings: Some(ProjectSettings::new("prev-import-file", "rust")),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create_or_select("dev", ws).await.expect("stack");
+
+    let import_file = env.root.join("imports.json");
+    stack
+        .preview(PreviewOptions {
+            import_file: Some(import_file.clone()),
+            ..Default::default()
+        })
+        .await
+        .expect("preview with import file");
+
+    let content = std::fs::read_to_string(&import_file).expect("import file exists");
+    serde_json::from_str::<serde_json::Value>(&content).expect("import file is JSON");
+
+    stack
+        .workspace()
+        .remove_stack("dev", false)
+        .await
+        .expect("remove");
+}
+
 /// preview_refresh reports the up'd stack as one Same and adopts nothing:
 /// the history still holds only the update.
 #[tokio::test]
