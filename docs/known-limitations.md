@@ -147,3 +147,65 @@ that our `ResourceOptions` has no engine-side path for: `inputDependencies`
 Stack-level policies are not modelled: `AnalyzeStack` returns no
 diagnostics, matching the Go SDK, since resource policies have already run
 per resource.
+
+## Automation API coverage
+
+The conformance suite exercises the SDK as a program the CLI runs; the
+automation API (`pulumi::auto`) inverts that relationship and is therefore
+outside the suite entirely. Its own gates are the unit tests beside the
+module (argument assembly against a recorded mock, event-grammar and
+settings serialization, error classification — no CLI involved) and the
+integration tests spread across `sdk/rust/pulumi/tests/auto*.rs` (seven
+binaries), which drive a real `pulumi` CLI against a local file backend,
+exercising local YAML programs and inline Rust programs end to end.
+Those integration tests skip themselves when `pulumi` is not on `PATH`,
+so `make test_sdk` stays hermetic; run them with the CLI installed to
+get the full check.
+
+Deliberately not ported from the Go `auto` package: per-command tee'd
+progress writers (captured output and engine events cover the same
+need), and the gRPC event transport newer CLIs offer — the file-based
+`--event-log` works on every CLI version the SDK supports.
+
+Remote workspaces (Pulumi Deployments) are ported: the `RemoteStack`
+surface, the client-side validation (Go's exact error strings and
+precedence), the `--remote*` flag serialization, and the CLI
+remote-support gate all match the Go SDK, verified by unit tests against
+a recorded mock. Live execution is not covered by any local test: it
+requires Pulumi Deployments, so the integration test
+(`tests/auto_remote.rs`) skips quietly unless `PULUMI_ACCESS_TOKEN` holds
+a token with Deployments access. One validation check has no Rust
+counterpart: Go rejects a `repo.Setup` function on remote workspaces,
+while `RemoteGitRepo` carries no such field to reject.
+
+Git-sourced local workspaces (`GitRepo` on `LocalWorkspaceOptions`) are
+ported, with one divergence: where Go clones in-process with go-git, the
+Rust SDK shells out to the system `git` binary, which must therefore be
+on `PATH`. Three consequences: an SSH private key passphrase cannot be
+used (the `ssh` binary has no non-interactive way to receive one, so a
+passphrase alongside a key is an error), an in-memory SSH private
+key is written to a temporary `0600` file for the duration of the
+clone, and SSH clones run `ssh` with `BatchMode=yes`, so the remote
+host key must already be in `known_hosts` — `ssh` fails fast instead
+of prompting. HTTP credentials travel through a credential helper
+reading environment variables, never through the command line or
+disk. Separately, the authentication options are strictly mutually
+exclusive here, where Go silently resolves some overlapping pairs by
+precedence.
+
+CLI installation (`LocalPulumiCommand::install`) extracts the release
+tarball itself, so it works on Linux and macOS only; the Windows
+release is a zip the SDK does not extract yet, and `install` returns a
+clear error there.
+
+One behavior is stricter than Go's: inline programs in a single process
+are serialized, because the SDK keeps one active program context per
+process for resource-reference hydration. Concurrent inline stack
+operations queue rather than cross-wire; local-program operations run
+concurrently without restriction.
+
+One guard is narrower than Go's: the "nested stack operations are not
+supported" error fires only inside inline programs. Go's
+`isNestedInvocation` also blocks an inline-program operation started
+from a normal program the CLI runs (`pulumi::run` here); the Rust guard
+does not detect that shape yet.

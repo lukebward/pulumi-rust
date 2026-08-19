@@ -1,0 +1,10 @@
+name: local-program
+runtime: yaml
+description: A provider-less Pulumi YAML program driven by the Automation API.
+config:
+  siteName:
+    type: string
+    default: hello
+outputs:
+  url: http://${siteName}.example.com
+  siteName: ${siteName}

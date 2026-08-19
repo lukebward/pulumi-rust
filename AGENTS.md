@@ -10,12 +10,12 @@ programs. Runtime name is `rust`; the plugin binary is `pulumi-language-rust`.
 
 | Path | Contents |
 |---|---|
-| `sdk/rust/pulumi/` | The `pulumi` crate (v0.1.0): resource-monitor client, `Output<T>`, property-value encoding, config, policy packs (`policy.rs`), component providers (`provider.rs`) |
+| `sdk/rust/pulumi/` | The `pulumi` crate (v0.1.0): resource-monitor client, `Output<T>`, property-value encoding, config, policy packs (`policy.rs`), component providers (`provider.rs`), automation API (`auto/` — drives the CLI; integration tests in `tests/auto.rs` skip without `pulumi` on PATH) |
 | `pulumi-language-rust/` | Go module — language host binary (`main.go`), conformance entry point (`language_test.go`) |
 | `pulumi-language-rust/codegen/` | `gen.go` (schema → Rust SDK crate), `gen_program.go` (PCL → Rust program), plus the fast generator tests |
 | `pulumi-language-rust/testdata/` | Committed golden output: `sdks/`, `projects/`, plus `policies/` and `providers/` (real crates the engine launches as plugins) |
 | `pulumi-language-rust/version/` | Version symbol stamped by the linker at build time |
-| `examples/` | 22 example programs (19 cloud across six providers, plus component/config/random-password); see `examples/README.md` for what is and is not verified |
+| `examples/` | 28 examples (19 cloud across six providers, component/config/random-password, and six `auto-*` Automation API examples that run locally against a file backend); see `examples/README.md` for what is and is not verified |
 | `templates/rust/` | Starting point for a new Rust Pulumi project (`pulumi new`-style scaffold) |
 | `docs/known-limitations.md` | What a green conformance suite does *not* cover |
 | `scripts/check-full-sdks.sh` | The real-schema canary (see below) — the only script in the repo |

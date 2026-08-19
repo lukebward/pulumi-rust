@@ -207,6 +207,35 @@ pulumi config set --secret apiKey s3cret
 pulumi up
 ```
 
+## Automation API examples
+
+Ports of the locally-runnable examples from
+[pulumi/automation-api-examples][aae]: plain binaries that drive
+deployments through `pulumi::auto` instead of being Pulumi programs
+themselves. All six are provider-less and run against a local file
+backend with no cloud credentials; each `README.md` carries the exact
+commands (`auto-cli-installation` needs the network for its CLI
+download, and `auto-git-repo-program` needs `git` on `PATH`).
+
+[aae]: https://github.com/pulumi/automation-api-examples
+
+| Example | What it shows |
+|---|---|
+| [`auto-inline-program`](./auto-inline-program) | The Automation API driving an inline (in-process) Rust program: config, a component resource, plain and secret outputs, streamed engine events |
+| [`auto-local-program`](./auto-local-program) | The Automation API driving an on-disk Pulumi YAML project: workspace over the project dir, config, up, outputs, destroy |
+| [`auto-passphrase-secrets-provider`](./auto-passphrase-secrets-provider) | A passphrase secrets provider on an inline-program stack, secret config round-trip, and passphrase rotation |
+| [`auto-multi-stack-orchestration`](./auto-multi-stack-orchestration) | Two dependent stacks, with one stack's outputs curried into the other's inline program and reverse-order destroy |
+| [`auto-git-repo-program`](./auto-git-repo-program) | Running a Pulumi program cloned from a git repository by branch, offline via a locally created fixture repo |
+| [`auto-cli-installation`](./auto-cli-installation) | Installing a pinned Pulumi CLI and driving a stack with the installed binary instead of the one on PATH |
+
+```sh
+cd auto-inline-program
+export PULUMI_BACKEND_URL="file://$(mktemp -d)"
+export PULUMI_CONFIG_PASSPHRASE=test
+cargo run              # deploy and print outputs
+cargo run -- destroy   # tear down and remove the stack
+```
+
 ## Starting a new project
 
 Copy [`../templates/rust`](../templates/rust), replacing `${PROJECT}` and
