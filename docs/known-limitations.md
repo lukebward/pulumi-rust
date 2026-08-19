@@ -162,7 +162,7 @@ themselves when `pulumi` is not on `PATH`, so `make test_sdk` stays
 hermetic; run them with the CLI installed to get the full check.
 
 Deliberately not ported from the Go `auto` package, in rough order of
-likely demand: remote workspaces and git-sourced programs,
+likely demand: remote workspaces,
 per-command tee'd progress writers (captured output and
 engine events cover the same need), the gRPC event transport newer CLIs
 offer — the file-based `--event-log` works on every CLI version the SDK
@@ -170,6 +170,21 @@ supports — and a tail of smaller options:
 `AttachDebugger`, preview's `ImportFile`,
 `org get-default`/`set-default`, and installing a
 plugin from a custom server.
+
+Git-sourced local workspaces (`GitRepo` on `LocalWorkspaceOptions`) are
+ported, with one divergence: where Go clones in-process with go-git, the
+Rust SDK shells out to the system `git` binary, which must therefore be
+on `PATH`. Three consequences: an SSH private key passphrase cannot be
+used (the `ssh` binary has no non-interactive way to receive one, so a
+passphrase alongside a key is an error), an in-memory SSH private
+key is written to a temporary `0600` file for the duration of the
+clone, and SSH clones run `ssh` with `BatchMode=yes`, so the remote
+host key must already be in `known_hosts` — `ssh` fails fast instead
+of prompting. HTTP credentials travel through a credential helper
+reading environment variables, never through the command line or
+disk. Separately, the authentication options are strictly mutually
+exclusive here, where Go silently resolves some overlapping pairs by
+precedence.
 
 CLI installation (`LocalPulumiCommand::install`) extracts the release
 tarball itself, so it works on Linux and macOS only; the Windows

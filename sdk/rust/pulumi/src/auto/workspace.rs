@@ -15,6 +15,7 @@ use super::cmd::{
     PulumiCommandOptions, SharedCommand,
 };
 use super::errors::{CommandResult, Error, Result};
+use super::git::GitRepo;
 use super::ProgramFn;
 
 /// `Pulumi.yaml`, the project file. Named fields cover what the automation
@@ -310,6 +311,9 @@ pub struct LocalWorkspaceOptions {
     pub project_settings: Option<ProjectSettings>,
     /// Per-stack settings to write into the workspace before first use.
     pub stack_settings: HashMap<String, StackSettings>,
+    /// A git repo with a Pulumi project to clone into the work dir before
+    /// anything else happens; requires a `git` binary on `PATH`.
+    pub repo: Option<GitRepo>,
     /// Replaces the real CLI; used to inject a mock or a specific
     /// [`LocalPulumiCommand`].
     pub pulumi_command: Option<Arc<dyn PulumiCommand>>,
@@ -381,6 +385,17 @@ impl LocalWorkspace {
             None => super::scratch_dir("pulumi-auto")?,
         };
 
+        let work_dir = match &options.repo {
+            Some(repo) => super::git::setup_git_repo(&work_dir, repo)
+                .await
+                .map_err(|e| {
+                    Error::setup(format!(
+                        "failed to create workspace, unable to enlist in git repo: {e}"
+                    ))
+                })?,
+            None => work_dir,
+        };
+
         let command: SharedCommand = match options.pulumi_command {
             Some(command) => command,
             None => Arc::new(
@@ -406,6 +421,11 @@ impl LocalWorkspace {
         }
         for (stack, settings) in &options.stack_settings {
             ws.save_stack_settings(stack, settings)?;
+        }
+        if let Some(setup) = options.repo.as_ref().and_then(|r| r.setup.as_ref()) {
+            setup(ws.clone())
+                .await
+                .map_err(|e| e.with_context("error while running setup function"))?;
         }
         Ok(ws)
     }
