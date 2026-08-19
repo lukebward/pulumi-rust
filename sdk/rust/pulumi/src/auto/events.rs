@@ -660,4 +660,51 @@ mod tests {
         assert!(rx.recv().await.is_none());
         assert!(!path.exists());
     }
+
+    #[tokio::test]
+    async fn watcher_waits_for_the_newline_before_emitting() {
+        use std::time::Duration;
+
+        use tokio::io::AsyncWriteExt;
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let watcher = EventLogWatcher::start("partial", vec![tx]).unwrap();
+        let path = watcher.path().to_path_buf();
+
+        let line = r#"{"sequence":1,"timestamp":1,"summaryEvent":{"maybeCorrupt":false,"durationSeconds":0,"resourceChanges":{"same":1},"PolicyPacks":{},"isPreview":false}}"#;
+        let (head, tail) = line.split_at(40);
+        tokio::fs::write(&path, head).await.unwrap();
+        // Give the 50ms poll loop ample time to see the partial line.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(
+            rx.try_recv().is_err(),
+            "no event may arrive before the newline"
+        );
+
+        let mut file = tokio::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .await
+            .unwrap();
+        file.write_all(format!("{tail}\n").as_bytes())
+            .await
+            .unwrap();
+        file.flush().await.unwrap();
+        drop(file);
+
+        let event = tokio::time::timeout(Duration::from_secs(10), rx.recv())
+            .await
+            .expect("event within timeout")
+            .expect("one event");
+        assert_eq!(
+            event.summary_event.unwrap().resource_changes[&OpType::Same],
+            1
+        );
+
+        tokio::time::timeout(Duration::from_secs(10), watcher.close())
+            .await
+            .expect("close within timeout");
+        // Exactly one event: the channel closes with nothing further.
+        assert!(rx.recv().await.is_none());
+    }
 }

@@ -1092,6 +1092,13 @@ mod tests {
         assert_eq!(s.runtime.name(), "rust");
     }
 
+    /// A project file without a runtime key is rejected; Node and Python
+    /// accept such files, so this pins a deliberate divergence.
+    #[test]
+    fn project_settings_require_a_runtime() {
+        serde_yaml_ng::from_str::<ProjectSettings>("name: demo\n").unwrap_err();
+    }
+
     #[test]
     fn config_value_tolerates_a_hidden_secret() {
         // `stack history --json` without --show-secrets omits the value key.
@@ -1138,5 +1145,268 @@ mod tests {
         ));
         let out = serde_yaml_ng::to_string(&settings).unwrap();
         assert!(out.contains("secure: AAAbbb=="));
+    }
+
+    /// A scratch directory removed on drop, so fixture files never leak.
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(tag: &str) -> Self {
+            static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let dir = std::env::temp_dir().join(format!(
+                "pulumi-rust-unit-{tag}-{}-{}",
+                std::process::id(),
+                COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            TempDir(dir)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    async fn workspace_in(dir: &Path) -> LocalWorkspace {
+        LocalWorkspace::new(LocalWorkspaceOptions {
+            work_dir: Some(dir.to_path_buf()),
+            pulumi_command: Some(Arc::new(RecordingCommand::default())),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn get_all_config_uses_exact_args() {
+        let (recorder, ws) = recording_workspace().await;
+        recorder.push_result(Ok(CommandResult {
+            stdout: "{}".to_string(),
+            ..Default::default()
+        }));
+        ws.get_all_config("dev").await.unwrap();
+        assert_eq!(
+            recorder.recorded_args()[0],
+            svec(["config", "--show-secrets", "--json", "--stack", "dev"])
+        );
+    }
+
+    #[tokio::test]
+    async fn list_stacks_uses_exact_args_and_parses_summaries() {
+        let (recorder, ws) = recording_workspace().await;
+        recorder.push_result(Ok(CommandResult {
+            stdout: r#"[{"name":"dev","current":true,"url":"https://app.pulumi.com/org/proj/dev"},{"name":"prod","current":false,"lastUpdate":"2026-08-18T00:00:00.000Z","resourceCount":3}]"#.to_string(),
+            ..Default::default()
+        }));
+        let stacks = ws.list_stacks().await.unwrap();
+        assert_eq!(recorder.recorded_args()[0], svec(["stack", "ls", "--json"]));
+        assert_eq!(stacks.len(), 2);
+        assert_eq!(stacks[0].name, "dev");
+        assert!(stacks[0].current);
+        assert_eq!(
+            stacks[0].url.as_deref(),
+            Some("https://app.pulumi.com/org/proj/dev")
+        );
+        assert_eq!(stacks[1].name, "prod");
+        assert!(!stacks[1].current);
+        assert_eq!(stacks[1].url, None);
+    }
+
+    #[tokio::test]
+    async fn project_settings_loads_all_three_extensions() {
+        let cases = [
+            (
+                "yaml",
+                "name: proj-yaml\nruntime: nodejs\ndescription: from yaml\n",
+                ("proj-yaml", "nodejs", "from yaml"),
+            ),
+            (
+                "yml",
+                "name: proj-yml\nruntime: python\ndescription: from yml\n",
+                ("proj-yml", "python", "from yml"),
+            ),
+            (
+                "json",
+                r#"{"name":"proj-json","runtime":"go","description":"from json"}"#,
+                ("proj-json", "go", "from json"),
+            ),
+        ];
+        for (ext, content, (name, runtime, description)) in cases {
+            let dir = TempDir::new("project-settings");
+            std::fs::write(dir.path().join(format!("Pulumi.{ext}")), content).unwrap();
+            let ws = workspace_in(dir.path()).await;
+            let settings = ws.project_settings().unwrap();
+            assert_eq!(settings.name, name, "extension {ext}");
+            assert_eq!(settings.runtime.name(), runtime, "extension {ext}");
+            assert_eq!(
+                settings.description.as_deref(),
+                Some(description),
+                "extension {ext}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn project_settings_main_round_trips_verbatim() {
+        let dir = TempDir::new("main-round-trip");
+        let ws = workspace_in(dir.path()).await;
+        for main in [None, Some(String::new()), Some("src".to_string())] {
+            let mut settings = ProjectSettings::new("demo", "rust");
+            settings.main = main.clone();
+            ws.save_project_settings(&settings).unwrap();
+            assert_eq!(ws.project_settings().unwrap().main, main);
+        }
+    }
+
+    #[tokio::test]
+    async fn stack_settings_loads_all_three_extensions() {
+        let yaml =
+            "secretsprovider: passphrase\nconfig:\n  proj:plain: hello\n  proj:secret:\n    secure: v1:cipher==\n";
+        let json = r#"{"secretsprovider":"passphrase","config":{"proj:plain":"hello","proj:secret":{"secure":"v1:cipher=="}}}"#;
+        for (ext, content) in [("yaml", yaml), ("yml", yaml), ("json", json)] {
+            let dir = TempDir::new("stack-settings");
+            std::fs::write(dir.path().join(format!("Pulumi.dev.{ext}")), content).unwrap();
+            let ws = workspace_in(dir.path()).await;
+            let settings = ws.stack_settings("dev").unwrap();
+            assert_eq!(
+                settings.secrets_provider.as_deref(),
+                Some("passphrase"),
+                "extension {ext}"
+            );
+            let config = settings.config.as_ref().unwrap();
+            assert!(
+                matches!(
+                    &config["proj:plain"],
+                    StackSettingsConfigValue::Plain(v)
+                        if v == &serde_yaml_ng::Value::String("hello".to_string())
+                ),
+                "extension {ext}"
+            );
+            assert!(
+                matches!(
+                    &config["proj:secret"],
+                    StackSettingsConfigValue::Secure { secure } if secure == "v1:cipher=="
+                ),
+                "extension {ext}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn workspace_new_reports_uncreatable_work_dir_as_setup_error() {
+        // A path routed through a regular file cannot be created.
+        let dir = TempDir::new("bad-work-dir");
+        let file = dir.path().join("plain-file");
+        std::fs::write(&file, "not a directory").unwrap();
+        let err = LocalWorkspace::new(LocalWorkspaceOptions {
+            work_dir: Some(file.join("nested")),
+            pulumi_command: Some(Arc::new(RecordingCommand::default())),
+            ..Default::default()
+        })
+        .await
+        .unwrap_err();
+        assert!(matches!(err, Error::Setup(_)), "unexpected error: {err}");
+        assert!(err.to_string().contains("failed to create workspace dir"));
+    }
+
+    /// A nonexistent work_dir is created rather than rejected; Node errors
+    /// on a missing directory, so this pins a deliberate divergence.
+    #[tokio::test]
+    async fn workspace_new_creates_a_missing_work_dir() {
+        let dir = TempDir::new("missing-work-dir");
+        let missing = dir.path().join("nested").join("deeper");
+        let ws = LocalWorkspace::new(LocalWorkspaceOptions {
+            work_dir: Some(missing.clone()),
+            pulumi_command: Some(Arc::new(RecordingCommand::default())),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        assert_eq!(ws.work_dir(), missing);
+        assert!(missing.is_dir(), "work_dir was not created");
+    }
+
+    #[tokio::test]
+    async fn install_maps_each_option_to_its_flag() {
+        let (recorder, ws) = recording_workspace().await;
+        ws.install(&InstallOptions::default()).await.unwrap();
+        ws.install(&InstallOptions {
+            use_language_version_tools: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        ws.install(&InstallOptions {
+            no_plugins: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        ws.install(&InstallOptions {
+            no_dependencies: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        ws.install(&InstallOptions {
+            reinstall: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        ws.install(&InstallOptions {
+            use_language_version_tools: true,
+            no_plugins: true,
+            no_dependencies: true,
+            reinstall: true,
+        })
+        .await
+        .unwrap();
+
+        let args = recorder.recorded_args();
+        assert_eq!(args[0], svec(["install"]));
+        assert_eq!(args[1], svec(["install", "--use-language-version-tools"]));
+        assert_eq!(args[2], svec(["install", "--no-plugins"]));
+        assert_eq!(args[3], svec(["install", "--no-dependencies"]));
+        assert_eq!(args[4], svec(["install", "--reinstall"]));
+        assert_eq!(
+            args[5],
+            svec([
+                "install",
+                "--use-language-version-tools",
+                "--no-plugins",
+                "--no-dependencies",
+                "--reinstall"
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn install_language_version_tools_requires_cli_3_130() {
+        let recorder = Arc::new(RecordingCommand {
+            version: Version::new(3, 129, 0),
+            ..Default::default()
+        });
+        let ws = LocalWorkspace::new(LocalWorkspaceOptions {
+            pulumi_command: Some(recorder.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        let err = ws
+            .install(&InstallOptions {
+                use_language_version_tools: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains(">= 3.130.0"), "unexpected: {err}");
+        assert!(recorder.recorded_args().is_empty(), "no CLI run expected");
     }
 }

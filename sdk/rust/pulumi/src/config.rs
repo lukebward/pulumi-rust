@@ -524,6 +524,42 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn get_or_falls_back_only_when_unset() {
+        let c = config(&[("set", "hello")], &[]);
+        let got = c
+            .get_or("set", PropertyValue::String("dflt".into()))
+            .data()
+            .await;
+        assert_eq!(got.value, PropertyValue::String("hello".into()));
+        let dflt = c
+            .get_or("unset", PropertyValue::String("dflt".into()))
+            .data()
+            .await;
+        assert_eq!(dflt.value, PropertyValue::String("dflt".into()));
+    }
+
+    #[tokio::test]
+    async fn float_and_object_getters_parse_typed_values() {
+        // Floats travel through the number getters; there is no get_float.
+        let c = config(&[("f", "3.5"), ("obj", r#"{"a":[1,2]}"#)], &[]);
+        assert_eq!(
+            c.require_number("f").unwrap().data().await.value,
+            PropertyValue::Number(3.5)
+        );
+        assert!(c.get_number_opt("missing").is_none());
+        match c.require_object("obj").unwrap().data().await.value {
+            PropertyValue::Object(m) => assert_eq!(
+                m.get("a"),
+                Some(&PropertyValue::Array(vec![
+                    PropertyValue::Number(1.0),
+                    PropertyValue::Number(2.0),
+                ]))
+            ),
+            other => panic!("expected an object, got {other:?}"),
+        }
+    }
+
     #[test]
     fn json_to_property_maps_every_json_shape() {
         let v: serde_json::Value =

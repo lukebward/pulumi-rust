@@ -353,6 +353,15 @@ mod tests {
     }
 
     #[test]
+    fn version_parsing_tolerates_surrounding_whitespace() {
+        assert_eq!(
+            parse_tolerant("\n\n  v3.242.0  \n\n"),
+            Some(Version::new(3, 242, 0))
+        );
+        assert!(parse_and_validate_version("\n3.242.0\n", &Version::new(3, 2, 0), false).is_ok());
+    }
+
+    #[test]
     fn non_interactive_is_prepended_once() {
         let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         assert_eq!(

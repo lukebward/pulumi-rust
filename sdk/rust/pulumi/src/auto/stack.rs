@@ -1197,6 +1197,16 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancel_invokes_cancel_yes_for_the_stack() {
+        let (recorder, stack) = recording_stack().await;
+        stack.cancel().await.unwrap();
+        assert_eq!(
+            recorder.recorded_args()[0],
+            svec(["cancel", "--yes", "--stack", "dev"])
+        );
+    }
+
+    #[tokio::test]
     async fn stack_cmd_inserts_stack_before_positional_tail() {
         let (recorder, stack) = recording_stack().await;
         stack
