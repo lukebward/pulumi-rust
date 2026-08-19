@@ -59,7 +59,11 @@ jobs:
       - name: cargo check the provider-less examples
         run: |
           set -e
-          for dir in examples/component examples/config-and-outputs; do
+          for dir in examples/component examples/config-and-outputs \
+                     examples/auto-inline-program examples/auto-local-program \
+                     examples/auto-passphrase-secrets-provider \
+                     examples/auto-multi-stack-orchestration \
+                     examples/auto-git-repo-program examples/auto-cli-installation; do
             echo "== $dir"
             (cd "$dir" && cargo check)
           done
