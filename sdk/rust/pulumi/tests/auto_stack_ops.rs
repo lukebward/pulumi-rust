@@ -9,8 +9,9 @@ mod common;
 
 use common::TestEnv;
 use pulumi::auto::{
-    self, ConfigValue, DestroyOptions, LocalWorkspaceOptions, PreviewOptions, ProjectSettings,
-    RefreshOptions, Stack, UpOptions,
+    self, ConfigValue, DestroyOptions, ImportOptions, ImportResource, ListOptions,
+    LocalWorkspaceOptions, NewOptions, PreviewOptions, ProjectSettings, RefreshOptions,
+    RenameOptions, Stack, UpOptions,
 };
 
 /// Refresh on an inline-program stack returns a succeeded summary.
@@ -924,4 +925,460 @@ async fn plugin_install_list_remove() {
             .any(|p| p.name == "random" && p.version.as_deref() == Some("4.16.3")),
         "plugins: {plugins:?}"
     );
+}
+
+/// Whether an error reads as a network failure; steps that need the
+/// network skip on these instead of failing the suite. The text comes
+/// from the CLI, so no transport-versus-status split is possible here.
+fn is_network_failure(err: &pulumi::auto::Error) -> bool {
+    let text = err.to_string().to_lowercase();
+    ["download", "dial", "connection", "lookup", "timeout"]
+        .iter()
+        .any(|needle| text.contains(needle))
+}
+
+/// A local template directory in the Go test-fixture shape: `${PROJECT}`
+/// and `${DESCRIPTION}` fill in from --name/--description.
+fn write_template(env: &TestEnv) -> std::path::PathBuf {
+    let template_dir = env.root.join("template");
+    std::fs::create_dir_all(&template_dir).unwrap();
+    std::fs::write(
+        template_dir.join("Pulumi.yaml"),
+        "name: ${PROJECT}\ndescription: ${DESCRIPTION}\nruntime: yaml\n",
+    )
+    .unwrap();
+    template_dir
+}
+
+/// new_project with generate_only creates Pulumi.yaml in the workdir and
+/// nothing else: no stack, no config. Ports go:TestNewGenerateOnly.
+#[tokio::test]
+async fn new_generate_only_creates_the_project_file() {
+    require_cli!();
+    let env = TestEnv::new();
+    let template_dir = write_template(&env);
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            work_dir: Some(env.project_dir()),
+            ..Default::default()
+        })
+        .await;
+
+    // A local template directory resolves offline, so any failure here is
+    // real; no network gate, as in Go's TestNewGenerateOnly.
+    let result = ws
+        .new_project(&NewOptions {
+            template_or_url: Some(template_dir.display().to_string()),
+            name: Some("test-new-project".to_string()),
+            generate_only: true,
+            force: true,
+            ..Default::default()
+        })
+        .await
+        .expect("new_project");
+    assert!(!result.stdout.is_empty(), "stdout must carry CLI output");
+
+    let contents = std::fs::read_to_string(env.project_dir().join("Pulumi.yaml"))
+        .expect("Pulumi.yaml was created");
+    assert!(
+        contents.contains("name: test-new-project"),
+        "unexpected project file: {contents}"
+    );
+    let stacks = ws.list_stacks().await.expect("list stacks");
+    assert!(stacks.is_empty(), "generate-only made a stack: {stacks:?}");
+}
+
+/// new_project with dir places the generated project in a subdirectory.
+/// Ports go:TestNewGenerateOnlyInSubDir.
+#[tokio::test]
+async fn new_generate_only_respects_the_dir_option() {
+    require_cli!();
+    let env = TestEnv::new();
+    let template_dir = write_template(&env);
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            work_dir: Some(env.project_dir()),
+            ..Default::default()
+        })
+        .await;
+
+    let sub_dir = env.project_dir().join("subproject");
+    let result = ws
+        .new_project(&NewOptions {
+            template_or_url: Some(template_dir.display().to_string()),
+            name: Some("sub-project".to_string()),
+            description: Some("A sub-project for testing".to_string()),
+            dir: Some(sub_dir.clone()),
+            generate_only: true,
+            force: true,
+            ..Default::default()
+        })
+        .await
+        .expect("new_project");
+    assert!(!result.stdout.is_empty(), "stdout must carry CLI output");
+
+    let contents =
+        std::fs::read_to_string(sub_dir.join("Pulumi.yaml")).expect("Pulumi.yaml in the sub dir");
+    assert!(
+        contents.contains("name: sub-project"),
+        "unexpected project file: {contents}"
+    );
+    assert!(
+        contents.contains("description: A sub-project for testing"),
+        "unexpected project file: {contents}"
+    );
+}
+
+/// After rename the stack is manageable under the new name and the old
+/// name 404s. Ports py:test_stack_rename.
+#[tokio::test]
+async fn stack_rename_moves_the_stack_to_the_new_name() {
+    require_cli!();
+    let env = TestEnv::new();
+    std::fs::write(
+        env.project_dir().join("Pulumi.yaml"),
+        "name: renametest\nruntime: yaml\n",
+    )
+    .unwrap();
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            work_dir: Some(env.project_dir()),
+            ..Default::default()
+        })
+        .await;
+    let mut stack = Stack::create("dev", ws).await.expect("stack");
+
+    stack
+        .rename(RenameOptions {
+            stack_name: "dev-renamed".to_string(),
+            ..Default::default()
+        })
+        .await
+        .expect("rename");
+    assert_eq!(stack.name(), "dev-renamed");
+
+    // The old name is gone...
+    let missing = stack
+        .workspace()
+        .select_stack("dev")
+        .await
+        .expect_err("old name must not select");
+    assert!(
+        missing.is_select_stack_404_error(),
+        "unexpected error: {missing}"
+    );
+
+    // ...and the stack is fully manageable under the new one.
+    stack
+        .set_config("key", &ConfigValue::plain("value"))
+        .await
+        .expect("config under the new name");
+    stack
+        .workspace()
+        .remove_stack("dev-renamed", false)
+        .await
+        .expect("remove under the new name");
+}
+
+/// list_stacks sees only the current project; the all option sees stacks
+/// of both projects sharing the backend. Ports go:TestListAllStacks
+/// against a real backend.
+#[tokio::test]
+async fn list_stacks_all_spans_projects() {
+    require_cli!();
+    let env = TestEnv::new();
+    std::fs::write(
+        env.project_dir().join("Pulumi.yaml"),
+        "name: lsproja\nruntime: yaml\n",
+    )
+    .unwrap();
+    let other_dir = env.root.join("other-project");
+    std::fs::create_dir_all(&other_dir).unwrap();
+    std::fs::write(
+        other_dir.join("Pulumi.yaml"),
+        "name: lsprojb\nruntime: yaml\n",
+    )
+    .unwrap();
+
+    let ws_a = env
+        .workspace(LocalWorkspaceOptions {
+            work_dir: Some(env.project_dir()),
+            ..Default::default()
+        })
+        .await;
+    let ws_b = env
+        .workspace(LocalWorkspaceOptions {
+            work_dir: Some(other_dir),
+            ..Default::default()
+        })
+        .await;
+    ws_a.create_stack("deva").await.expect("create deva");
+    ws_b.create_stack("devb").await.expect("create devb");
+
+    let own = ws_a.list_stacks().await.expect("list");
+    assert_eq!(own.len(), 1, "own stacks: {own:?}");
+    assert!(own[0].name.contains("deva"), "own stacks: {own:?}");
+
+    let all = ws_a
+        .list_stacks_with_options(&ListOptions { all: true })
+        .await
+        .expect("list all");
+    assert!(
+        all.iter().any(|s| s.name.contains("deva")),
+        "all stacks: {all:?}"
+    );
+    assert!(
+        all.iter().any(|s| s.name.contains("devb")),
+        "all stacks: {all:?}"
+    );
+
+    ws_a.remove_stack("deva", false).await.expect("remove deva");
+    ws_b.remove_stack("devb", false).await.expect("remove devb");
+}
+
+/// A component placeholder imports without any provider plugin: the
+/// plugin-free import shape.
+#[tokio::test]
+async fn import_resources_imports_a_component_placeholder() {
+    require_cli!();
+    let env = TestEnv::new();
+    std::fs::write(
+        env.project_dir().join("Pulumi.yaml"),
+        "name: importcomp\nruntime: yaml\n",
+    )
+    .unwrap();
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            work_dir: Some(env.project_dir()),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create("dev", ws).await.expect("stack");
+
+    let import = stack
+        .import_resources(ImportOptions {
+            resources: Some(vec![ImportResource {
+                type_: "my:module:MyResource".to_string(),
+                name: "imported-resource".to_string(),
+                component: true,
+                ..Default::default()
+            }]),
+            protect: Some(false),
+            // The CLI cannot generate code for a bare component; state
+            // still imports fine.
+            generate_code: Some(false),
+            ..Default::default()
+        })
+        .await
+        .expect("import");
+    let summary = import.summary.expect("import summary");
+    assert_eq!(summary.kind, "resource-import");
+    assert_eq!(summary.result.as_deref(), Some("succeeded"));
+    assert_eq!(
+        summary
+            .resource_changes
+            .as_ref()
+            .and_then(|c| c.get("import")),
+        Some(&1),
+        "changes: {:?}",
+        summary.resource_changes
+    );
+    assert!(import.generated_code.is_empty());
+
+    stack
+        .destroy(DestroyOptions {
+            remove: true,
+            ..Default::default()
+        })
+        .await
+        .expect("destroy");
+}
+
+/// preview_only previews the import without touching state. Ports
+/// go:TestPreviewImportResources.
+#[tokio::test]
+async fn import_resources_preview_only_changes_nothing() {
+    require_cli!();
+    let env = TestEnv::new();
+    std::fs::write(
+        env.project_dir().join("Pulumi.yaml"),
+        "name: importprev\nruntime: yaml\n",
+    )
+    .unwrap();
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            work_dir: Some(env.project_dir()),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create("dev", ws).await.expect("stack");
+
+    let import_file = env.root.join("import.json");
+    std::fs::write(
+        &import_file,
+        r#"{"resources":[{"type":"my:module:MyResource","name":"imported-resource","component":true}]}"#,
+    )
+    .unwrap();
+    let import = stack
+        .import_resources(ImportOptions {
+            import_file: Some(import_file),
+            protect: Some(false),
+            generate_code: Some(true),
+            preview_only: true,
+            ..Default::default()
+        })
+        .await
+        .expect("preview import");
+    assert!(
+        import.stdout.contains("Previewing"),
+        "stdout: {}",
+        import.stdout
+    );
+    assert!(
+        !import.stdout.contains("Importing"),
+        "stdout: {}",
+        import.stdout
+    );
+
+    // Nothing landed in the state or the history.
+    let history = stack.history(None, 0, None).await.expect("history");
+    assert!(history.is_empty(), "history: {history:?}");
+
+    stack
+        .workspace()
+        .remove_stack("dev", false)
+        .await
+        .expect("remove");
+}
+
+/// Importing a random-provider resource returns generated code, and the
+/// generate_code opt-out suppresses it. Ports go:TestStackImportResources
+/// and ...WithoutGenerateCode; skips only on genuine network failures.
+#[tokio::test]
+async fn import_resources_with_the_random_provider() {
+    require_cli!();
+    let env = TestEnv::new();
+    std::fs::write(
+        env.project_dir().join("Pulumi.yaml"),
+        "name: importrandom\nruntime: yaml\n",
+    )
+    .unwrap();
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            work_dir: Some(env.project_dir()),
+            ..Default::default()
+        })
+        .await;
+
+    // The install downloads from the registry; skip only on network
+    // failures so an argv regression cannot pass vacuously.
+    if let Err(err) = ws.install_plugin("random", "4.16.3").await {
+        if !is_network_failure(&err) {
+            panic!("install_plugin failed for a non-network reason: {err}");
+        }
+        eprintln!("skipping: plugin download failed: {err}");
+        return;
+    }
+    let stack = Stack::create("dev", ws).await.expect("stack");
+
+    let resources = || {
+        Some(vec![ImportResource {
+            type_: "random:index/randomPassword:RandomPassword".to_string(),
+            id: "supersecret".to_string(),
+            name: "randomPassword".to_string(),
+            ..Default::default()
+        }])
+    };
+    let import = stack
+        .import_resources(ImportOptions {
+            resources: resources(),
+            protect: Some(false),
+            ..Default::default()
+        })
+        .await
+        .expect("import");
+    let summary = import.summary.expect("import summary");
+    assert_eq!(summary.result.as_deref(), Some("succeeded"));
+    assert!(
+        import.generated_code.contains("randomPassword"),
+        "generated code: {}",
+        import.generated_code
+    );
+
+    stack
+        .destroy(DestroyOptions::default())
+        .await
+        .expect("destroy after first import");
+
+    // The same import without code generation returns no code.
+    let import = stack
+        .import_resources(ImportOptions {
+            resources: resources(),
+            protect: Some(false),
+            generate_code: Some(false),
+            ..Default::default()
+        })
+        .await
+        .expect("import without generate code");
+    assert_eq!(
+        import.summary.expect("import summary").result.as_deref(),
+        Some("succeeded")
+    );
+    assert!(
+        import.generated_code.is_empty(),
+        "generated code: {}",
+        import.generated_code
+    );
+
+    stack
+        .destroy(DestroyOptions {
+            remove: true,
+            ..Default::default()
+        })
+        .await
+        .expect("destroy");
+}
+
+/// The user_agent option is accepted end to end: the backend records the
+/// agent in the update's environment.
+#[tokio::test]
+async fn user_agent_reaches_the_update_environment() {
+    require_cli!();
+    let env = TestEnv::new();
+    let program = auto::program(|ctx| async move {
+        ctx.export("ok", pulumi::pv::string("yes"));
+        Ok(())
+    });
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            program: Some(program),
+            project_settings: Some(ProjectSettings::new("agent", "rust")),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create_or_select("dev", ws).await.expect("stack");
+
+    let up = stack
+        .up(UpOptions {
+            user_agent: Some("rust-test-agent".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("up");
+    let summary = up.summary.expect("up summary");
+    assert_eq!(
+        summary.environment.get("exec.agent").map(String::as_str),
+        Some("rust-test-agent"),
+        "environment: {:?}",
+        summary.environment
+    );
+
+    stack
+        .destroy(DestroyOptions {
+            user_agent: Some("rust-test-agent".to_string()),
+            remove: true,
+            ..Default::default()
+        })
+        .await
+        .expect("destroy");
 }

@@ -2,7 +2,7 @@
 //! operations — `up`, `preview`, `refresh`, `destroy` — that act on it.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
@@ -105,6 +105,7 @@ impl Stack {
                 target_dependents: options.target_dependents,
                 exclude_dependents: options.exclude_dependents,
                 parallel: options.parallel,
+                user_agent: &options.user_agent,
                 color: &options.color,
                 plan: options
                     .plan
@@ -160,6 +161,7 @@ impl Stack {
                 target_dependents: options.target_dependents,
                 exclude_dependents: options.exclude_dependents,
                 parallel: options.parallel,
+                user_agent: &options.user_agent,
                 color: &options.color,
                 plan: options
                     .save_plan
@@ -202,6 +204,88 @@ impl Stack {
         })
     }
 
+    /// Import existing resources into the stack (`pulumi import`), from
+    /// an in-memory resource list, an import file, or a converter.
+    pub async fn import_resources(&self, options: ImportOptions) -> Result<ImportResult> {
+        let temp_dir = super::scratch_dir("pulumi-auto-import-resources")?;
+        let result = self.import_resources_in(&temp_dir, options).await;
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        result
+    }
+
+    async fn import_resources_in(
+        &self,
+        temp_dir: &Path,
+        options: ImportOptions,
+    ) -> Result<ImportResult> {
+        let mut args = svec(["import"]);
+        if options.preview_only {
+            args.push("--preview-only".to_string());
+        } else {
+            args.extend(svec(["--yes", "--skip-preview"]));
+        }
+        if options.diff {
+            args.push("--diff".to_string());
+        }
+        if let Some(resources) = &options.resources {
+            let import_file = temp_dir.join("import.json");
+            let mut content = serde_json::json!({ "resources": resources });
+            if let Some(name_table) = &options.name_table {
+                content["nameTable"] = serde_json::to_value(name_table)?;
+            }
+            std::fs::write(&import_file, serde_json::to_vec(&content)?)?;
+            args.push("--file".to_string());
+            args.push(import_file.display().to_string());
+        } else if let Some(import_file) = &options.import_file {
+            args.push("--file".to_string());
+            args.push(import_file.display().to_string());
+        }
+        // Protect and code generation are on by default in the CLI; only
+        // an explicit false emits the flag, as in Go.
+        if options.protect == Some(false) {
+            args.push("--protect=false".to_string());
+        }
+        let generated_code_path = temp_dir.join("generated_code.txt");
+        let generate_code = options.generate_code != Some(false);
+        if generate_code {
+            args.push("--out".to_string());
+            args.push(generated_code_path.display().to_string());
+        } else {
+            args.push("--generate-code=false".to_string());
+        }
+        if let Some(converter) = &options.converter {
+            args.push("--from".to_string());
+            args.push(converter.clone());
+            if !options.converter_args.is_empty() {
+                args.push("--".to_string());
+                args.extend(options.converter_args.iter().cloned());
+            }
+        }
+
+        let result = self
+            .run_stack_cmd(args)
+            .await
+            .map_err(|e| e.with_context("failed to import resources"))?;
+
+        let summary = self
+            .history(Some(1), 1, Some(options.show_secrets))
+            .await?
+            .into_iter()
+            .next();
+        let generated_code = if generate_code {
+            std::fs::read_to_string(&generated_code_path)
+                .map_err(|e| Error::setup(format!("failed to read generated code: {e}")))?
+        } else {
+            String::new()
+        };
+        Ok(ImportResult {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            generated_code,
+            summary,
+        })
+    }
+
     /// Compare the stack's state against the real resources and update the
     /// state to match (`pulumi refresh`).
     pub async fn refresh(&self, options: RefreshOptions) -> Result<RefreshResult> {
@@ -223,6 +307,7 @@ impl Stack {
                 target_dependents: options.target_dependents,
                 exclude_dependents: options.exclude_dependents,
                 parallel: options.parallel,
+                user_agent: &options.user_agent,
                 color: &options.color,
                 plan: None,
                 refresh: false,
@@ -233,6 +318,8 @@ impl Stack {
                 run_program: options.run_program,
             },
         );
+        // After the shared options, matching Go's refreshOptsToCmd order.
+        push_pending_creates(&mut args, &options);
         if options.diff {
             args.push("--diff".to_string());
         }
@@ -298,6 +385,7 @@ impl Stack {
                 target_dependents: options.target_dependents,
                 exclude_dependents: options.exclude_dependents,
                 parallel: options.parallel,
+                user_agent: &options.user_agent,
                 color: &options.color,
                 plan: None,
                 refresh: false,
@@ -308,6 +396,8 @@ impl Stack {
                 run_program: options.run_program,
             },
         );
+        // After the shared options, matching Go's refreshOptsToCmd order.
+        push_pending_creates(&mut args, &options);
         if options.diff {
             args.push("--diff".to_string());
         }
@@ -335,6 +425,28 @@ impl Stack {
         })
     }
 
+    /// Rename the stack (`pulumi stack rename`) and rebind this handle to
+    /// the new name.
+    pub async fn rename(&mut self, options: RenameOptions) -> Result<RenameResult> {
+        let result = self
+            .run_stack_cmd(svec(["stack", "rename", &options.stack_name]))
+            .await
+            .map_err(|e| e.with_context("failed to rename stack"))?;
+        // The old name is gone the moment the CLI returns: the summary
+        // lookup below, and every later operation, must use the new one.
+        self.name = options.stack_name;
+        let summary = self
+            .history(Some(1), 1, options.show_secrets)
+            .await?
+            .into_iter()
+            .next();
+        Ok(RenameResult {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            summary,
+        })
+    }
+
     /// Delete every resource in the stack (`pulumi destroy`).
     pub async fn destroy(&self, options: DestroyOptions) -> Result<DestroyResult> {
         ensure_not_nested(&self.workspace)?;
@@ -354,6 +466,7 @@ impl Stack {
                 target_dependents: options.target_dependents,
                 exclude_dependents: options.exclude_dependents,
                 parallel: options.parallel,
+                user_agent: &options.user_agent,
                 color: &options.color,
                 plan: None,
                 refresh: options.refresh,
@@ -439,6 +552,7 @@ impl Stack {
                 target_dependents: options.target_dependents,
                 exclude_dependents: options.exclude_dependents,
                 parallel: options.parallel,
+                user_agent: &options.user_agent,
                 color: &options.color,
                 plan: None,
                 refresh: options.refresh,
@@ -632,6 +746,27 @@ fn ensure_not_nested(workspace: &LocalWorkspace) -> Result<()> {
     Ok(())
 }
 
+/// One pending create to adopt during a refresh: the resource's URN and
+/// the provider-side ID it maps to.
+#[derive(Debug, Clone, Default)]
+pub struct PendingCreate {
+    pub urn: String,
+    pub id: String,
+}
+
+// Each --import-pending-creates invocation accepts exactly one value, and
+// the URN must be immediately followed by its provider ID, so we emit two
+// flags per pending create, as Go does.
+fn push_pending_creates(args: &mut Vec<String>, options: &RefreshOptions) {
+    if options.clear_pending_creates {
+        args.push("--clear-pending-creates".to_string());
+    }
+    for pending in &options.import_pending_creates {
+        args.push(format!("--import-pending-creates={}", pending.urn));
+        args.push(format!("--import-pending-creates={}", pending.id));
+    }
+}
+
 fn push_exec_kind(args: &mut Vec<String>, server: &Option<LanguageServer>) {
     match server {
         Some(server) => {
@@ -656,6 +791,7 @@ struct SharedOptions<'a> {
     target_dependents: bool,
     exclude_dependents: bool,
     parallel: i32,
+    user_agent: &'a Option<String>,
     color: &'a Option<String>,
     /// Pre-formatted: `--plan=` for up, `--save-plan=` for preview.
     plan: Option<String>,
@@ -700,6 +836,9 @@ fn push_shared_options(args: &mut Vec<String>, options: SharedOptions<'_>) {
     }
     if options.parallel > 0 {
         args.push(format!("--parallel={}", options.parallel));
+    }
+    if let Some(agent) = options.user_agent {
+        args.push(format!("--exec-agent={agent}"));
     }
     if let Some(color) = options.color {
         args.push(format!("--color={color}"));
@@ -746,6 +885,8 @@ pub struct UpOptions {
     pub exclude_dependents: bool,
     /// Maximum concurrent resource operations; unlimited when zero.
     pub parallel: i32,
+    /// Reported to the backend as the update's agent (`--exec-agent`).
+    pub user_agent: Option<String>,
     pub color: Option<String>,
     /// Apply a plan `preview` saved earlier.
     pub plan: Option<PathBuf>,
@@ -778,6 +919,8 @@ pub struct PreviewOptions {
     pub target_dependents: bool,
     pub exclude_dependents: bool,
     pub parallel: i32,
+    /// Reported to the backend as the update's agent (`--exec-agent`).
+    pub user_agent: Option<String>,
     pub color: Option<String>,
     /// Save the computed plan for a later `up` to apply.
     pub save_plan: Option<PathBuf>,
@@ -797,11 +940,17 @@ pub struct PreviewOptions {
 pub struct RefreshOptions {
     pub message: Option<String>,
     pub expect_no_changes: bool,
+    /// Drop every pending create from the stack's state.
+    pub clear_pending_creates: bool,
+    /// Adopt pending creates into the state as the given resources.
+    pub import_pending_creates: Vec<PendingCreate>,
     pub target: Vec<String>,
     pub exclude: Vec<String>,
     pub target_dependents: bool,
     pub exclude_dependents: bool,
     pub parallel: i32,
+    /// Reported to the backend as the update's agent (`--exec-agent`).
+    pub user_agent: Option<String>,
     pub color: Option<String>,
     pub suppress_outputs: bool,
     pub suppress_progress: bool,
@@ -822,6 +971,8 @@ pub struct DestroyOptions {
     pub target_dependents: bool,
     pub exclude_dependents: bool,
     pub parallel: i32,
+    /// Reported to the backend as the update's agent (`--exec-agent`).
+    pub user_agent: Option<String>,
     pub color: Option<String>,
     /// Refresh state before destroying.
     pub refresh: bool,
@@ -838,6 +989,80 @@ pub struct DestroyOptions {
     pub show_secrets: Option<bool>,
     pub event_senders: Vec<UnboundedSender<EngineEvent>>,
     pub debug: DebugLoggingOptions,
+}
+
+/// Options for [`Stack::rename`].
+#[derive(Debug, Clone, Default)]
+pub struct RenameOptions {
+    /// The stack's new name.
+    pub stack_name: String,
+    /// Whether the returned summary decrypts secrets; defaults to yes.
+    pub show_secrets: Option<bool>,
+}
+
+/// Options for [`Stack::import_resources`].
+#[derive(Debug, Clone, Default)]
+pub struct ImportOptions {
+    /// The resources to import; written to a temporary import file.
+    pub resources: Option<Vec<ImportResource>>,
+    /// URNs for the `parent`/`provider` names the resources reference.
+    pub name_table: Option<HashMap<String, String>>,
+    /// The CLI protects imported resources by default; `Some(false)`
+    /// leaves them unprotected.
+    pub protect: Option<bool>,
+    /// The CLI generates program code by default; `Some(false)` skips it.
+    pub generate_code: Option<bool>,
+    /// A converter plugin to read the source state with (`--from`).
+    pub converter: Option<String>,
+    /// Extra converter arguments, passed after `--`.
+    pub converter_args: Vec<String>,
+    /// Preview the import without changing any state.
+    pub preview_only: bool,
+    /// An import file on disk; used only when `resources` is unset.
+    pub import_file: Option<PathBuf>,
+    pub diff: bool,
+    /// Whether the returned summary decrypts secrets; off by default, as
+    /// in Go's `optimport`.
+    pub show_secrets: bool,
+}
+
+/// One resource of an import file, as `pulumi import --file` reads it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ImportResource {
+    /// The provider-side ID to import; unused for components.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub id: String,
+    #[serde(rename = "type", skip_serializing_if = "String::is_empty")]
+    pub type_: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    /// The resource's name in the generated program.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub logical_name: String,
+    /// The parent resource, as a name from the name table.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub parent: String,
+    /// The provider to import with, as a name from the name table.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub provider: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub version: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub plugin_download_url: String,
+    /// The input properties to use when importing.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub properties: Vec<String>,
+    /// A component placeholder; needs no ID.
+    #[serde(skip_serializing_if = "is_false")]
+    pub component: bool,
+    /// Marks a component as remote.
+    #[serde(skip_serializing_if = "is_false")]
+    pub remote: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// Engine debug-logging flags, shared by every operation.
@@ -930,6 +1155,25 @@ pub struct RefreshResult {
 pub struct DestroyResult {
     pub stdout: String,
     pub stderr: String,
+    pub summary: Option<UpdateSummary>,
+}
+
+/// The result of [`Stack::rename`].
+#[derive(Debug, Clone, Default)]
+pub struct RenameResult {
+    pub stdout: String,
+    pub stderr: String,
+    pub summary: Option<UpdateSummary>,
+}
+
+/// The result of [`Stack::import_resources`].
+#[derive(Debug, Clone, Default)]
+pub struct ImportResult {
+    pub stdout: String,
+    pub stderr: String,
+    /// The program code the CLI generated for the imported resources;
+    /// empty when `generate_code` was declined.
+    pub generated_code: String,
     pub summary: Option<UpdateSummary>,
 }
 
@@ -1558,6 +1802,319 @@ mod tests {
         assert_eq!(history[0].kind, "update");
         assert_eq!(history[0].config["proj:key"].value, "v");
         assert_eq!(history[0].resource_changes.as_ref().unwrap()["create"], 1);
+    }
+
+    #[tokio::test]
+    async fn rename_rebinds_the_stack_to_the_new_name() {
+        let (recorder, mut stack) = recording_stack().await;
+        recorder.push_result(Ok(CommandResult::default())); // stack rename
+        recorder.push_result(ok_json("[]")); // history
+        stack
+            .rename(RenameOptions {
+                stack_name: "test-rename".to_string(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let args = recorder.recorded_args();
+        assert_eq!(
+            args[0],
+            svec(["stack", "rename", "test-rename", "--stack", "dev"])
+        );
+        assert_eq!(stack.name(), "test-rename");
+        // The follow-up history already runs against the new name.
+        assert_eq!(&args[1][args[1].len() - 2..], &["--stack", "test-rename"]);
+    }
+
+    #[tokio::test]
+    async fn import_resources_writes_an_import_file() {
+        let (recorder, stack) = recording_stack().await;
+        recorder.push_result(Ok(CommandResult::default())); // import
+        recorder.push_result(ok_json("[]")); // history
+        stack
+            .import_resources(ImportOptions {
+                resources: Some(vec![ImportResource {
+                    type_: "random:index/randomPassword:RandomPassword".to_string(),
+                    id: "supersecret".to_string(),
+                    name: "randomPassword".to_string(),
+                    ..Default::default()
+                }]),
+                generate_code: Some(false),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let args = &recorder.recorded_args()[0];
+        assert_eq!(args[..3], svec(["import", "--yes", "--skip-preview"]));
+        assert_eq!(args[3], "--file");
+        assert!(args[4].ends_with("import.json"), "args: {args:?}");
+        assert_eq!(
+            &args[5..],
+            &["--generate-code=false", "--stack", "dev"],
+            "args: {args:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn import_resources_preview_only_assembles_expected_args() {
+        let (recorder, stack) = recording_stack().await;
+        recorder.push_result(Ok(CommandResult::default())); // import
+        recorder.push_result(ok_json("[]")); // history
+                                             // The mock never writes the --out file, so reading it fails after
+                                             // the args are recorded.
+        let err = stack
+            .import_resources(ImportOptions {
+                import_file: Some(PathBuf::from("state.json")),
+                preview_only: true,
+                diff: true,
+                protect: Some(false),
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("failed to read generated code"),
+            "unexpected error: {err}"
+        );
+        let args = &recorder.recorded_args()[0];
+        assert_eq!(
+            args[..6],
+            svec([
+                "import",
+                "--preview-only",
+                "--diff",
+                "--file",
+                "state.json",
+                "--protect=false"
+            ])
+        );
+        assert_eq!(args[6], "--out");
+        assert!(args[7].ends_with("generated_code.txt"), "args: {args:?}");
+        assert_eq!(&args[8..], &["--stack", "dev"]);
+    }
+
+    /// Converter args are positional: `--stack` lands before the `--`
+    /// separator, as in Go's runPulumiCmdSync.
+    #[tokio::test]
+    async fn import_resources_places_converter_args_after_separator() {
+        let (recorder, stack) = recording_stack().await;
+        recorder.push_result(Ok(CommandResult::default())); // import
+        recorder.push_result(ok_json("[]")); // history
+        stack
+            .import_resources(ImportOptions {
+                converter: Some("terraform".to_string()),
+                converter_args: vec!["state.json".to_string()],
+                generate_code: Some(false),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            recorder.recorded_args()[0],
+            svec([
+                "import",
+                "--yes",
+                "--skip-preview",
+                "--generate-code=false",
+                "--from",
+                "terraform",
+                "--stack",
+                "dev",
+                "--",
+                "state.json"
+            ])
+        );
+    }
+
+    #[test]
+    fn import_resource_serializes_with_omitted_empties() {
+        let resource = ImportResource {
+            type_: "my:module:MyResource".to_string(),
+            name: "comp".to_string(),
+            component: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(&resource).unwrap(),
+            serde_json::json!({
+                "type": "my:module:MyResource",
+                "name": "comp",
+                "component": true
+            })
+        );
+        let resource = ImportResource {
+            type_: "random:index/randomPassword:RandomPassword".to_string(),
+            id: "supersecret".to_string(),
+            name: "randomPassword".to_string(),
+            plugin_download_url: "https://example.com".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(&resource).unwrap(),
+            serde_json::json!({
+                "type": "random:index/randomPassword:RandomPassword",
+                "id": "supersecret",
+                "name": "randomPassword",
+                "pluginDownloadUrl": "https://example.com"
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_serializes_pending_create_options() {
+        let (recorder, stack) = recording_stack().await;
+        recorder.push_result(Ok(CommandResult::default())); // refresh
+        recorder.push_result(ok_json("[]")); // history
+        stack
+            .refresh(RefreshOptions {
+                clear_pending_creates: true,
+                import_pending_creates: vec![
+                    PendingCreate {
+                        urn: "urn:pulumi:dev::proj::aws:s3/bucket:Bucket::bucket1".to_string(),
+                        id: "bucket1-id".to_string(),
+                    },
+                    PendingCreate {
+                        urn: "urn:pulumi:dev::proj::aws:s3/bucket:Bucket::bucket2".to_string(),
+                        id: "bucket2-id".to_string(),
+                    },
+                ],
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let args = &recorder.recorded_args()[0];
+        assert!(
+            args.contains(&"--clear-pending-creates".to_string()),
+            "args: {args:?}"
+        );
+        // Each URN must be immediately followed by its provider ID.
+        let want = svec([
+            "--import-pending-creates=urn:pulumi:dev::proj::aws:s3/bucket:Bucket::bucket1",
+            "--import-pending-creates=bucket1-id",
+            "--import-pending-creates=urn:pulumi:dev::proj::aws:s3/bucket:Bucket::bucket2",
+            "--import-pending-creates=bucket2-id",
+        ]);
+        assert!(
+            args.windows(want.len()).any(|w| w == want),
+            "expected contiguous import-pending-creates args, got {args:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn preview_refresh_serializes_pending_create_options() {
+        let (recorder, stack) = recording_stack().await;
+        // No events, so the op fails after recording its args.
+        let _ = stack
+            .preview_refresh(RefreshOptions {
+                clear_pending_creates: true,
+                import_pending_creates: vec![PendingCreate {
+                    urn: "urn:x".to_string(),
+                    id: "x-id".to_string(),
+                }],
+                ..Default::default()
+            })
+            .await;
+        let args = &recorder.recorded_args()[0];
+        assert!(
+            args.contains(&"--clear-pending-creates".to_string()),
+            "args: {args:?}"
+        );
+        let want = svec([
+            "--import-pending-creates=urn:x",
+            "--import-pending-creates=x-id",
+        ]);
+        assert!(
+            args.windows(want.len()).any(|w| w == want),
+            "args: {args:?}"
+        );
+    }
+
+    /// UserAgent serializes as `--exec-agent=` between `--parallel` and
+    /// `--color`, as Go emits it, on every operation that accepts it.
+    #[tokio::test]
+    async fn user_agent_maps_to_exec_agent_on_every_operation() {
+        let (recorder, stack) = recording_stack().await;
+        let agent = || Some("test-agent".to_string());
+
+        recorder.push_result(Ok(CommandResult::default())); // up
+        recorder.push_result(ok_json("{}"));
+        recorder.push_result(ok_json("{}"));
+        recorder.push_result(ok_json("[]"));
+        stack
+            .up(UpOptions {
+                parallel: 8,
+                user_agent: agent(),
+                color: Some("never".to_string()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let _ = stack
+            .preview(PreviewOptions {
+                user_agent: agent(),
+                ..Default::default()
+            })
+            .await; // fails on the missing summary; args recorded
+
+        recorder.push_result(Ok(CommandResult::default())); // refresh
+        recorder.push_result(ok_json("[]"));
+        stack
+            .refresh(RefreshOptions {
+                user_agent: agent(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        recorder.push_result(Ok(CommandResult::default())); // destroy
+        recorder.push_result(ok_json("[]"));
+        stack
+            .destroy(DestroyOptions {
+                user_agent: agent(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let _ = stack
+            .preview_refresh(RefreshOptions {
+                user_agent: agent(),
+                ..Default::default()
+            })
+            .await;
+        let _ = stack
+            .preview_destroy(DestroyOptions {
+                user_agent: agent(),
+                ..Default::default()
+            })
+            .await;
+
+        let args = recorder.recorded_args();
+        let flag = "--exec-agent=test-agent".to_string();
+        // up: pinned between --parallel and --color.
+        let want = svec(["--parallel=8", "--exec-agent=test-agent", "--color=never"]);
+        assert!(
+            args[0].windows(want.len()).any(|w| w == want),
+            "args: {:?}",
+            args[0]
+        );
+        for op in ["preview", "refresh", "destroy"] {
+            let run = args
+                .iter()
+                .find(|a| a[0] == op)
+                .unwrap_or_else(|| panic!("no {op} run recorded"));
+            assert!(run.contains(&flag), "{op} args: {run:?}");
+        }
+        // The preview-only variants: refresh/destroy runs carrying
+        // --preview-only.
+        for op in ["refresh", "destroy"] {
+            let run = args
+                .iter()
+                .find(|a| a[0] == op && a.contains(&"--preview-only".to_string()))
+                .unwrap_or_else(|| panic!("no preview {op} run recorded"));
+            assert!(run.contains(&flag), "preview {op} args: {run:?}");
+        }
     }
 
     #[tokio::test]

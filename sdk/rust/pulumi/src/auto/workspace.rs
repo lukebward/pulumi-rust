@@ -225,6 +225,59 @@ pub struct StackDeployment {
     pub deployment: Value,
 }
 
+/// Options for [`LocalWorkspace::list_stacks_with_options`], mirroring
+/// Go's `optlist.Options`.
+#[derive(Debug, Clone, Default)]
+pub struct ListOptions {
+    /// List every stack on the backend, not just the current project's.
+    pub all: bool,
+}
+
+/// Options for [`LocalWorkspace::new_project`] (`pulumi new`), mirroring
+/// Go's `NewOptions`.
+#[derive(Debug, Clone, Default)]
+pub struct NewOptions {
+    /// The template name or URL; a local template directory also works.
+    pub template_or_url: Option<String>,
+    /// The prompt to use for Pulumi AI.
+    pub ai: Option<String>,
+    /// Config values to save, as `key=value` strings.
+    pub config: Vec<String>,
+    /// Config keys contain a path to a property in a map or list to set.
+    pub config_path: bool,
+    pub description: Option<String>,
+    /// Where to place the generated project; defaults to the work dir.
+    pub dir: Option<PathBuf>,
+    /// Generate content even if it would change existing files.
+    pub force: bool,
+    /// Generate the project only: no stack, no config, no dependencies.
+    pub generate_only: bool,
+    /// The language to use for Pulumi AI.
+    pub language: Option<String>,
+    /// List locally installed templates and exit.
+    pub list_templates: bool,
+    /// The project name.
+    pub name: Option<String>,
+    /// Use locally cached templates without network requests.
+    pub offline: bool,
+    /// Store stack configuration remotely.
+    pub remote_stack_config: bool,
+    /// Additional language-runtime options, as `key=value` strings.
+    pub runtime_options: Vec<String>,
+    pub secrets_provider: Option<String>,
+    /// The stack name: an existing stack or one to create.
+    pub stack: Option<String>,
+    /// Skip prompting for AI or template functionality.
+    pub template_mode: bool,
+}
+
+/// The result of [`LocalWorkspace::new_project`].
+#[derive(Debug, Clone, Default)]
+pub struct NewResult {
+    pub stdout: String,
+    pub stderr: String,
+}
+
 /// Options for `pulumi install`.
 #[derive(Debug, Clone, Default)]
 pub struct InstallOptions {
@@ -545,8 +598,20 @@ impl LocalWorkspace {
 
     /// `pulumi stack ls --json`.
     pub async fn list_stacks(&self) -> Result<Vec<StackSummary>> {
+        self.list_stacks_with_options(&ListOptions::default()).await
+    }
+
+    /// `pulumi stack ls --json`, with `--all` when asked for.
+    pub async fn list_stacks_with_options(
+        &self,
+        options: &ListOptions,
+    ) -> Result<Vec<StackSummary>> {
+        let mut args = svec(["stack", "ls", "--json"]);
+        if options.all {
+            args.push("--all".to_string());
+        }
         let result = self
-            .run_cmd(svec(["stack", "ls", "--json"]))
+            .run_cmd(args)
             .await
             .map_err(|e| e.with_context("failed to list stacks"))?;
         Ok(serde_json::from_str(&result.stdout)?)
@@ -644,6 +709,28 @@ impl LocalWorkspace {
         self.run_cmd(args)
             .await
             .map_err(|e| e.with_context("failed to set config"))?;
+        Ok(())
+    }
+
+    /// `pulumi config set-all --json`: the whole map in one JSON string,
+    /// in the format `pulumi config --json` produces. Only the
+    /// `config_file` option applies; the CLI rejects `--path` with
+    /// `--json`.
+    pub async fn set_all_config_json(
+        &self,
+        stack_name: &str,
+        config_json: &str,
+        options: &ConfigOptions,
+    ) -> Result<()> {
+        let mut args = svec(["config", "set-all", "--stack", stack_name, "--json"]);
+        args.push(config_json.to_string());
+        if let Some(file) = &options.config_file {
+            args.push("--config-file".to_string());
+            args.push(file.display().to_string());
+        }
+        self.run_cmd(args)
+            .await
+            .map_err(|e| e.with_context("failed to set config from JSON"))?;
         Ok(())
     }
 
@@ -822,6 +909,74 @@ impl LocalWorkspace {
             .await
             .map_err(|e| e.with_context("failed to install"))?;
         Ok(())
+    }
+
+    /// `pulumi new`: create a project (and optionally a stack) from a
+    /// template. Flags follow Go's serialization: `--yes` always, options
+    /// in flag order, and the template as a positional after `--`.
+    pub async fn new_project(&self, options: &NewOptions) -> Result<NewResult> {
+        let mut args = svec(["new", "--yes"]);
+        if let Some(ai) = &options.ai {
+            args.extend(svec(["--ai", ai]));
+        }
+        for config in &options.config {
+            args.extend(svec(["--config", config]));
+        }
+        if options.config_path {
+            args.push("--config-path".to_string());
+        }
+        if let Some(description) = &options.description {
+            args.extend(svec(["--description", description]));
+        }
+        if let Some(dir) = &options.dir {
+            args.push("--dir".to_string());
+            args.push(dir.display().to_string());
+        }
+        if options.force {
+            args.push("--force".to_string());
+        }
+        if options.generate_only {
+            args.push("--generate-only".to_string());
+        }
+        if let Some(language) = &options.language {
+            args.extend(svec(["--language", language]));
+        }
+        if options.list_templates {
+            args.push("--list-templates".to_string());
+        }
+        if let Some(name) = &options.name {
+            args.extend(svec(["--name", name]));
+        }
+        if options.offline {
+            args.push("--offline".to_string());
+        }
+        if options.remote_stack_config {
+            args.push("--remote-stack-config".to_string());
+        }
+        for runtime_option in &options.runtime_options {
+            args.extend(svec(["--runtime-options", runtime_option]));
+        }
+        if let Some(provider) = &options.secrets_provider {
+            args.extend(svec(["--secrets-provider", provider]));
+        }
+        if let Some(stack) = &options.stack {
+            args.extend(svec(["--stack", stack]));
+        }
+        if options.template_mode {
+            args.push("--template-mode".to_string());
+        }
+        if let Some(template) = &options.template_or_url {
+            args.push("--".to_string());
+            args.push(template.clone());
+        }
+        let result = self
+            .run_cmd(args)
+            .await
+            .map_err(|e| e.with_context("could not create new project"))?;
+        Ok(NewResult {
+            stdout: result.stdout,
+            stderr: result.stderr,
+        })
     }
 
     // ---- state ----
@@ -1038,6 +1193,165 @@ mod tests {
                 "--secret",
                 "ns:secret=b"
             ])
+        );
+    }
+
+    #[tokio::test]
+    async fn set_all_config_json_places_json_after_flag() {
+        let (recorder, ws) = recording_workspace().await;
+        let json = r#"{"ns:plain":{"value":"a","secret":false}}"#;
+        ws.set_all_config_json("dev", json, &ConfigOptions::default())
+            .await
+            .unwrap();
+        ws.set_all_config_json(
+            "dev",
+            json,
+            &ConfigOptions {
+                config_file: Some(PathBuf::from("cfg.yaml")),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let args = recorder.recorded_args();
+        assert_eq!(
+            args[0],
+            svec(["config", "set-all", "--stack", "dev", "--json", json])
+        );
+        assert_eq!(
+            args[1],
+            svec([
+                "config",
+                "set-all",
+                "--stack",
+                "dev",
+                "--json",
+                json,
+                "--config-file",
+                "cfg.yaml"
+            ])
+        );
+    }
+
+    /// Ports go:TestNewOptions: argv per option, alone and combined.
+    #[tokio::test]
+    async fn new_project_maps_each_option_to_its_flag() {
+        let (recorder, ws) = recording_workspace().await;
+
+        // No options: no `--` separator without a positional template.
+        ws.new_project(&NewOptions::default()).await.unwrap();
+
+        // The template travels after a `--` separator.
+        ws.new_project(&NewOptions {
+            template_or_url: Some("typescript".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+        // Name and generate-only; no template, so no `--`.
+        ws.new_project(&NewOptions {
+            name: Some("my-project".to_string()),
+            generate_only: true,
+            force: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+        // Config values and template.
+        ws.new_project(&NewOptions {
+            template_or_url: Some("aws-typescript".to_string()),
+            config: vec![
+                "aws:region=us-east-1".to_string(),
+                "project:env=dev".to_string(),
+            ],
+            config_path: true,
+            description: Some("A test project".to_string()),
+            stack: Some("dev".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+        // Every boolean flag at once.
+        ws.new_project(&NewOptions {
+            template_or_url: Some("yaml".to_string()),
+            config_path: true,
+            force: true,
+            generate_only: true,
+            list_templates: true,
+            offline: true,
+            remote_stack_config: true,
+            template_mode: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+        let args = recorder.recorded_args();
+        assert_eq!(args[0], svec(["new", "--yes"]));
+        assert_eq!(args[1], svec(["new", "--yes", "--", "typescript"]));
+        assert_eq!(
+            args[2],
+            svec([
+                "new",
+                "--yes",
+                "--force",
+                "--generate-only",
+                "--name",
+                "my-project"
+            ])
+        );
+        assert_eq!(
+            args[3],
+            svec([
+                "new",
+                "--yes",
+                "--config",
+                "aws:region=us-east-1",
+                "--config",
+                "project:env=dev",
+                "--config-path",
+                "--description",
+                "A test project",
+                "--stack",
+                "dev",
+                "--",
+                "aws-typescript"
+            ])
+        );
+        assert_eq!(
+            args[4],
+            svec([
+                "new",
+                "--yes",
+                "--config-path",
+                "--force",
+                "--generate-only",
+                "--list-templates",
+                "--offline",
+                "--remote-stack-config",
+                "--template-mode",
+                "--",
+                "yaml"
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn list_stacks_all_appends_the_all_flag() {
+        let (recorder, ws) = recording_workspace().await;
+        recorder.push_result(Ok(CommandResult {
+            stdout: "[]".to_string(),
+            ..Default::default()
+        }));
+        ws.list_stacks_with_options(&ListOptions { all: true })
+            .await
+            .unwrap();
+        assert_eq!(
+            recorder.recorded_args()[0],
+            svec(["stack", "ls", "--json", "--all"])
         );
     }
 

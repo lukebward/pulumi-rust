@@ -445,6 +445,35 @@ async fn nested_on_disk_config_reads_as_json_strings() {
     );
 }
 
+/// set_all_config_json round-trips plain and secret keys through
+/// get_all_config, mirroring Python's test_set_all_config_json.
+#[tokio::test]
+async fn set_all_config_json_round_trips() {
+    require_cli!();
+    let env = TestEnv::new();
+    let stack = local_source_stack(&env, "name: jsoncfg\nruntime: yaml\n").await;
+
+    let config_json = serde_json::json!({
+        "jsoncfg:plainKey": {"value": "plainValue", "secret": false},
+        "jsoncfg:secretKey": {"value": "secretValue", "secret": true},
+        "jsoncfg:numberKey": {"value": "42", "secret": false},
+    })
+    .to_string();
+    stack
+        .workspace()
+        .set_all_config_json("dev", &config_json, &ConfigOptions::default())
+        .await
+        .expect("set-all from JSON");
+
+    let all = stack.get_all_config().await.expect("get-all");
+    assert_eq!(all["jsoncfg:plainKey"].value, "plainValue");
+    assert!(!all["jsoncfg:plainKey"].secret);
+    assert_eq!(all["jsoncfg:secretKey"].value, "secretValue");
+    assert!(all["jsoncfg:secretKey"].secret);
+    assert_eq!(all["jsoncfg:numberKey"].value, "42");
+    assert!(!all["jsoncfg:numberKey"].secret);
+}
+
 /// save_stack_settings round-trips an edited config value into up outputs
 /// and preserves the encryption fields on reload.
 #[tokio::test]

@@ -163,15 +163,18 @@ hermetic; run them with the CLI installed to get the full check.
 
 Deliberately not ported from the Go `auto` package, in rough order of
 likely demand: remote workspaces and git-sourced programs,
-`pulumi import` (`Stack.ImportResources`) and
-`stack rename`, per-command tee'd progress writers (captured output and
+per-command tee'd progress writers (captured output and
 engine events cover the same need), the gRPC event transport newer CLIs
 offer — the file-based `--event-log` works on every CLI version the SDK
-supports — and a tail of smaller options: `UserAgent` (`--exec-agent`),
-`AttachDebugger`, preview's `ImportFile`, refresh's
-`ClearPendingCreates`/`ImportPendingCreates`, `SetAllConfigJson`,
-`org get-default`/`set-default`, `stack ls --all`, and installing a
+supports — and a tail of smaller options:
+`AttachDebugger`, preview's `ImportFile`,
+`org get-default`/`set-default`, and installing a
 plugin from a custom server.
+
+CLI installation (`LocalPulumiCommand::install`) extracts the release
+tarball itself, so it works on Linux and macOS only; the Windows
+release is a zip the SDK does not extract yet, and `install` returns a
+clear error there.
 
 One behavior is stricter than Go's: inline programs in a single process
 are serialized, because the SDK keeps one active program context per

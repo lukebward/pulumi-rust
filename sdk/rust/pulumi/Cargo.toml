@@ -33,6 +33,14 @@ serde_json = "1"
 serde_yaml_ng = "0.10"
 # The automation API gates optional CLI flags on the `pulumi` version.
 semver = "1"
+# The automation API's CLI installer downloads release tarballs over HTTPS.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+# reqwest pulls this in via idna; 1.2.1+ switches to the ICU4X 2.x tree,
+# whose current releases need rustc newer than the 1.85 MSRV above, so
+# hold it where `cargo update` can see the bound.
+idna_adapter = ">=1.2.0, <1.2.1"
+flate2 = "1"
+tar = "0.4"
 base64 = "0.22"
 sha1 = "0.10"
 sha2 = "0.10"

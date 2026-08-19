@@ -60,9 +60,9 @@
 //! guarded, as in Go: it fails fast with Go's "nested stack operations
 //! are not supported" error. A local-source operation nests freely.
 //!
-//! Not yet ported from Go: remote workspaces and git sources, the
-//! `pulumi import`/`stack rename` operations, and a handful of smaller
-//! options — `docs/known-limitations.md` keeps the complete list.
+//! Not yet ported from Go: remote workspaces and git sources, and a
+//! handful of smaller options — `docs/known-limitations.md` keeps the
+//! complete list.
 
 pub mod cmd;
 pub mod errors;
@@ -79,13 +79,15 @@ pub use cmd::{CommandSpec, LocalPulumiCommand, PulumiCommand, PulumiCommandOptio
 pub use errors::{CommandResult, Error, Result};
 pub use events::EngineEvent;
 pub use stack::{
-    fully_qualified_stack_name, DebugLoggingOptions, DestroyOptions, DestroyResult, PreviewOptions,
-    PreviewResult, RefreshOptions, RefreshResult, Stack, UpOptions, UpResult, UpdateSummary,
+    fully_qualified_stack_name, DebugLoggingOptions, DestroyOptions, DestroyResult, ImportOptions,
+    ImportResource, ImportResult, PendingCreate, PreviewOptions, PreviewResult, RefreshOptions,
+    RefreshResult, RenameOptions, RenameResult, Stack, UpOptions, UpResult, UpdateSummary,
 };
 pub use workspace::{
-    ConfigMap, ConfigOptions, ConfigValue, InstallOptions, LocalWorkspace, LocalWorkspaceOptions,
-    OutputMap, OutputValue, PluginInfo, ProjectRuntimeInfo, ProjectSettings, StackDeployment,
-    StackSettings, StackSettingsConfigValue, StackSummary, WhoAmIResult,
+    ConfigMap, ConfigOptions, ConfigValue, InstallOptions, ListOptions, LocalWorkspace,
+    LocalWorkspaceOptions, NewOptions, NewResult, OutputMap, OutputValue, PluginInfo,
+    ProjectRuntimeInfo, ProjectSettings, StackDeployment, StackSettings, StackSettingsConfigValue,
+    StackSummary, WhoAmIResult,
 };
 
 /// An inline Pulumi program: a closure the engine runs in-process during
