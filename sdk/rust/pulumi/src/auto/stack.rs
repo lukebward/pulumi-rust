@@ -16,10 +16,28 @@ use super::ProgramFn;
 
 /// A stack bound to a [`LocalWorkspace`]. The Rust analogue of the Go
 /// SDK's `auto.Stack`.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Stack {
     name: String,
     workspace: LocalWorkspace,
+    /// The `--remote*` arguments a remote stack injects into every
+    /// deployment operation; empty for local stacks.
+    remote_args: Vec<String>,
+}
+
+/// Manual so the remote args, which can carry plaintext secrets
+/// (git tokens, secret env vars, registry passwords), never print.
+impl std::fmt::Debug for Stack {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Stack")
+            .field("name", &self.name)
+            .field("workspace", &self.workspace)
+            .field(
+                "remote_args",
+                &format_args!("<{} redacted>", self.remote_args.len()),
+            )
+            .finish()
+    }
 }
 
 /// Build a fully qualified `org/project/stack` name.
@@ -32,14 +50,22 @@ impl Stack {
     pub async fn create(stack_name: impl Into<String>, workspace: LocalWorkspace) -> Result<Self> {
         let name = stack_name.into();
         workspace.create_stack(&name).await?;
-        Ok(Stack { name, workspace })
+        Ok(Stack {
+            name,
+            workspace,
+            remote_args: vec![],
+        })
     }
 
     /// Select an existing stack in the workspace.
     pub async fn select(stack_name: impl Into<String>, workspace: LocalWorkspace) -> Result<Self> {
         let name = stack_name.into();
         workspace.select_stack(&name).await?;
-        Ok(Stack { name, workspace })
+        Ok(Stack {
+            name,
+            workspace,
+            remote_args: vec![],
+        })
     }
 
     /// Select the stack, creating it if it does not exist yet.
@@ -49,10 +75,18 @@ impl Stack {
     ) -> Result<Self> {
         let name = stack_name.into();
         match workspace.select_stack(&name).await {
-            Ok(()) => Ok(Stack { name, workspace }),
+            Ok(()) => Ok(Stack {
+                name,
+                workspace,
+                remote_args: vec![],
+            }),
             Err(e) if e.is_select_stack_404_error() => {
                 workspace.create_stack(&name).await?;
-                Ok(Stack { name, workspace })
+                Ok(Stack {
+                    name,
+                    workspace,
+                    remote_args: vec![],
+                })
             }
             Err(e) => Err(e),
         }
@@ -68,6 +102,34 @@ impl Stack {
 
     pub fn workspace_mut(&mut self) -> &mut LocalWorkspace {
         &mut self.workspace
+    }
+
+    /// Bind a stack in remote mode: `remote_args` ride every deployment
+    /// operation, which then runs in Pulumi Deployments instead of here.
+    pub(crate) fn remote(
+        name: String,
+        workspace: LocalWorkspace,
+        remote_args: Vec<String>,
+    ) -> Self {
+        Stack {
+            name,
+            workspace,
+            remote_args,
+        }
+    }
+
+    fn is_remote(&self) -> bool {
+        !self.remote_args.is_empty()
+    }
+
+    /// A remote stack's history never decrypts secrets — that would need
+    /// the project file, which never exists locally — as in Go.
+    fn history_show_secrets(&self, requested: Option<bool>) -> Option<bool> {
+        if self.is_remote() {
+            Some(false)
+        } else {
+            requested
+        }
     }
 
     // ---- deployment operations ----
@@ -119,6 +181,7 @@ impl Stack {
                 run_program: options.run_program,
             },
         );
+        args.extend(self.remote_args.iter().cloned());
 
         let run = self.run_stack_cmd(args).await;
         if let Some(watcher) = watcher {
@@ -131,7 +194,7 @@ impl Stack {
 
         let outputs = self.outputs().await?;
         let summary = self
-            .history(Some(1), 1, options.show_secrets)
+            .history(Some(1), 1, self.history_show_secrets(options.show_secrets))
             .await?
             .into_iter()
             .next();
@@ -175,6 +238,7 @@ impl Stack {
                 run_program: options.run_program,
             },
         );
+        shared.extend(self.remote_args.iter().cloned());
 
         let mut args = svec(["preview"]);
         let server = self.start_language_server_unchecked().await?;
@@ -268,7 +332,11 @@ impl Stack {
             .map_err(|e| e.with_context("failed to import resources"))?;
 
         let summary = self
-            .history(Some(1), 1, Some(options.show_secrets))
+            .history(
+                Some(1),
+                1,
+                self.history_show_secrets(Some(options.show_secrets)),
+            )
             .await?
             .into_iter()
             .next();
@@ -323,6 +391,7 @@ impl Stack {
         if options.diff {
             args.push("--diff".to_string());
         }
+        args.extend(self.remote_args.iter().cloned());
 
         let server = self.start_language_server(&["refresh"]).await?;
         push_exec_kind(&mut args, &server);
@@ -350,7 +419,7 @@ impl Stack {
         let result = run.map_err(|e| e.with_context("failed to refresh stack"))?;
 
         let summary = self
-            .history(Some(1), 1, options.show_secrets)
+            .history(Some(1), 1, self.history_show_secrets(options.show_secrets))
             .await?
             .into_iter()
             .next();
@@ -401,6 +470,7 @@ impl Stack {
         if options.diff {
             args.push("--diff".to_string());
         }
+        args.extend(self.remote_args.iter().cloned());
 
         let server = self.start_language_server(&["refresh"]).await?;
         push_exec_kind(&mut args, &server);
@@ -436,7 +506,7 @@ impl Stack {
         // lookup below, and every later operation, must use the new one.
         self.name = options.stack_name;
         let summary = self
-            .history(Some(1), 1, options.show_secrets)
+            .history(Some(1), 1, self.history_show_secrets(options.show_secrets))
             .await?
             .into_iter()
             .next();
@@ -486,6 +556,7 @@ impl Stack {
 
         let server = self.start_language_server(&["destroy"]).await?;
         push_exec_kind(&mut args, &server);
+        args.extend(self.remote_args.iter().cloned());
         args.extend(svec(["--yes", "--skip-preview"]));
 
         let watcher = if options.event_senders.is_empty() {
@@ -511,7 +582,7 @@ impl Stack {
         let result = run.map_err(|e| e.with_context("failed to destroy stack"))?;
 
         let summary = self
-            .history(Some(1), 1, options.show_secrets)
+            .history(Some(1), 1, self.history_show_secrets(options.show_secrets))
             .await?
             .into_iter()
             .next();
@@ -572,6 +643,7 @@ impl Stack {
 
         let server = self.start_language_server(&["destroy"]).await?;
         push_exec_kind(&mut args, &server);
+        args.extend(self.remote_args.iter().cloned());
         args.push("--preview-only".to_string());
 
         let (watcher, collector) = tail_summary_events("destroy", &options.event_senders)?;
@@ -721,6 +793,10 @@ impl Stack {
         args.extend(tail);
 
         let mut env = vec![("PULUMI_DEBUG_COMMANDS".to_string(), "true".to_string())];
+        if self.is_remote() {
+            // Remote operations sit behind the CLI's experimental flag.
+            env.push(("PULUMI_EXPERIMENTAL".to_string(), "true".to_string()));
+        }
         env.extend(self.workspace.base_env());
         self.workspace
             .command()
@@ -1401,6 +1477,7 @@ mod tests {
             Stack {
                 name: "dev".to_string(),
                 workspace: ws,
+                remote_args: vec![],
             },
         )
     }
@@ -1738,6 +1815,7 @@ mod tests {
         let stack = Stack {
             name: "dev".to_string(),
             workspace: ws,
+            remote_args: vec![],
         };
 
         let err = stack

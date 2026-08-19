@@ -162,14 +162,24 @@ themselves when `pulumi` is not on `PATH`, so `make test_sdk` stays
 hermetic; run them with the CLI installed to get the full check.
 
 Deliberately not ported from the Go `auto` package, in rough order of
-likely demand: remote workspaces,
-per-command tee'd progress writers (captured output and
+likely demand: per-command tee'd progress writers (captured output and
 engine events cover the same need), the gRPC event transport newer CLIs
 offer — the file-based `--event-log` works on every CLI version the SDK
 supports — and a tail of smaller options:
 `AttachDebugger`, preview's `ImportFile`,
 `org get-default`/`set-default`, and installing a
 plugin from a custom server.
+
+Remote workspaces (Pulumi Deployments) are ported: the `RemoteStack`
+surface, the client-side validation (Go's exact error strings and
+precedence), the `--remote*` flag serialization, and the CLI
+remote-support gate all match the Go SDK, verified by unit tests against
+a recorded mock. Live execution is not covered by any local test: it
+requires Pulumi Deployments, so the integration test
+(`tests/auto_remote.rs`) skips quietly unless `PULUMI_ACCESS_TOKEN` holds
+a token with Deployments access. One validation check has no Rust
+counterpart: Go rejects a `repo.Setup` function on remote workspaces,
+while `RemoteGitRepo` carries no such field to reject.
 
 Git-sourced local workspaces (`GitRepo` on `LocalWorkspaceOptions`) are
 ported, with one divergence: where Go clones in-process with go-git, the

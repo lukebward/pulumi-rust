@@ -60,15 +60,17 @@
 //! guarded, as in Go: it fails fast with Go's "nested stack operations
 //! are not supported" error. A local-source operation nests freely.
 //!
-//! Not yet ported from Go: remote workspaces, and a handful of smaller
-//! options — `docs/known-limitations.md` keeps the complete list.
-//! Git-sourced local workspaces are supported via [`GitRepo`], shelling
-//! out to the system `git` binary.
+//! Not yet ported from Go: a handful of smaller options —
+//! `docs/known-limitations.md` keeps the complete list. Git-sourced local
+//! workspaces are supported via [`GitRepo`], shelling out to the system
+//! `git` binary; remote workspaces (Pulumi Deployments) via
+//! [`RemoteStack`].
 
 pub mod cmd;
 pub mod errors;
 pub mod events;
 mod git;
+mod remote;
 mod server;
 mod stack;
 mod workspace;
@@ -81,6 +83,11 @@ pub use cmd::{CommandSpec, LocalPulumiCommand, PulumiCommand, PulumiCommandOptio
 pub use errors::{CommandResult, Error, Result};
 pub use events::EngineEvent;
 pub use git::{GitAuth, GitRepo, SetupFn};
+pub use remote::{
+    is_fully_qualified_stack_name, DockerImageCredentials, EnvVarValue, ExecutorImage,
+    RemoteDestroyOptions, RemoteGitRepo, RemotePreviewOptions, RemoteRefreshOptions, RemoteStack,
+    RemoteUpOptions, RemoteWorkspaceOptions,
+};
 pub use stack::{
     fully_qualified_stack_name, DebugLoggingOptions, DestroyOptions, DestroyResult, ImportOptions,
     ImportResource, ImportResult, PendingCreate, PreviewOptions, PreviewResult, RefreshOptions,
