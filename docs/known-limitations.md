@@ -162,8 +162,8 @@ themselves when `pulumi` is not on `PATH`, so `make test_sdk` stays
 hermetic; run them with the CLI installed to get the full check.
 
 Deliberately not ported from the Go `auto` package, in rough order of
-likely demand: remote workspaces and git-sourced programs, preview-only
-refresh/destroy variants, `pulumi import` (`Stack.ImportResources`) and
+likely demand: remote workspaces and git-sourced programs,
+`pulumi import` (`Stack.ImportResources`) and
 `stack rename`, per-command tee'd progress writers (captured output and
 engine events cover the same need), the gRPC event transport newer CLIs
 offer — the file-based `--event-log` works on every CLI version the SDK

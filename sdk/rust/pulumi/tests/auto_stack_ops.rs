@@ -1,8 +1,9 @@
 //! Integration tests for stack operations and per-operation lifecycle
 //! options: create-or-select, force removal, workspace stack CRUD, tags,
-//! plugins, and the refresh/plan/run-program flags on up, preview,
-//! refresh, and destroy. Same harness as auto.rs: a real `pulumi` CLI
-//! against an isolated file backend, skipping when the CLI is absent.
+//! plugins, preview-only refresh/destroy, and the refresh/plan/run-program
+//! flags on up, preview, refresh, and destroy. Same harness as auto.rs: a
+//! real `pulumi` CLI against an isolated file backend, skipping when the
+//! CLI is absent.
 
 mod common;
 
@@ -358,6 +359,233 @@ async fn refresh_option_runs_a_refresh() {
         destroy.stdout.to_lowercase().contains("refresh"),
         "stdout: {}",
         destroy.stdout
+    );
+}
+
+/// preview_refresh reports the up'd stack as one Same and adopts nothing:
+/// the history still holds only the update.
+#[tokio::test]
+async fn preview_refresh_reports_sames_without_refreshing() {
+    require_cli!();
+    let env = TestEnv::new();
+    let program = auto::program(|ctx| async move {
+        ctx.export("n", pulumi::PropertyValue::Number(1.0));
+        Ok(())
+    });
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            program: Some(program),
+            project_settings: Some(ProjectSettings::new("prev-refresh", "rust")),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create_or_select("dev", ws).await.expect("stack");
+    stack.up(UpOptions::default()).await.expect("up");
+
+    let preview = stack
+        .preview_refresh(RefreshOptions::default())
+        .await
+        .expect("preview refresh");
+    assert_eq!(
+        preview.change_summary.len(),
+        1,
+        "{:?}",
+        preview.change_summary
+    );
+    assert_eq!(
+        preview.change_summary.get(&auto::events::OpType::Same),
+        Some(&1),
+        "changes: {:?}",
+        preview.change_summary
+    );
+
+    // Nothing ran: no refresh entry joined the history.
+    let history = stack.history(None, 0, None).await.expect("history");
+    assert_eq!(history.len(), 1, "history: {history:?}");
+    assert_eq!(history[0].kind, "update");
+
+    stack
+        .destroy(DestroyOptions {
+            remove: true,
+            ..Default::default()
+        })
+        .await
+        .expect("destroy");
+}
+
+/// preview_refresh on a stack with a component resource counts the stack
+/// root and the component as Sames.
+#[tokio::test]
+async fn preview_refresh_with_resource_counts_all_sames() {
+    require_cli!();
+    let env = TestEnv::new();
+    let program = auto::program(|ctx| async move {
+        ctx.register_resource(pulumi::RegisterRequest {
+            type_: "my:module:MyResource".to_string(),
+            name: "res".to_string(),
+            custom: false,
+            ..Default::default()
+        });
+        Ok(())
+    });
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            program: Some(program),
+            project_settings: Some(ProjectSettings::new("prev-refresh-res", "rust")),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create_or_select("dev", ws).await.expect("stack");
+    stack.up(UpOptions::default()).await.expect("up");
+
+    let preview = stack
+        .preview_refresh(RefreshOptions {
+            expect_no_changes: true,
+            ..Default::default()
+        })
+        .await
+        .expect("preview refresh");
+    assert_eq!(
+        preview.change_summary.len(),
+        1,
+        "{:?}",
+        preview.change_summary
+    );
+    assert_eq!(
+        preview.change_summary.get(&auto::events::OpType::Same),
+        Some(&2),
+        "changes: {:?}",
+        preview.change_summary
+    );
+
+    stack
+        .destroy(DestroyOptions {
+            remove: true,
+            ..Default::default()
+        })
+        .await
+        .expect("destroy");
+}
+
+/// preview_destroy reports the pending delete and deletes nothing: the
+/// outputs are still there afterward, and the real destroy then reports
+/// the same count.
+#[tokio::test]
+async fn preview_destroy_reports_deletes_without_destroying() {
+    require_cli!();
+    let env = TestEnv::new();
+    let program = auto::program(|ctx| async move {
+        ctx.export("n", pulumi::PropertyValue::Number(1.0));
+        Ok(())
+    });
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            program: Some(program),
+            project_settings: Some(ProjectSettings::new("prev-destroy", "rust")),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create_or_select("dev", ws).await.expect("stack");
+    stack.up(UpOptions::default()).await.expect("up");
+
+    let preview = stack
+        .preview_destroy(DestroyOptions::default())
+        .await
+        .expect("preview destroy");
+    assert_eq!(
+        preview.change_summary.len(),
+        1,
+        "{:?}",
+        preview.change_summary
+    );
+    assert_eq!(
+        preview.change_summary.get(&auto::events::OpType::Delete),
+        Some(&1),
+        "changes: {:?}",
+        preview.change_summary
+    );
+
+    let outputs = stack.outputs().await.expect("outputs");
+    assert!(!outputs.is_empty(), "the preview must not delete anything");
+
+    let destroy = stack
+        .destroy(DestroyOptions {
+            remove: true,
+            ..Default::default()
+        })
+        .await
+        .expect("destroy");
+    let summary = destroy.summary.expect("destroy summary");
+    assert_eq!(summary.kind, "destroy");
+    assert_eq!(summary.result.as_deref(), Some("succeeded"));
+    assert_eq!(
+        summary
+            .resource_changes
+            .as_ref()
+            .and_then(|c| c.get("delete")),
+        Some(&1),
+        "changes: {:?}",
+        summary.resource_changes
+    );
+}
+
+/// preview_destroy on a stack with a component resource counts the stack
+/// root and the component as Deletes.
+#[tokio::test]
+async fn preview_destroy_with_resource_counts_all_deletes() {
+    require_cli!();
+    let env = TestEnv::new();
+    let program = auto::program(|ctx| async move {
+        ctx.register_resource(pulumi::RegisterRequest {
+            type_: "my:module:MyResource".to_string(),
+            name: "res".to_string(),
+            custom: false,
+            ..Default::default()
+        });
+        Ok(())
+    });
+    let ws = env
+        .workspace(LocalWorkspaceOptions {
+            program: Some(program),
+            project_settings: Some(ProjectSettings::new("prev-destroy-res", "rust")),
+            ..Default::default()
+        })
+        .await;
+    let stack = Stack::create_or_select("dev", ws).await.expect("stack");
+    stack.up(UpOptions::default()).await.expect("up");
+
+    let preview = stack
+        .preview_destroy(DestroyOptions::default())
+        .await
+        .expect("preview destroy");
+    assert_eq!(
+        preview.change_summary.len(),
+        1,
+        "{:?}",
+        preview.change_summary
+    );
+    assert_eq!(
+        preview.change_summary.get(&auto::events::OpType::Delete),
+        Some(&2),
+        "changes: {:?}",
+        preview.change_summary
+    );
+
+    let destroy = stack
+        .destroy(DestroyOptions {
+            remove: true,
+            ..Default::default()
+        })
+        .await
+        .expect("destroy");
+    assert_eq!(
+        destroy
+            .summary
+            .expect("destroy summary")
+            .resource_changes
+            .as_ref()
+            .and_then(|c| c.get("delete")),
+        Some(&2)
     );
 }
 

@@ -182,23 +182,7 @@ impl Stack {
             args.push("--json".to_string());
         }
 
-        // The preview's change summary only exists as an engine event, so
-        // the event log is always tailed, with an internal subscription
-        // ahead of the caller's. The subscription is drained as events
-        // arrive — a large preview must not accumulate in memory.
-        let (summary_tx, mut summary_rx) = tokio::sync::mpsc::unbounded_channel::<EngineEvent>();
-        let collector = tokio::spawn(async move {
-            let mut summaries: Vec<SummaryEvent> = vec![];
-            while let Some(event) = summary_rx.recv().await {
-                if let Some(summary) = event.summary_event {
-                    summaries.push(summary);
-                }
-            }
-            summaries
-        });
-        let mut senders = vec![summary_tx];
-        senders.extend(options.event_senders.clone());
-        let watcher = EventLogWatcher::start("preview", senders)?;
+        let (watcher, collector) = tail_summary_events("preview", &options.event_senders)?;
         args.push("--event-log".to_string());
         args.push(watcher.path().display().to_string());
 
@@ -290,6 +274,67 @@ impl Stack {
         })
     }
 
+    /// Preview the changes a [`Stack::refresh`] would adopt, without
+    /// adopting them (`pulumi refresh --preview-only`).
+    pub async fn preview_refresh(&self, options: RefreshOptions) -> Result<PreviewResult> {
+        ensure_not_nested(&self.workspace)?;
+        // 3.105.0 added --preview-only
+        // (https://github.com/pulumi/pulumi/releases/tag/v3.105.0).
+        self.workspace.require_version(3, 105, "PreviewRefresh")?;
+        let mut args = svec(["refresh"]);
+        args.extend(options.debug.args());
+        args.push("--preview-only".to_string());
+        push_shared_options(
+            &mut args,
+            SharedOptions {
+                message: &options.message,
+                expect_no_changes: options.expect_no_changes,
+                diff: false,
+                replace: &[],
+                target: &options.target,
+                exclude: &options.exclude,
+                policy_packs: &[],
+                policy_pack_configs: &[],
+                target_dependents: options.target_dependents,
+                exclude_dependents: options.exclude_dependents,
+                parallel: options.parallel,
+                color: &options.color,
+                plan: None,
+                refresh: false,
+                suppress_outputs: options.suppress_outputs,
+                suppress_progress: options.suppress_progress,
+                continue_on_error: false,
+                config_file: &options.config_file,
+                run_program: options.run_program,
+            },
+        );
+        if options.diff {
+            args.push("--diff".to_string());
+        }
+
+        let server = self.start_language_server(&["refresh"]).await?;
+        push_exec_kind(&mut args, &server);
+
+        let (watcher, collector) = tail_summary_events("refresh", &options.event_senders)?;
+        args.push("--event-log".to_string());
+        args.push(watcher.path().display().to_string());
+
+        let run = self.run_stack_cmd(args).await;
+        watcher.close().await;
+        if let Some(server) = server {
+            server.close().await;
+        }
+        let summaries = collector.await.unwrap_or_default();
+        let result = run.map_err(|e| e.with_context("failed to preview refresh"))?;
+
+        let summary = single_summary(summaries, &result, "preview refresh")?;
+        Ok(PreviewResult {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            change_summary: summary.resource_changes.into_iter().collect(),
+        })
+    }
+
     /// Delete every resource in the stack (`pulumi destroy`).
     pub async fn destroy(&self, options: DestroyOptions) -> Result<DestroyResult> {
         ensure_not_nested(&self.workspace)?;
@@ -367,6 +412,71 @@ impl Stack {
             stdout: result.stdout,
             stderr: result.stderr,
             summary,
+        })
+    }
+
+    /// Preview the deletions a [`Stack::destroy`] would perform, without
+    /// performing them (`pulumi destroy --preview-only`). The `remove`
+    /// and `show_secrets` options do not apply, as in Go.
+    pub async fn preview_destroy(&self, options: DestroyOptions) -> Result<PreviewResult> {
+        ensure_not_nested(&self.workspace)?;
+        // 3.105.0 added --preview-only
+        // (https://github.com/pulumi/pulumi/releases/tag/v3.105.0).
+        self.workspace.require_version(3, 105, "PreviewDestroy")?;
+        let mut args = svec(["destroy"]);
+        args.extend(options.debug.args());
+        push_shared_options(
+            &mut args,
+            SharedOptions {
+                message: &options.message,
+                expect_no_changes: false,
+                diff: false,
+                replace: &[],
+                target: &options.target,
+                exclude: &options.exclude,
+                policy_packs: &[],
+                policy_pack_configs: &[],
+                target_dependents: options.target_dependents,
+                exclude_dependents: options.exclude_dependents,
+                parallel: options.parallel,
+                color: &options.color,
+                plan: None,
+                refresh: options.refresh,
+                suppress_outputs: options.suppress_outputs,
+                suppress_progress: options.suppress_progress,
+                continue_on_error: options.continue_on_error,
+                config_file: &options.config_file,
+                run_program: options.run_program,
+            },
+        );
+        if options.diff {
+            args.push("--diff".to_string());
+        }
+        if options.exclude_protected {
+            args.push("--exclude-protected".to_string());
+        }
+
+        let server = self.start_language_server(&["destroy"]).await?;
+        push_exec_kind(&mut args, &server);
+        args.push("--preview-only".to_string());
+
+        let (watcher, collector) = tail_summary_events("destroy", &options.event_senders)?;
+        args.push("--event-log".to_string());
+        args.push(watcher.path().display().to_string());
+
+        let run = self.run_stack_cmd(args).await;
+        watcher.close().await;
+        if let Some(server) = server {
+            server.close().await;
+        }
+        let summaries = collector.await.unwrap_or_default();
+        let result = run.map_err(|e| e.with_context("failed to preview destroy"))?;
+
+        let summary = single_summary(summaries, &result, "preview destroy")?;
+        Ok(PreviewResult {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            change_summary: summary.resource_changes.into_iter().collect(),
         })
     }
 
@@ -875,6 +985,31 @@ fn permalink_from(stdout: &str) -> Result<String> {
     Ok(rest[..end].trim_end_matches('\r').to_string())
 }
 
+/// Tail an operation's event log for its change summary: the summary only
+/// exists as an engine event, so an internal subscription rides ahead of
+/// the caller's senders, drained as events arrive — a large operation
+/// must not accumulate in memory. The returned task resolves with the
+/// collected summary events once the watcher closes.
+fn tail_summary_events(
+    command: &str,
+    event_senders: &[UnboundedSender<EngineEvent>],
+) -> Result<(EventLogWatcher, tokio::task::JoinHandle<Vec<SummaryEvent>>)> {
+    let (summary_tx, mut summary_rx) = tokio::sync::mpsc::unbounded_channel::<EngineEvent>();
+    let collector = tokio::spawn(async move {
+        let mut summaries: Vec<SummaryEvent> = vec![];
+        while let Some(event) = summary_rx.recv().await {
+            if let Some(summary) = event.summary_event {
+                summaries.push(summary);
+            }
+        }
+        summaries
+    });
+    let mut senders = vec![summary_tx];
+    senders.extend(event_senders.iter().cloned());
+    let watcher = EventLogWatcher::start(command, senders)?;
+    Ok((watcher, collector))
+}
+
 /// Pull exactly one summary event out of the collected set; zero or
 /// several is an error, reported with the operation's streams attached.
 fn single_summary(
@@ -1276,6 +1411,110 @@ mod tests {
                 "dev"
             ])
         );
+    }
+
+    #[tokio::test]
+    async fn preview_refresh_assembles_expected_args() {
+        let (recorder, stack) = recording_stack().await;
+        // The command "succeeds" but writes no events, so the summary is
+        // missing and the op must fail like Go's does.
+        let err = stack
+            .preview_refresh(RefreshOptions {
+                expect_no_changes: true,
+                diff: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("failed to get preview refresh summary"),
+            "unexpected error: {err}"
+        );
+
+        let args = &recorder.recorded_args()[0];
+        assert_eq!(
+            args[..6],
+            svec([
+                "refresh",
+                "--preview-only",
+                "--expect-no-changes",
+                "--diff",
+                "--exec-kind=auto.local",
+                "--event-log"
+            ])
+        );
+        assert!(args[6].ends_with("eventlog.txt"));
+        assert_eq!(&args[7..], &["--stack", "dev"]);
+    }
+
+    #[tokio::test]
+    async fn preview_destroy_assembles_expected_args() {
+        let (recorder, stack) = recording_stack().await;
+        let err = stack
+            .preview_destroy(DestroyOptions {
+                exclude_protected: true,
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("failed to get preview destroy summary"),
+            "unexpected error: {err}"
+        );
+
+        let args = &recorder.recorded_args()[0];
+        assert_eq!(
+            args[..5],
+            svec([
+                "destroy",
+                "--exclude-protected",
+                "--exec-kind=auto.local",
+                "--preview-only",
+                "--event-log"
+            ])
+        );
+        assert!(args[5].ends_with("eventlog.txt"));
+        assert_eq!(&args[6..], &["--stack", "dev"]);
+    }
+
+    #[tokio::test]
+    async fn preview_variants_require_cli_3_105() {
+        let recorder = Arc::new(RecordingCommand {
+            version: semver::Version::new(3, 104, 2),
+            ..Default::default()
+        });
+        let ws = LocalWorkspace::new(LocalWorkspaceOptions {
+            pulumi_command: Some(recorder.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        let stack = Stack {
+            name: "dev".to_string(),
+            workspace: ws,
+        };
+
+        let err = stack
+            .preview_refresh(RefreshOptions::default())
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("PreviewRefresh requires Pulumi CLI version >= 3.105.0"),
+            "unexpected error: {err}"
+        );
+        let err = stack
+            .preview_destroy(DestroyOptions::default())
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("PreviewDestroy requires Pulumi CLI version >= 3.105.0"),
+            "unexpected error: {err}"
+        );
+        assert!(recorder.recorded_args().is_empty(), "no CLI run expected");
     }
 
     #[tokio::test]

@@ -490,7 +490,7 @@ impl LocalWorkspace {
             .await
     }
 
-    fn require_version(&self, major: u64, minor: u64, what: &str) -> Result<()> {
+    pub(crate) fn require_version(&self, major: u64, minor: u64, what: &str) -> Result<()> {
         let version = self.command.version();
         // 0.0.0 is the unparsable-version sentinel an explicit
         // PULUMI_AUTOMATION_API_SKIP_VERSION_CHECK stores; the skip

@@ -61,9 +61,8 @@
 //! are not supported" error. A local-source operation nests freely.
 //!
 //! Not yet ported from Go: remote workspaces and git sources, the
-//! `pulumi import`/`stack rename` operations, preview-only refresh and
-//! destroy variants, and a handful of smaller options —
-//! `docs/known-limitations.md` keeps the complete list.
+//! `pulumi import`/`stack rename` operations, and a handful of smaller
+//! options — `docs/known-limitations.md` keeps the complete list.
 
 pub mod cmd;
 pub mod errors;
