@@ -39,11 +39,10 @@ async fn remote_git_source_full_lifecycle() {
         return;
     }
 
-    let stack_name = format!(
-        "{}/rust_remote_proj/int_test{}",
-        test_org(),
-        random_suffix()
-    );
+    // The project must be goproj's own project name (test-repo pins it as
+    // go_remote_proj); Deployments rejects a stack whose project component
+    // does not match the program's Pulumi.yaml.
+    let stack_name = format!("{}/go_remote_proj/int_test{}", test_org(), random_suffix());
     let repo = RemoteGitRepo {
         url: TEST_REPO.to_string(),
         project_path: Some("goproj".into()),

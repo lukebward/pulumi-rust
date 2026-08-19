@@ -20,7 +20,9 @@ use super::stack::{
     DestroyOptions, DestroyResult, PreviewOptions, PreviewResult, RefreshOptions, RefreshResult,
     Stack, UpOptions, UpResult, UpdateSummary,
 };
-use super::workspace::{svec, LocalWorkspace, LocalWorkspaceOptions, OutputMap, StackDeployment};
+use super::workspace::{
+    svec, LocalWorkspace, LocalWorkspaceOptions, OutputMap, ProjectSettings, StackDeployment,
+};
 
 /// Whether `stack_name` is fully qualified, i.e. has owner, project, and
 /// stack components (`owner/project/stack`).
@@ -413,6 +415,12 @@ impl RemoteStack {
         remote_args: Vec<String>,
         mode: InitMode,
     ) -> Result<Self> {
+        // CLI v3.211 through v3.255 read the project before honoring
+        // --remote on up/preview/refresh (pulumi/pulumi#24050), so the
+        // otherwise-empty workspace gets a stub project file for the
+        // stack's project. Remote operations never read past its presence.
+        let project = name.split('/').nth(1).unwrap_or_default();
+        workspace.save_project_settings(&ProjectSettings::new(project, "yaml"))?;
         match mode {
             InitMode::Create => create_remote_stack(&workspace, &name).await?,
             InitMode::Select => select_remote_stack(&workspace, &name).await?,
@@ -485,8 +493,9 @@ impl RemoteStack {
         self.stack.outputs().await
     }
 
-    /// `pulumi stack history --json`. Secrets stay encrypted: decrypting
-    /// them needs the project file, which a remote stack never has locally.
+    /// `pulumi stack history --json`. Secrets stay encrypted, as in Go:
+    /// the workspace holds only a stub project file, never the stack's
+    /// secrets configuration.
     pub async fn history(&self, page_size: Option<u32>, page: u32) -> Result<Vec<UpdateSummary>> {
         self.stack.history(page_size, page, Some(false)).await
     }
@@ -1291,6 +1300,27 @@ mod tests {
         let recorded = recorder.recorded_args();
         assert_eq!(recorded[0], svec(["stack", "--stack", STACK]));
         assert_eq!(recorded[1], svec(["stack", "init", STACK, "--no-select"]));
+    }
+
+    /// Initialization gives the workspace a stub project file named after
+    /// the stack's project: CLI v3.211 through v3.255 refuse a remote
+    /// up/preview/refresh without one (pulumi/pulumi#24050).
+    #[tokio::test]
+    async fn initialization_writes_a_stub_project_file() {
+        for mode in [InitMode::Create, InitMode::Select, InitMode::CreateOrSelect] {
+            let recorder = Arc::new(RecordingCommand::default());
+            let ws = recording_workspace(&recorder).await;
+            let remote = RemoteStack::init(ws, STACK.to_string(), svec(["--remote"]), mode)
+                .await
+                .unwrap();
+            let settings = remote
+                .stack
+                .workspace()
+                .project_settings()
+                .unwrap_or_else(|e| panic!("no stub project for {mode:?}: {e}"));
+            assert_eq!(settings.name, "project", "{mode:?}");
+            assert_eq!(settings.runtime.unwrap().name(), "yaml", "{mode:?}");
+        }
     }
 
     #[tokio::test]

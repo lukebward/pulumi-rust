@@ -122,8 +122,8 @@ impl Stack {
         !self.remote_args.is_empty()
     }
 
-    /// A remote stack's history never decrypts secrets — that would need
-    /// the project file, which never exists locally — as in Go.
+    /// A remote stack's history never decrypts secrets — the workspace
+    /// holds only a stub project file — as in Go.
     fn history_show_secrets(&self, requested: Option<bool>) -> Option<bool> {
         if self.is_remote() {
             Some(false)
